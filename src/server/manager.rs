@@ -1,3 +1,4 @@
+use super::protocols;
 use actix_web::{middleware, App, HttpServer};
 use paperclip::actix::OpenApiExt;
 use tracing::info;
@@ -12,6 +13,8 @@ pub async fn run(server_address: &str) -> std::io::Result<()> {
             .wrap_api()
             .with_json_spec_at("/api/spec")
             .with_swagger_ui_at("/docs")
+            .configure(protocols::v1::rest::register_services)
+            .service(protocols::v1::websocket::websocket)
             .build()
     });
 

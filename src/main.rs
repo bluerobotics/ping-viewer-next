@@ -2,6 +2,7 @@
 extern crate lazy_static;
 
 mod cli;
+mod device;
 mod logger;
 mod server;
 
