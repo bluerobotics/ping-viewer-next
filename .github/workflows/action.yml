@@ -1,0 +1,38 @@
+name: Test all targets
+
+on: [push, pull_request]
+
+permissions:
+  contents: write
+
+jobs:
+  quick-tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Install build dependencies
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: |
+            curl \
+            git
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set directory to safe for git
+        # Note: Required by vergen (https://crates.io/crates/vergen)
+        run: git config --global --add safe.directory $GITHUB_WORKSPACE
+
+      - name: Install build dependencies - Rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Check style
+        run: cargo fmt --check
+
+      - name: Check clippy
+        run: cargo clippy --all-features
+
+      - name: Build
+        run: cargo build --verbose
