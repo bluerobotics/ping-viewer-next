@@ -1,0 +1,20 @@
+[package]
+name = "ping-viewer-next"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4.6.0"
+chrono = "0.4.38"
+clap = {version = "4.5.4", features = ["derive"] }
+lazy_static = "1.4.0"
+paperclip = { version = "0.8.2" , features = ["actix4", "swagger-ui", "uuid"] }
+tokio = { version = "1.37.0", features = ["full"] }
+tracing = { version = "0.1.40", features = ["log", "async-await"] }
+tracing-log = "0.2.0"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing-appender = { git = "https://github.com/joaoantoniocardoso/tracing", branch = "tracing-appender-0.2.2-with-filename-suffix" }
+tracing-tracy = "0.11.0"
+
+[build-dependencies]
+vergen-gix = { version = "1.0.0-beta.2", default-features = false, features = ["build", "cargo"] }
