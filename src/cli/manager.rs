@@ -1,6 +1,6 @@
 use clap;
-use std::sync::Arc;
 use clap::Parser;
+use std::sync::Arc;
 
 #[derive(Parser, Debug)]
 #[command(version = env!("CARGO_PKG_VERSION"), author = env!("CARGO_PKG_AUTHORS"), about = env!("CARGO_PKG_DESCRIPTION"))]
