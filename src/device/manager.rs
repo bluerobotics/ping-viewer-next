@@ -85,7 +85,7 @@ pub struct DeviceManager {
 #[derive(Debug)]
 pub struct ManagerActorRequest {
     pub request: Request,
-    pub respond_to: oneshot::Sender<Answer>,
+    pub respond_to: oneshot::Sender<Result<Answer, ManagerError>>,
 }
 #[derive(Clone)]
 pub struct ManagerActorHandler {
@@ -105,13 +105,15 @@ pub enum ManagerError {
     DeviceNotExist(Uuid),
     DeviceAlreadyExist(Uuid),
     DeviceIsStopped(Uuid),
-    Other,
+    DeviceError(super::devices::DeviceError),
+    DeviceSourceError(String),
+    NoDevices,
+    TokioMpsc(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-
-pub struct DeviceActorAnswer {
-    pub answer: crate::device::devices::DeviceActorAnswer,
+pub struct PingAnswer {
+    pub answer: Result<crate::device::devices::PingAnswer, crate::device::devices::DeviceError>,
     pub device_id: Uuid,
 }
 
@@ -197,7 +199,7 @@ impl DeviceManager {
     }
 
     pub async fn update_devices_status(&mut self) {
-        if let Answer::DeviceInfo(answer) = self.list().await {
+        if let Ok(Answer::DeviceInfo(answer)) = self.list().await {
             for device in answer {
                 if let Some(device_entry) = self.device.get_mut(&device.id) {
                     if device_entry.status == DeviceStatus::Stopped {
@@ -208,9 +210,6 @@ impl DeviceManager {
                         device_entry.status = DeviceStatus::Stopped;
                     }
                 }
-                if self.device.get(&device.id).unwrap().actor.is_finished() {
-                    self.device.get_mut(&device.id).unwrap().status = DeviceStatus::Stopped;
-                };
             }
         }
     }
@@ -219,13 +218,14 @@ impl DeviceManager {
         &mut self,
         source: SourceSelection,
         mut device_selection: DeviceSelection,
-    ) -> Answer {
+    ) -> Result<Answer, ManagerError> {
         let mut hasher = DefaultHasher::new();
         source.hash(&mut hasher);
         let hash = Uuid::from_u128(hasher.finish().into());
 
         if self.device.contains_key(&hash) {
-            return Answer::Error(ManagerError::DeviceAlreadyExist(hash));
+            trace!("Device creation error: Device already exist for provided SourceSelection, details: {:?}", source);
+            return Err(ManagerError::DeviceAlreadyExist(hash));
         }
 
         let port = match &source {
@@ -285,8 +285,8 @@ impl DeviceManager {
         let (mut device, handler) = super::devices::DeviceActor::new(device, 10);
 
         if device_selection == DeviceSelection::Auto {
-            if let super::devices::PingAnswer::UpgradeResult(result) = device.try_upgrade().await {
-                match result {
+            match device.try_upgrade().await {
+                Ok(super::devices::PingAnswer::UpgradeResult(result)) => match result {
                     super::devices::UpgradeResult::Unknown => {
                         device_selection = DeviceSelection::Common;
                     }
@@ -323,38 +323,52 @@ impl DeviceManager {
 
         self.device.insert(hash, device);
 
-        Answer::DeviceInfo(vec![device_info])
+        info!(
+            "New device created and available, details: {:?}",
+            device_info
+        );
+        Ok(Answer::DeviceInfo(vec![device_info]))
     }
 
-    pub async fn list(&self) -> Answer {
+    pub async fn list(&self) -> Result<Answer, ManagerError> {
+        if self.device.is_empty() {
+            trace!("No devices available for list generation request");
+            return Err(ManagerError::NoDevices);
+        };
         let mut list = Vec::new();
         for device in self.device.values() {
             list.push(device.info())
         }
-        Answer::DeviceInfo(list)
+        Ok(Answer::DeviceInfo(list))
     }
 
-    pub async fn delete(&mut self, device_id: Uuid) -> Answer {
-        match self.device.get(&device_id) {
-            Some(device) => Answer::DeviceInfo(vec![device.info()]),
-            None => Answer::Error(ManagerError::DeviceNotExist(device_id)),
+    pub async fn delete(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
+        match self.device.remove(&device_id) {
+            Some(device) => {
+                info!("Device delete id {:?}: Success", device_id);
+                Ok(Answer::DeviceInfo(vec![device.info()]))
+            }
+            None => {
+                error!(
+                    "Device delete id {:?} : Error, device doesn't exist",
+                    device_id
+                );
+                Err(ManagerError::DeviceNotExist(device_id))
+            }
         }
     }
 
-    pub async fn get_device_handler(&self, target: Uuid) -> Answer {
-        if self.device.contains_key(&target) {
-            let handler: DeviceActorHandler = self.device.get(&target).unwrap().handler.clone();
-            return Answer::InnerDeviceHandler(handler);
+    pub async fn get_device_handler(&self, device_id: Uuid) -> Result<Answer, ManagerError> {
+        if self.device.contains_key(&device_id) {
+            let handler: DeviceActorHandler = self.device.get(&device_id).unwrap().handler.clone();
+            return Ok(Answer::InnerDeviceHandler(handler));
         }
-        Answer::Error(ManagerError::DeviceNotExist(target))
+        Err(ManagerError::DeviceNotExist(device_id))
     }
 }
 
 impl ManagerActorHandler {
-    pub async fn send(
-        &self,
-        request: Request,
-    ) -> Result<Answer, tokio::sync::mpsc::error::SendError<ManagerActorRequest>> {
+    pub async fn send(&self, request: Request) -> Result<Answer, ManagerError> {
         let (result_sender, result_receiver) = oneshot::channel();
 
         let result = match &request {
@@ -365,27 +379,41 @@ impl ManagerActorHandler {
                     request: handler_request,
                     respond_to: result_sender,
                 };
-                self.sender.send(manager_request).await?;
+                self.sender
+                    .send(manager_request)
+                    .await
+                    .map_err(|err| ManagerError::TokioMpsc(err.to_string()))?;
+                let result = match result_receiver
+                    .await
+                    .map_err(|err| ManagerError::TokioMpsc(err.to_string()))
+                {
+                    Ok(ans) => ans,
+                    Err(err) => {
+                        error!("DeviceManagerHandler: Failed to receive handler from Manager, details: {:?}", err);
+                        return Err(err);
+                    }
+                };
 
-                let result = result_receiver.await.unwrap_or(Answer::Error(
-                    ManagerError::ManagerUnreachable(request.clone()),
-                ));
-
-                match result {
+                match result? {
                     Answer::InnerDeviceHandler(handler) => {
                         let result = handler.send(request.request.clone()).await;
                         match result {
-                            Ok(result) => Answer::Ping(DeviceActorAnswer {
-                                answer: result,
-                                device_id: request.target,
-                            }),
-                            Err(_) => {
-                                Answer::Error(ManagerError::DeviceUnreachable(request.target))
+                            Ok(result) => {
+                                info!("Handling Ping request: {:?}: Success", request);
+                                Ok(Answer::Ping(PingAnswer {
+                                    answer: Ok(result),
+                                    device_id: request.target,
+                                }))
+                            }
+                            Err(err) => {
+                                Err(ManagerError::DeviceError(err))
                             }
                         }
                     }
-                    Answer::Error(e) => Answer::Error(e),
-                    _ => Answer::Error(ManagerError::Other), //should be unreachable
+                    Answer::Error(err) => {
+                        Err(err)
+                    }
+                    answer => Ok(answer), //should be unreachable
                 }
             }
             _ => {
@@ -394,14 +422,23 @@ impl ManagerActorHandler {
                     respond_to: result_sender,
                 };
 
-                self.sender.send(device_request).await?;
-
-                result_receiver
+                self.sender
+                    .send(device_request)
                     .await
-                    .unwrap_or(Answer::Error(ManagerError::Other))
-            }
-        };
+                    .map_err(|err| ManagerError::TokioMpsc(err.to_string()))?;
 
-        Ok(result)
+                match result_receiver
+                    .await
+                    .map_err(|err| ManagerError::TokioMpsc(err.to_string()))?
+                {
+                    Ok(ans) => {
+                        Ok(ans)
+                    }
+                    Err(err) => {
+                        Err(err)
+                    }
+                }
+            }
+        }
     }
 }

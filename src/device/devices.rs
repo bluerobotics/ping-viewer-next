@@ -10,80 +10,7 @@ pub struct DeviceActor {
 #[derive(Debug)]
 pub struct DeviceActorRequest {
     pub request: PingRequest,
-    pub respond_to: oneshot::Sender<DeviceActorAnswer>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-
-pub struct DeviceActorAnswer {
-    pub answer: PingAnswer,
-}
-
-#[derive(Clone, Debug)]
-pub struct DeviceActorHandler {
-    pub sender: mpsc::Sender<DeviceActorRequest>,
-}
-impl DeviceActorHandler {
-    pub async fn send(
-        &self,
-        device_request: PingRequest,
-    ) -> Result<DeviceActorAnswer, tokio::sync::mpsc::error::SendError<DeviceActorRequest>> {
-        let (result_sender, result_receiver) = oneshot::channel();
-
-        let device_request = DeviceActorRequest {
-            request: device_request,
-            respond_to: result_sender,
-        };
-
-        self.sender.send(device_request).await?;
-
-        Ok(result_receiver
-            .await
-            .unwrap_or_else(|_| panic!("Failed to receive result from actor")))
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum PingAnswer {
-    PingMessage(bluerobotics_ping::Messages),
-    NotSupported(PingRequest),
-    PingAcknowledge(PingRequest),
-    PingError(bluerobotics_ping::error::PingError),
-    NotImplemented(PingRequest),
-    #[serde(skip)]
-    Subscriber(tokio::sync::broadcast::Receiver<bluerobotics_ping::message::ProtocolMessage>),
-    UpgradeResult(UpgradeResult),
-}
-
-impl Clone for PingAnswer {
-    fn clone(&self) -> Self {
-        match self {
-            PingAnswer::PingMessage(msg) => PingAnswer::PingMessage(msg.clone()),
-            PingAnswer::NotSupported(req) => PingAnswer::NotSupported(req.clone()),
-            PingAnswer::PingAcknowledge(req) => PingAnswer::PingAcknowledge(req.clone()),
-            PingAnswer::PingError(err) => PingAnswer::PingError(err.clone()),
-            PingAnswer::NotImplemented(req) => PingAnswer::NotImplemented(req.clone()),
-            PingAnswer::Subscriber(receiver) => PingAnswer::Subscriber(receiver.resubscribe()),
-            PingAnswer::UpgradeResult(result) => PingAnswer::UpgradeResult(result.clone()),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum UpgradeResult {
-    Unknown,
-    Ping1D,
-    Ping360,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PingRequest {
-    Ping1D(Ping1DRequest),
-    Ping360(Ping360Request),
-    Common(PingCommonRequest),
-    GetSubscriber,
-    Upgrade,
-    Stop,
+    pub respond_to: oneshot::Sender<Result<PingAnswer, DeviceError>>,
 }
 
 impl DeviceActor {
@@ -92,13 +19,13 @@ impl DeviceActor {
             PingRequest::Ping1D(device_request) => match &self.device_type {
                 DeviceType::Ping1D(device) => {
                     let answer = device.handle(device_request).await;
-                    let _ = request.respond_to.send(DeviceActorAnswer { answer });
+                    let _ = request.respond_to.send(answer);
                 }
                 _ => {
                     let ping_request = request.request;
-                    let _ = request.respond_to.send(DeviceActorAnswer {
-                        answer: PingAnswer::NotSupported(ping_request),
-                    });
+                    let _ = request
+                        .respond_to
+                        .send(Ok(PingAnswer::NotSupported(ping_request)));
                 }
             },
             PingRequest::Ping360(device_request) => match &self.device_type {
@@ -108,30 +35,30 @@ impl DeviceActor {
                 }
                 _ => {
                     let ping_request = request.request;
-                    let _ = request.respond_to.send(DeviceActorAnswer {
-                        answer: PingAnswer::NotSupported(ping_request),
-                    });
+                    let _ = request
+                        .respond_to
+                        .send(Ok(PingAnswer::NotSupported(ping_request)));
                 }
             },
             PingRequest::Common(device_request) => match &self.device_type {
                 DeviceType::Common(device) => {
                     let answer = device.handle(device_request).await;
-                    let _ = request.respond_to.send(DeviceActorAnswer { answer });
+                    let _ = request.respond_to.send(answer);
                 }
                 _ => {
                     let ping_request = request.request;
-                    let _ = request.respond_to.send(DeviceActorAnswer {
-                        answer: PingAnswer::NotSupported(ping_request),
-                    });
+                    let _ = request
+                        .respond_to
+                        .send(Ok(PingAnswer::NotSupported(ping_request)));
                 }
             },
             PingRequest::GetSubscriber => {
                 let answer = self.handle(request.request).await;
-                let _ = request.respond_to.send(DeviceActorAnswer { answer });
+                let _ = request.respond_to.send(Ok(answer));
             }
             PingRequest::Upgrade => {
                 let answer = self.try_upgrade().await;
-                let _ = request.respond_to.send(DeviceActorAnswer { answer });
+                let _ = request.respond_to.send(answer);
             }
             _ => todo!(),
         }
@@ -151,43 +78,43 @@ impl DeviceActor {
         self
     }
 
-    pub async fn try_upgrade(&mut self) -> PingAnswer {
-        let result = match &self.device_type {
+    pub async fn try_upgrade(&mut self) -> Result<PingAnswer, DeviceError> {
+        let device_type_check = match &self.device_type {
             DeviceType::Common(device) => {
-                let device_type = match device.device_information().await {
+                let device_type_check = match device.device_information().await {
                     Ok(result) => result.device_type,
                     Err(e) => {
-                        return PingAnswer::PingError(e);
+                        return Err(DeviceError::PingError(e));
                     }
                 };
-                if device_type == 0 {
-                    return PingAnswer::UpgradeResult(UpgradeResult::Unknown);
+                if device_type_check == 0 {
+                    return Ok(PingAnswer::UpgradeResult(UpgradeResult::Unknown));
                 };
-                device_type
+                device_type_check
             }
             DeviceType::Ping1D(device) => {
-                let device_type = match device.device_information().await {
+                let device_type_check = match device.device_information().await {
                     Ok(result) => result.device_type,
                     Err(e) => {
-                        return PingAnswer::PingError(e);
+                        return Err(DeviceError::PingError(e));
                     }
                 };
-                if device_type == 1 {
-                    return PingAnswer::UpgradeResult(UpgradeResult::Ping1D);
+                if device_type_check == 1 {
+                    return Ok(PingAnswer::UpgradeResult(UpgradeResult::Ping1D));
                 };
-                device_type
+                device_type_check
             }
             DeviceType::Ping360(device) => {
-                let device_type = match device.device_information().await {
+                let device_type_check = match device.device_information().await {
                     Ok(result) => result.device_type,
                     Err(e) => {
-                        return PingAnswer::PingError(e);
+                        return Err(DeviceError::PingError(e));
                     }
                 };
-                if device_type == 2 {
-                    return PingAnswer::UpgradeResult(UpgradeResult::Ping360);
+                if device_type_check == 2 {
+                    return Ok(PingAnswer::UpgradeResult(UpgradeResult::Ping360));
                 };
-                device_type
+                device_type_check
             }
             _ => {
                 todo!()
@@ -197,31 +124,20 @@ impl DeviceActor {
         let placeholder = DeviceType::Null;
         let device_type_tmp = std::mem::replace(&mut self.device_type, placeholder);
 
-        match device_type {
-            DeviceType::Common(device) => {
-                let common = device.common;
-                self.device_type = match result {
-                    1 => DeviceType::Ping1D(bluerobotics_ping::ping1d::Device { common }),
-                    2 => DeviceType::Ping360(bluerobotics_ping::ping360::Device { common }),
-                    _ => DeviceType::Common(bluerobotics_ping::common::Device { common }),
-                };
-                PingAnswer::UpgradeResult(match result {
-                    1 => UpgradeResult::Ping1D,
-                    2 => UpgradeResult::Ping360,
-                    _ => UpgradeResult::Unknown,
-                })
-            }
-            DeviceType::Ping1D(_) => {
-                self.device_type = device_type;
-                PingAnswer::UpgradeResult(UpgradeResult::Ping1D)
-            }
-            DeviceType::Ping360(_) => {
-                self.device_type = device_type;
-                PingAnswer::UpgradeResult(UpgradeResult::Ping360)
-            }
+        let upgrade_result = match device_type_check {
+            1 => UpgradeResult::Ping1D,
+            2 => UpgradeResult::Ping360,
+            _ => UpgradeResult::Unknown,
+        };
+
+        self.device_type = match device_type_tmp {
+            DeviceType::Common(device) => create_device_type(device.common, device_type_check),
+            DeviceType::Ping1D(device) => create_device_type(device.common, device_type_check),
+            DeviceType::Ping360(device) => create_device_type(device.common, device_type_check),
             _ => {
-                self.device_type = device_type;
-                PingAnswer::UpgradeResult(UpgradeResult::Unknown)
+                // Unreachable.
+                self.device_type = device_type_tmp;
+                return Ok(PingAnswer::UpgradeResult(UpgradeResult::Unknown));
             }
         };
 
@@ -389,167 +305,205 @@ trait Requests<T> {
 }
 
 impl Requests<Ping1DRequest> for bluerobotics_ping::device::Ping1D {
-    type Reply = PingAnswer;
+    type Reply = Result<PingAnswer, DeviceError>;
 
     async fn handle(&self, msg: Ping1DRequest) -> Self::Reply {
         match msg.clone() {
             Ping1DRequest::DeviceID => match self.device_id().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::DeviceId(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::DeviceId(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::Distance => match self.distance().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::Distance(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::Distance(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::ModeAuto => match self.mode_auto().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::ModeAuto(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::ModeAuto(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::Profile => match self.profile().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::Profile(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::Profile(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::SpeedOfSound => match self.speed_of_sound().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::SpeedOfSound(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::SpeedOfSound(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::Voltage5 => match self.voltage_5().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::Voltage5(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::Voltage5(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::DeviceId => match self.device_id().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::DeviceId(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::DeviceId(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::FirmwareVersion => match self.firmware_version().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::FirmwareVersion(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::FirmwareVersion(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::Range => match self.range().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::Range(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::Range(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::TransmitDuration => match self.transmit_duration().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::TransmitDuration(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::TransmitDuration(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::PingInterval => match self.ping_interval().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::PingInterval(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::PingInterval(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::ProcessorTemperature => match self.processor_temperature().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::ProcessorTemperature(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::ProcessorTemperature(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::PcbTemperature => match self.pcb_temperature().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::PcbTemperature(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::PcbTemperature(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::GeneralInfo => match self.general_info().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::GeneralInfo(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::GeneralInfo(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::GainSetting => match self.gain_setting().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::GainSetting(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::GainSetting(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::PingEnable => match self.ping_enable().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::PingEnable(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::PingEnable(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::DistanceSimple => match self.distance_simple().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping1D(
-                    bluerobotics_ping::ping1d::Messages::DistanceSimple(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping1D(
+                        bluerobotics_ping::ping1d::Messages::DistanceSimple(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             Ping1DRequest::SetDeviceId(req_body) => {
                 match self.set_device_id(req_body.device_id).await {
-                    Ok(_) => PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg)),
-                    Err(e) => PingAnswer::PingError(e),
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
                 }
             }
             Ping1DRequest::ContinuousStart(req_body) => {
                 match self.continuous_start(req_body.id).await {
-                    Ok(_) => PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg)),
-                    Err(e) => PingAnswer::PingError(e),
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
                 }
             }
             Ping1DRequest::ContinuousStop(req_body) => {
                 match self.continuous_stop(req_body.id).await {
-                    Ok(_) => PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg)),
-                    Err(e) => PingAnswer::PingError(e),
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
                 }
             }
-            _ => PingAnswer::NotImplemented(PingRequest::Ping1D(msg)),
+            _ => Ok(PingAnswer::NotImplemented(PingRequest::Ping1D(msg))),
         }
     }
 }
 
 impl Requests<Ping360Request> for bluerobotics_ping::device::Ping360 {
-    type Reply = PingAnswer;
+    type Reply = Result<PingAnswer, DeviceError>;
 
     async fn handle(&self, msg: Ping360Request) -> Self::Reply {
         match msg.clone() {
             Ping360Request::MotorOff => match self.motor_off().await {
-                Ok(_) => PingAnswer::PingAcknowledge(PingRequest::Ping360(msg)),
-                Err(e) => PingAnswer::PingError(e),
+                Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping360(msg))),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
-            _ => PingAnswer::NotImplemented(PingRequest::Ping360(msg)),
+            _ => Ok(PingAnswer::NotImplemented(PingRequest::Ping360(msg))),
         }
     }
 }
 
 impl Requests<PingCommonRequest> for bluerobotics_ping::common::Device {
-    type Reply = PingAnswer;
+    type Reply = Result<PingAnswer, DeviceError>;
 
     async fn handle(&self, msg: PingCommonRequest) -> Self::Reply {
         match msg.clone() {
             PingCommonRequest::ProtocolVersion => match self.protocol_version().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Common(
-                    bluerobotics_ping::common::Messages::ProtocolVersion(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Common(
+                        bluerobotics_ping::common::Messages::ProtocolVersion(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
             PingCommonRequest::DeviceInformation => match self.device_information().await {
-                Ok(result) => PingAnswer::PingMessage(bluerobotics_ping::Messages::Common(
-                    bluerobotics_ping::common::Messages::DeviceInformation(result),
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Common(
+                        bluerobotics_ping::common::Messages::DeviceInformation(result),
+                    ),
                 )),
-                Err(e) => PingAnswer::PingError(e),
+                Err(e) => Err(DeviceError::PingError(e)),
             },
-            _ => PingAnswer::NotImplemented(PingRequest::Common(msg)),
+            _ => Ok(PingAnswer::NotImplemented(PingRequest::Common(msg))),
         }
     }
 }
