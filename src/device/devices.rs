@@ -1,6 +1,7 @@
 use bluerobotics_ping::device::PingDevice;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
+use tracing::{error, trace, warn};
 
 pub struct DeviceActor {
     pub receiver: mpsc::Receiver<DeviceActorRequest>,
@@ -18,10 +19,15 @@ impl DeviceActor {
         match request.request.clone() {
             PingRequest::Ping1D(device_request) => match &self.device_type {
                 DeviceType::Ping1D(device) => {
+                    trace!("Handling Ping1D request: {:?}", device_request);
                     let answer = device.handle(device_request).await;
                     let _ = request.respond_to.send(answer);
                 }
                 _ => {
+                    warn!(
+                        "Unsupported request for device type: {:?}",
+                        &self.device_type
+                    );
                     let ping_request = request.request;
                     let _ = request
                         .respond_to
@@ -30,10 +36,15 @@ impl DeviceActor {
             },
             PingRequest::Ping360(device_request) => match &self.device_type {
                 DeviceType::Ping360(device) => {
+                    trace!("Handling Ping360 request: {:?}", device_request);
                     let answer = device.handle(device_request).await;
-                    let _ = request.respond_to.send(DeviceActorAnswer { answer });
+                    let _ = request.respond_to.send(answer);
                 }
                 _ => {
+                    warn!(
+                        "Unsupported request for device type: {:?}",
+                        &self.device_type
+                    );
                     let ping_request = request.request;
                     let _ = request
                         .respond_to
@@ -42,10 +53,15 @@ impl DeviceActor {
             },
             PingRequest::Common(device_request) => match &self.device_type {
                 DeviceType::Common(device) => {
+                    trace!("Handling Common request: {:?}", device_request);
                     let answer = device.handle(device_request).await;
                     let _ = request.respond_to.send(answer);
                 }
                 _ => {
+                    warn!(
+                        "Unsupported request for device type: {:?}",
+                        &self.device_type
+                    );
                     let ping_request = request.request;
                     let _ = request
                         .respond_to
@@ -121,6 +137,22 @@ impl DeviceActor {
             }
         };
 
+        // Previous strategy tested and return fast if error/or already have the device upgraded,
+        // Otherwise it will be upgraded or return current structure.
+
+        // Helper function to create a new device type based on the type check
+        fn create_device_type(
+            common: bluerobotics_ping::device::Common,
+            device_type_check: u8,
+        ) -> DeviceType {
+            match device_type_check {
+                1 => DeviceType::Ping1D(bluerobotics_ping::ping1d::Device { common }),
+                2 => DeviceType::Ping360(bluerobotics_ping::ping360::Device { common }),
+                _ => DeviceType::Common(bluerobotics_ping::common::Device { common }),
+            }
+        }
+
+        // Strategy to manipulate self.device_type while matches the current value.
         let placeholder = DeviceType::Null;
         let device_type_tmp = std::mem::replace(&mut self.device_type, placeholder);
 

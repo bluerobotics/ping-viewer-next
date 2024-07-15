@@ -6,7 +6,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
-// use tracing::{error, info};
+use tracing::{error, info, trace};
 use udp_stream::UdpStream;
 use uuid::Uuid;
 
@@ -360,9 +360,22 @@ impl DeviceManager {
 
     pub async fn get_device_handler(&self, device_id: Uuid) -> Result<Answer, ManagerError> {
         if self.device.contains_key(&device_id) {
-            let handler: DeviceActorHandler = self.device.get(&device_id).unwrap().handler.clone();
-            return Ok(Answer::InnerDeviceHandler(handler));
+            trace!(
+                "Getting device handler for device: {:?} : Success",
+                device_id
+            );
+
+            if self.device.get(&device_id).unwrap().status == DeviceStatus::Running {
+                let handler: DeviceActorHandler =
+                    self.device.get(&device_id).unwrap().handler.clone();
+                return Ok(Answer::InnerDeviceHandler(handler));
+            };
+            return Err(ManagerError::DeviceIsStopped(device_id));
         }
+        error!(
+            "Getting device handler for device: {:?} : Error, device doesn't exist",
+            device_id
+        );
         Err(ManagerError::DeviceNotExist(device_id))
     }
 }
@@ -371,8 +384,13 @@ impl ManagerActorHandler {
     pub async fn send(&self, request: Request) -> Result<Answer, ManagerError> {
         let (result_sender, result_receiver) = oneshot::channel();
 
-        let result = match &request {
+        match &request {
+            // Devices requests are forwarded directly to device and let manager handle other incoming request.
             Request::Ping(request) => {
+                trace!(
+                    "Handling Ping request: {:?}: Forwarding request to device handler",
+                    request
+                );
                 let get_handler_target = request.target;
                 let handler_request = Request::GetDeviceHandler(get_handler_target);
                 let manager_request = ManagerActorRequest {
@@ -396,6 +414,10 @@ impl ManagerActorHandler {
 
                 match result? {
                     Answer::InnerDeviceHandler(handler) => {
+                        trace!(
+                            "Handling Ping request: {:?}: Successfully received the handler",
+                            request
+                        );
                         let result = handler.send(request.request.clone()).await;
                         match result {
                             Ok(result) => {
@@ -406,17 +428,22 @@ impl ManagerActorHandler {
                                 }))
                             }
                             Err(err) => {
+                                error!(
+                                    "Handling Ping request: {:?}: Error ocurred on device: {:?}",
+                                    request, err
+                                );
                                 Err(ManagerError::DeviceError(err))
                             }
                         }
-                    }
-                    Answer::Error(err) => {
-                        Err(err)
                     }
                     answer => Ok(answer), //should be unreachable
                 }
             }
             _ => {
+                trace!(
+                    "Handling DeviceManager request: {:?}: Forwarding request.",
+                    request
+                );
                 let device_request = ManagerActorRequest {
                     request: request.clone(),
                     respond_to: result_sender,
@@ -432,9 +459,14 @@ impl ManagerActorHandler {
                     .map_err(|err| ManagerError::TokioMpsc(err.to_string()))?
                 {
                     Ok(ans) => {
+                        info!("Handling DeviceManager request: {:?}: Success", request);
                         Ok(ans)
                     }
                     Err(err) => {
+                        error!(
+                            "Handling DeviceManager request: {:?}: Error ocurred on manager: {:?}",
+                            request, err
+                        );
                         Err(err)
                     }
                 }

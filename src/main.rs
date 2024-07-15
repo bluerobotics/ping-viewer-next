@@ -1,3 +1,5 @@
+use tracing::info;
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -15,6 +17,15 @@ async fn main() {
 
     let (manager, handler) = device::manager::DeviceManager::new(10);
     tokio::spawn(async move { manager.run().await });
+
+    //Todo: Load previous devices
+    info!(
+        "DeviceManager initialized with following devices: {:?}",
+        handler
+            .send(crate::device::manager::Request::List {})
+            .await
+            .unwrap()
+    );
 
     server::manager::run(&cli::manager::server_address())
         .await
