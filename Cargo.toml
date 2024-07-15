@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4.6.0"
-bluerobotics-ping = "0.2.2"
+bluerobotics-ping = "0.2.3"
 chrono = "0.4.38"
 clap = {version = "4.5.4", features = ["derive"] }
 lazy_static = "1.4.0"
