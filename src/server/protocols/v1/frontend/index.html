@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ping Viewer Next</title>
+    <script>
+        function redirectToDocs() {
+            window.location.href = '/docs/';
+        }
+
+        let socket;
+
+        function connectWebSocket() {
+            socket = new WebSocket('ws://' + window.location.host + '/ws');
+
+            socket.onopen = function(event) {
+                document.getElementById('status').innerText = 'Connected';
+            };
+
+            socket.onmessage = function(event) {
+                const messagesDiv = document.getElementById('messages');
+                const messageElement = document.createElement('div');
+                messageElement.textContent = event.data;
+                messagesDiv.appendChild(messageElement);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;  // Auto-scroll to the bottom
+            };
+
+            socket.onclose = function(event) {
+                document.getElementById('status').innerText = 'Disconnected';
+            };
+
+            socket.onerror = function(event) {
+                document.getElementById('status').innerText = 'Error';
+            };
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value;
+            if (message && socket.readyState === WebSocket.OPEN) {
+                socket.send(message);
+                messageInput.value = '';
+            }
+        }
+
+        window.onload = function() {
+            connectWebSocket();
+        };
+    </script>
+</head>
+<body>
+    <h1>Ping Viewer Next</h1>
+    <button onclick="redirectToDocs()">Check API specifications</button>
+    <h2>Websocket Client</h2>
+    <div id="status">Connecting...</div>
+    <div id="messages" style="border: 1px solid #ccc; height: 600px; overflow-y: scroll; padding: 5px; white-space: pre-wrap;"></div>
+    <input type="text" id="messageInput" placeholder="Type your message here" />
+    <button onclick="sendMessage()">Send</button>
+</body>
+</html>
