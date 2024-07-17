@@ -1,3 +1,4 @@
+use paperclip::actix::Apiv2Schema;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
@@ -59,13 +60,13 @@ enum SourceType {
     Serial(SerialStream),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Hash)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema)]
 pub struct SourceUdpStruct {
     pub ip: Ipv4Addr,
     pub port: u16,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Hash)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema)]
 pub struct SourceSerialStruct {
     pub path: String,
     pub baudrate: u32,
@@ -92,9 +93,9 @@ pub struct ManagerActorHandler {
     pub sender: mpsc::Sender<ManagerActorRequest>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Apiv2Schema)]
 pub enum Answer {
-    Ping(PingAnswer),
+    DeviceMessage(DeviceAnswer),
     #[serde(skip)]
     InnerDeviceHandler(DeviceActorHandler),
     DeviceInfo(Vec<DeviceInfo>),
@@ -113,12 +114,13 @@ pub enum ManagerError {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PingAnswer {
-    pub answer: Result<crate::device::devices::PingAnswer, crate::device::devices::DeviceError>,
+pub struct DeviceAnswer {
+    #[serde(flatten)]
+    pub answer: crate::device::devices::PingAnswer,
     pub device_id: Uuid,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
 pub enum Request {
     Create(CreateStruct),
     Delete(Uuid),
@@ -410,8 +412,8 @@ impl ManagerActorHandler {
                         match result {
                             Ok(result) => {
                                 info!("Handling Ping request: {request:?}: Success");
-                                Ok(Answer::Ping(PingAnswer {
-                                    answer: Ok(result),
+                                Ok(Answer::DeviceMessage(DeviceAnswer {
+                                    answer: result,
                                     device_id: request.target,
                                 }))
                             }

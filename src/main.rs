@@ -21,13 +21,10 @@ async fn main() {
     //Todo: Load previous devices
     info!(
         "DeviceManager initialized with following devices: {:?}",
-        handler
-            .send(crate::device::manager::Request::List {})
-            .await
-            .unwrap()
+        handler.send(crate::device::manager::Request::List).await
     );
 
-    server::manager::run(&cli::manager::server_address())
+    server::manager::run(&cli::manager::server_address(), handler)
         .await
         .unwrap();
 }
