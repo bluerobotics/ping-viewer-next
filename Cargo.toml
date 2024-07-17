@@ -4,13 +4,19 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
+actix = "0.13.3"
 actix-web = "4.6.0"
 bluerobotics-ping = "0.2.3"
+actix-web-actors = "4.3.0"
 chrono = "0.4.38"
 clap = {version = "4.5.4", features = ["derive"] }
 lazy_static = "1.4.0"
+mime_guess = "2.0.4"
 paperclip = { version = "0.8.2" , features = ["actix4", "swagger-ui", "uuid"] }
 serde = { version = "1.0.197", features = ["derive"] }
+regex = "1.10.4"
+rust-embed = "8.4.0"
+serde_json = "1.0.117"
 tokio = { version = "1.37.0", features = ["full"] }
 tokio-serial = "5.4.4"
 tracing = { version = "0.1.40", features = ["log", "async-await"] }
@@ -20,6 +26,8 @@ tracing-appender = { git = "https://github.com/joaoantoniocardoso/tracing", bran
 tracing-tracy = "0.11.0"
 udp-stream = "0.0.12"
 uuid = { version = "1.8", features = ["serde"] }
+validator = "0.18.1"
+thiserror = "1.0.61"
 
 [build-dependencies]
 vergen-gix = { version = "1.0.0-beta.2", default-features = false, features = ["build", "cargo"] }
