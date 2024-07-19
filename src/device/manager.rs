@@ -6,7 +6,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
-use tracing::{error, info, trace};
+use tracing::{error, info, trace, warn};
 use udp_stream::UdpStream;
 use uuid::Uuid;
 
@@ -109,6 +109,7 @@ pub enum ManagerError {
     DeviceSourceError(String),
     NoDevices,
     TokioMpsc(String),
+    NotImplemented(Request),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -174,7 +175,14 @@ impl DeviceManager {
                     );
                 }
             }
-            _ => todo!(), // Unreachable, DeviceManagerHandler uses GetDeviceHandler and forwards the requests.
+            _ => {
+                if let Err(e) = actor_request
+                    .respond_to
+                    .send(Err(ManagerError::NotImplemented(actor_request.request)))
+                {
+                    warn!("DeviceManager: Failed to return response: {:?}", e);
+                }
+            }
         }
     }
 
