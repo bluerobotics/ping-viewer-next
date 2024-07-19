@@ -143,36 +143,30 @@ pub struct DeviceRequestStruct {
 
 impl DeviceManager {
     async fn handle_message(&mut self, actor_request: ManagerActorRequest) {
-        trace!(
-            "DeviceManager: Received a request, details: {:?}",
-            actor_request
-        );
+        trace!("DeviceManager: Received a request, details: {actor_request:?}");
         match actor_request.request {
             Request::Create(request) => {
                 let result = self.create(request.source, request.device_selection).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
-                    error!("DeviceManager: Failed to return Create response: {:?}", e);
+                    error!("DeviceManager: Failed to return Create response: {e:?}");
                 }
             }
             Request::Delete(uuid) => {
                 let result = self.delete(uuid).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
-                    error!("DeviceManager: Failed to return Delete response: {:?}", e);
+                    error!("DeviceManager: Failed to return Delete response: {e:?}");
                 }
             }
             Request::List => {
                 let result = self.list().await;
                 if let Err(e) = actor_request.respond_to.send(result) {
-                    error!("DeviceManager: Failed to return List response: {:?}", e);
+                    error!("DeviceManager: Failed to return List response: {e:?}");
                 }
             }
             Request::GetDeviceHandler(id) => {
                 let answer = self.get_device_handler(id).await;
                 if let Err(e) = actor_request.respond_to.send(answer) {
-                    error!(
-                        "DeviceManager: Failed to return GetDeviceHandler response: {:?}",
-                        e
-                    );
+                    error!("DeviceManager: Failed to return GetDeviceHandler response: {e:?}");
                 }
             }
             _ => {
@@ -180,7 +174,7 @@ impl DeviceManager {
                     .respond_to
                     .send(Err(ManagerError::NotImplemented(actor_request.request)))
                 {
-                    warn!("DeviceManager: Failed to return response: {:?}", e);
+                    warn!("DeviceManager: Failed to return response: {e:?}");
                 }
             }
         }
@@ -214,7 +208,7 @@ impl DeviceManager {
                         break;
                     }
                     if device_entry.actor.is_finished() {
-                        info!("Device stopped, device id: {:?}", device);
+                        info!("Device stopped, device id: {device:?}");
                         device_entry.status = DeviceStatus::Stopped;
                     }
                 }
@@ -232,7 +226,7 @@ impl DeviceManager {
         let hash = Uuid::from_u128(hasher.finish().into());
 
         if self.device.contains_key(&hash) {
-            trace!("Device creation error: Device already exist for provided SourceSelection, details: {:?}", source);
+            trace!("Device creation error: Device already exist for provided SourceSelection, details: {source:?}");
             return Err(ManagerError::DeviceAlreadyExist(hash));
         }
 
@@ -307,8 +301,7 @@ impl DeviceManager {
                 },
                 Err(err) => {
                     error!(
-                        "Device creation error: Can't auto upgrade the DeviceType, details: {:?}",
-                        err
+                        "Device creation error: Can't auto upgrade the DeviceType, details: {err:?}"
                     );
                     return Err(ManagerError::DeviceError(err));
                 }
@@ -357,10 +350,7 @@ impl DeviceManager {
                 Ok(Answer::DeviceInfo(vec![device.info()]))
             }
             None => {
-                error!(
-                    "Device delete id {:?} : Error, device doesn't exist",
-                    device_id
-                );
+                error!("Device delete id {device_id:?} : Error, device doesn't exist");
                 Err(ManagerError::DeviceNotExist(device_id))
             }
         }
@@ -368,10 +358,7 @@ impl DeviceManager {
 
     pub async fn get_device_handler(&self, device_id: Uuid) -> Result<Answer, ManagerError> {
         if self.device.contains_key(&device_id) {
-            trace!(
-                "Getting device handler for device: {:?} : Success",
-                device_id
-            );
+            trace!("Getting device handler for device: {device_id:?} : Success");
 
             if self.device.get(&device_id).unwrap().status == DeviceStatus::Running {
                 let handler: DeviceActorHandler =
@@ -380,10 +367,7 @@ impl DeviceManager {
             };
             return Err(ManagerError::DeviceIsStopped(device_id));
         }
-        error!(
-            "Getting device handler for device: {:?} : Error, device doesn't exist",
-            device_id
-        );
+        error!("Getting device handler for device: {device_id:?} : Error, device doesn't exist");
         Err(ManagerError::DeviceNotExist(device_id))
     }
 }
@@ -395,10 +379,7 @@ impl ManagerActorHandler {
         match &request {
             // Devices requests are forwarded directly to device and let manager handle other incoming request.
             Request::Ping(request) => {
-                trace!(
-                    "Handling Ping request: {:?}: Forwarding request to device handler",
-                    request
-                );
+                trace!("Handling Ping request: {request:?}: Forwarding request to device handler");
                 let get_handler_target = request.target;
                 let handler_request = Request::GetDeviceHandler(get_handler_target);
                 let manager_request = ManagerActorRequest {
@@ -415,7 +396,7 @@ impl ManagerActorHandler {
                 {
                     Ok(ans) => ans,
                     Err(err) => {
-                        error!("DeviceManagerHandler: Failed to receive handler from Manager, details: {:?}", err);
+                        error!("DeviceManagerHandler: Failed to receive handler from Manager, details: {err:?}");
                         return Err(err);
                     }
                 };
@@ -423,13 +404,12 @@ impl ManagerActorHandler {
                 match result? {
                     Answer::InnerDeviceHandler(handler) => {
                         trace!(
-                            "Handling Ping request: {:?}: Successfully received the handler",
-                            request
+                            "Handling Ping request: {request:?}: Successfully received the handler"
                         );
                         let result = handler.send(request.request.clone()).await;
                         match result {
                             Ok(result) => {
-                                info!("Handling Ping request: {:?}: Success", request);
+                                info!("Handling Ping request: {request:?}: Success");
                                 Ok(Answer::Ping(PingAnswer {
                                     answer: Ok(result),
                                     device_id: request.target,
@@ -437,9 +417,7 @@ impl ManagerActorHandler {
                             }
                             Err(err) => {
                                 error!(
-                                    "Handling Ping request: {:?}: Error ocurred on device: {:?}",
-                                    request, err
-                                );
+                                    "Handling Ping request: {request:?}: Error ocurred on device: {err:?}"                                );
                                 Err(ManagerError::DeviceError(err))
                             }
                         }
@@ -448,10 +426,7 @@ impl ManagerActorHandler {
                 }
             }
             _ => {
-                trace!(
-                    "Handling DeviceManager request: {:?}: Forwarding request.",
-                    request
-                );
+                trace!("Handling DeviceManager request: {request:?}: Forwarding request.");
                 let device_request = ManagerActorRequest {
                     request: request.clone(),
                     respond_to: result_sender,
@@ -467,13 +442,12 @@ impl ManagerActorHandler {
                     .map_err(|err| ManagerError::TokioMpsc(err.to_string()))?
                 {
                     Ok(ans) => {
-                        info!("Handling DeviceManager request: {:?}: Success", request);
+                        info!("Handling DeviceManager request: {request:?}: Success");
                         Ok(ans)
                     }
                     Err(err) => {
                         error!(
-                            "Handling DeviceManager request: {:?}: Error ocurred on manager: {:?}",
-                            request, err
+                            "Handling DeviceManager request: {request:?}: Error ocurred on manager: {err:?}",
                         );
                         Err(err)
                     }

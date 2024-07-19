@@ -19,7 +19,7 @@ impl DeviceActor {
         match request.request.clone() {
             PingRequest::Ping1D(device_request) => match &self.device_type {
                 DeviceType::Ping1D(device) => {
-                    trace!("Handling Ping1D request: {:?}", device_request);
+                    trace!("Handling Ping1D request: {device_request:?}");
                     let answer = device.handle(device_request).await;
                     let _ = request.respond_to.send(answer);
                 }
@@ -36,7 +36,7 @@ impl DeviceActor {
             },
             PingRequest::Ping360(device_request) => match &self.device_type {
                 DeviceType::Ping360(device) => {
-                    trace!("Handling Ping360 request: {:?}", device_request);
+                    trace!("Handling Ping360 request: {device_request:?}");
                     let answer = device.handle(device_request).await;
                     let _ = request.respond_to.send(answer);
                 }
@@ -53,7 +53,7 @@ impl DeviceActor {
             },
             PingRequest::Common(device_request) => match &self.device_type {
                 DeviceType::Common(device) => {
-                    trace!("Handling Common request: {:?}", device_request);
+                    trace!("Handling Common request: {device_request:?}");
                     let answer = device.handle(device_request).await;
                     let _ = request.respond_to.send(answer);
                 }
@@ -203,10 +203,7 @@ impl DeviceActorHandler {
         };
 
         if let Err(err) = self.sender.send(device_request).await {
-            error!(
-                "DeviceManagerHandler: Failed to reach Device, details: {:?}",
-                err
-            );
+            error!("DeviceManagerHandler: Failed to reach Device, details: {err:?}");
             return Err(DeviceError::TokioError(err.to_string()));
         }
 
@@ -217,8 +214,7 @@ impl DeviceActorHandler {
             Ok(ans) => ans,
             Err(err) => {
                 error!(
-                    "DeviceManagerHandler: Failed to receive message from Device, details: {:?}",
-                    err
+                    "DeviceManagerHandler: Failed to receive message from Device, details: {err:?}"
                 );
                 Err(err)
             }
