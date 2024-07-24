@@ -76,6 +76,7 @@ pub struct SourceSerialStruct {
 pub enum DeviceStatus {
     Running,
     Stopped,
+    Broadcasting,
 }
 
 pub struct DeviceManager {
@@ -105,7 +106,7 @@ pub enum Answer {
 pub enum ManagerError {
     DeviceNotExist(Uuid),
     DeviceAlreadyExist(Uuid),
-    DeviceIsStopped(Uuid),
+    DeviceStatus(DeviceStatus, Uuid),
     DeviceError(super::devices::DeviceError),
     DeviceSourceError(String),
     NoDevices,
@@ -129,6 +130,8 @@ pub enum Request {
     Search,
     Ping(DeviceRequestStruct),
     GetDeviceHandler(Uuid),
+    EnableBroadcasting(Uuid),
+    DisableBroadcasting(Uuid),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -391,6 +394,12 @@ impl DeviceManager {
     pub async fn get_device_handler(&self, device_id: Uuid) -> Result<Answer, ManagerError> {
         if self.device.contains_key(&device_id) {
             trace!("Getting device handler for device: {device_id:?} : Success");
+        self.check_device_uuid(device_id)?;
+
+        trace!(
+            "Getting device handler for device: {:?} : Success",
+            device_id
+        );
 
             if self.device.get(&device_id).unwrap().status == DeviceStatus::Running {
                 let handler: DeviceActorHandler =
@@ -399,8 +408,79 @@ impl DeviceManager {
             };
             return Err(ManagerError::DeviceIsStopped(device_id));
         }
-        error!("Getting device handler for device: {device_id:?} : Error, device doesn't exist");
+        error!(
+            "Getting device handler for device: {:?} : Error, device doesn't exist",
+            device_id
+        );
         Err(ManagerError::DeviceNotExist(device_id))
+    }
+
+    fn check_device_status(
+        &self,
+        device_id: Uuid,
+        valid_statuses: &[DeviceStatus],
+    ) -> Result<(), ManagerError> {
+        let status = &self.get_device(device_id)?.status;
+        if !valid_statuses.contains(status) {
+            return Err(ManagerError::DeviceStatus(status.clone(), device_id));
+        }
+        Ok(())
+    }
+
+    fn get_device(&self, device_id: Uuid) -> Result<&Device, ManagerError> {
+        let device = self
+            .device
+            .get(&device_id)
+            .ok_or(ManagerError::DeviceNotExist(device_id))?;
+        Ok(device)
+    }
+
+    fn get_mut_device(&mut self, device_id: Uuid) -> Result<&mut Device, ManagerError> {
+        let device = self
+            .device
+            .get_mut(&device_id)
+            .ok_or(ManagerError::DeviceNotExist(device_id))?;
+        Ok(device)
+    }
+
+    fn get_device_type(&self, device_id: Uuid) -> Result<DeviceSelection, ManagerError> {
+        let device_type = self.device.get(&device_id).unwrap().device_type.clone();
+        Ok(device_type)
+    }
+
+    fn extract_handler(&self, device_handler: Answer) -> Result<DeviceActorHandler, ManagerError> {
+        match device_handler {
+            Answer::InnerDeviceHandler(handler) => Ok(handler),
+            answer => Err(ManagerError::Other(format!(
+                "Unreachable: extract_handler helper, detail: {answer:?}"
+            ))),
+        }
+    }
+
+    async fn get_subscriber(
+        &self,
+        device_id: Uuid,
+    ) -> Result<
+        tokio::sync::broadcast::Receiver<bluerobotics_ping::message::ProtocolMessage>,
+        ManagerError,
+    > {
+        let handler_request = self.get_device_handler(device_id).await?;
+        let handler = self.extract_handler(handler_request)?;
+
+        let subscriber = handler
+            .send(super::devices::PingRequest::GetSubscriber)
+            .await
+            .map_err(|err| {
+                trace!("Something went wrong while executing get_subscriber, details: {err:?}");
+                ManagerError::DeviceError(err)
+            })?;
+
+        match subscriber {
+            super::devices::PingAnswer::Subscriber(subscriber) => Ok(subscriber),
+            _ => Err(ManagerError::Other(
+                "Unreachable: get_subscriber helper".to_string(),
+            )),
+        }
     }
 }
 
