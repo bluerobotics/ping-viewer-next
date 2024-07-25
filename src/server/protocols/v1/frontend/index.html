@@ -21,13 +21,7 @@
             socket.onmessage = function(event) {
                 const messagesDiv = document.getElementById('messages');
                 const messageElement = document.createElement('div');
-                try {
-                    const jsonObject = JSON.parse(event.data);
-                    const prettyJson = JSON.stringify(jsonObject, null, 2);
-                    messageElement.textContent = prettyJson;
-                } catch (error) {
-                    messageElement.textContent = event.data;
-                }
+                messageElement.textContent = event.data;
                 messagesDiv.appendChild(messageElement);
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;  // Auto-scroll to the bottom
             };
