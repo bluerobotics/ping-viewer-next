@@ -192,6 +192,20 @@ pub async fn websocket(
     };
     let device_number = query.into_inner().device_number;
 
+    if let Some(device_number) = device_number {
+        let request = crate::device::manager::Request::Info(device_number);
+        match manager_handler.send(request).await {
+            Ok(response) => {
+                info!(
+                    "ServerManager: Received websocket request connection for device: {response:?}"
+                );
+            }
+            Err(err) => {
+                return Ok(HttpResponse::InternalServerError().json(json!(err)));
+            }
+        }
+    }
+
     ws::start(
         WebsocketActor::new(filter, device_number, manager_handler.clone()),
         &req,
