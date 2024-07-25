@@ -42,6 +42,20 @@ impl Device {
     }
 }
 
+impl Drop for Device {
+    fn drop(&mut self) {
+        trace!(
+            "Removing Device from DeviceManager, details: {:?}",
+            self.info()
+        );
+        self.actor.abort();
+        if let Some(broadcast_handle) = &self.broadcast {
+            trace!("Device broadcast handle closed for: {:?}", self.info().id);
+            broadcast_handle.abort();
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum DeviceSelection {
     Common,
@@ -381,8 +395,10 @@ impl DeviceManager {
     pub async fn delete(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
         match self.device.remove(&device_id) {
             Some(device) => {
-                info!("Device delete id {:?}: Success", device_id);
-                Ok(Answer::DeviceInfo(vec![device.info()]))
+                let device_info = device.info();
+                drop(device);
+                trace!("Device delete id {:?}: Success", device_id);
+                Ok(Answer::DeviceInfo(vec![device_info]))
             }
             None => {
                 error!("Device delete id {device_id:?} : Error, device doesn't exist");
