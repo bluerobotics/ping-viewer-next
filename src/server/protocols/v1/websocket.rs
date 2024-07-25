@@ -70,7 +70,7 @@ pub fn send_to_websockets(message: Value, device: Option<Uuid>) {
     MANAGER
         .lock()
         .unwrap()
-        .send(&message, &message.to_string(), &device);
+        .send(&message, &message.to_string(), device);
 }
 
 pub struct WebsocketActor {
