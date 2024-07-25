@@ -25,8 +25,8 @@ impl DeviceActor {
                 }
                 _ => {
                     warn!(
-                        "Unsupported request for device type: {:?}",
-                        &self.device_type
+                        "Unsupported request:{:?} for device type: {:?}",
+                        request.request, &self.device_type
                     );
                     let ping_request = request.request;
                     let _ = request
@@ -42,8 +42,8 @@ impl DeviceActor {
                 }
                 _ => {
                     warn!(
-                        "Unsupported request for device type: {:?}",
-                        &self.device_type
+                        "Unsupported request:{:?} for device type: {:?}",
+                        request.request, &self.device_type
                     );
                     let ping_request = request.request;
                     let _ = request
@@ -59,8 +59,8 @@ impl DeviceActor {
                 }
                 _ => {
                     warn!(
-                        "Unsupported request for device type: {:?}",
-                        &self.device_type
+                        "Unsupported request:{:?} for device type: {:?}",
+                        request.request, &self.device_type
                     );
                     let ping_request = request.request;
                     let _ = request
@@ -479,6 +479,12 @@ impl Requests<Ping1DRequest> for bluerobotics_ping::device::Ping1D {
             },
             Ping1DRequest::SetDeviceId(req_body) => {
                 match self.set_device_id(req_body.device_id).await {
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
+                }
+            }
+            Ping1DRequest::SetSpeedOfSound(req_body) => {
+                match self.set_speed_of_sound(req_body.speed_of_sound).await {
                     Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg))),
                     Err(e) => Err(DeviceError::PingError(e)),
                 }
