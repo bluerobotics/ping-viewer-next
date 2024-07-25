@@ -43,7 +43,7 @@ pub struct WebsocketManager {
 }
 
 impl WebsocketManager {
-    pub fn send(&self, value: &serde_json::Value, name: &str, device_number: &Option<Uuid>) {
+    pub fn send(&self, value: &serde_json::Value, name: &str, device_number: Option<Uuid>) {
         if self.clients.is_empty() {
             return;
         }
