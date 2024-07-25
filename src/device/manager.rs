@@ -125,7 +125,7 @@ pub enum Request {
     Create(CreateStruct),
     Delete(Uuid),
     List,
-    Status,
+    Info(Uuid),
     Search,
     Ping(DeviceRequestStruct),
     GetDeviceHandler(Uuid),
@@ -163,6 +163,12 @@ impl DeviceManager {
                 let result = self.list().await;
                 if let Err(e) = actor_request.respond_to.send(result) {
                     error!("DeviceManager: Failed to return List response: {e:?}");
+                }
+            }
+            Request::Info(device_id) => {
+                let result = self.info(device_id).await;
+                if let Err(e) = actor_request.respond_to.send(result) {
+                    error!("DeviceManager: Failed to return Info response: {:?}", e);
                 }
             }
             Request::GetDeviceHandler(id) => {
@@ -343,6 +349,30 @@ impl DeviceManager {
             list.push(device.info())
         }
         Ok(Answer::DeviceInfo(list))
+    }
+
+    pub async fn info(&self, device_id: Uuid) -> Result<Answer, ManagerError> {
+        self.check_device_uuid(device_id)?;
+        Ok(Answer::DeviceInfo(vec![self.get_device(device_id)?.info()]))
+    }
+
+    fn check_device_uuid(&self, device_id: Uuid) -> Result<(), ManagerError> {
+        if self.device.contains_key(&device_id) {
+            return Ok(());
+        }
+        error!(
+            "Getting device handler for device: {:?} : Error, device doesn't exist",
+            device_id
+        );
+        Err(ManagerError::DeviceNotExist(device_id))
+    }
+
+    fn get_device(&self, device_id: Uuid) -> Result<&Device, ManagerError> {
+        let device = self
+            .device
+            .get(&device_id)
+            .ok_or(ManagerError::DeviceNotExist(device_id))?;
+        Ok(device)
     }
 
     pub async fn delete(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
