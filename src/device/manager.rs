@@ -14,13 +14,14 @@ use uuid::Uuid;
 use super::devices::{DeviceActor, DeviceActorHandler};
 use bluerobotics_ping::device::{Ping1D, Ping360};
 
-struct Device {
-    id: Uuid,
-    source: SourceSelection,
-    handler: super::devices::DeviceActorHandler,
-    actor: tokio::task::JoinHandle<DeviceActor>,
-    status: DeviceStatus,
-    device_type: DeviceSelection,
+pub struct Device {
+    pub id: Uuid,
+    pub source: SourceSelection,
+    pub handler: super::devices::DeviceActorHandler,
+    pub actor: tokio::task::JoinHandle<DeviceActor>,
+    pub broadcast: Option<tokio::task::JoinHandle<()>>,
+    pub status: DeviceStatus,
+    pub device_type: DeviceSelection,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -76,12 +77,12 @@ pub struct SourceSerialStruct {
 pub enum DeviceStatus {
     Running,
     Stopped,
-    Broadcasting,
+    ContinuousMode,
 }
 
 pub struct DeviceManager {
     receiver: mpsc::Receiver<ManagerActorRequest>,
-    device: HashMap<Uuid, Device>,
+    pub device: HashMap<Uuid, Device>,
 }
 
 #[derive(Debug)]
@@ -112,6 +113,7 @@ pub enum ManagerError {
     NoDevices,
     TokioMpsc(String),
     NotImplemented(Request),
+    Other(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -130,8 +132,8 @@ pub enum Request {
     Search,
     Ping(DeviceRequestStruct),
     GetDeviceHandler(Uuid),
-    EnableBroadcasting(Uuid),
-    DisableBroadcasting(Uuid),
+    EnableContinuousMode(Uuid),
+    DisableContinuousMode(Uuid),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,6 +174,24 @@ impl DeviceManager {
                 let result = self.info(device_id).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
                     error!("DeviceManager: Failed to return Info response: {:?}", e);
+                }
+            }
+            Request::EnableContinuousMode(uuid) => {
+                let result = self.continuous_mode(uuid).await;
+                if let Err(e) = actor_request.respond_to.send(result) {
+                    error!(
+                        "DeviceManager: Failed to return EnableContinuousMode response: {:?}",
+                        e
+                    );
+                }
+            }
+            Request::DisableContinuousMode(uuid) => {
+                let result = self.continuous_mode_off(uuid).await;
+                if let Err(e) = actor_request.respond_to.send(result) {
+                    error!(
+                        "DeviceManager: Failed to return DisableContinuousMode response: {:?}",
+                        e
+                    );
                 }
             }
             Request::GetDeviceHandler(id) => {
@@ -328,18 +348,17 @@ impl DeviceManager {
             handler,
             actor,
             status: DeviceStatus::Running,
+            broadcast: None,
             device_type: device_selection,
         };
 
-        let device_info = device.info();
-
         self.device.insert(hash, device);
 
-        info!(
-            "New device created and available, details: {:?}",
-            device_info
-        );
-        Ok(Answer::DeviceInfo(vec![device_info]))
+        trace!("Device broadcast enable by default for: {hash:?}");
+        let device_info = self.continuous_mode(hash).await?;
+
+        info!("New device created and available, details: {device_info:?}");
+        Ok(device_info)
     }
 
     pub async fn list(&self) -> Result<Answer, ManagerError> {
@@ -359,25 +378,6 @@ impl DeviceManager {
         Ok(Answer::DeviceInfo(vec![self.get_device(device_id)?.info()]))
     }
 
-    fn check_device_uuid(&self, device_id: Uuid) -> Result<(), ManagerError> {
-        if self.device.contains_key(&device_id) {
-            return Ok(());
-        }
-        error!(
-            "Getting device handler for device: {:?} : Error, device doesn't exist",
-            device_id
-        );
-        Err(ManagerError::DeviceNotExist(device_id))
-    }
-
-    fn get_device(&self, device_id: Uuid) -> Result<&Device, ManagerError> {
-        let device = self
-            .device
-            .get(&device_id)
-            .ok_or(ManagerError::DeviceNotExist(device_id))?;
-        Ok(device)
-    }
-
     pub async fn delete(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
         match self.device.remove(&device_id) {
             Some(device) => {
@@ -391,96 +391,59 @@ impl DeviceManager {
         }
     }
 
-    pub async fn get_device_handler(&self, device_id: Uuid) -> Result<Answer, ManagerError> {
-        if self.device.contains_key(&device_id) {
-            trace!("Getting device handler for device: {device_id:?} : Success");
-        self.check_device_uuid(device_id)?;
+    pub async fn continuous_mode(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
+        self.check_device_status(device_id, &[DeviceStatus::Running])?;
+        let device_type = self.get_device_type(device_id)?;
 
-        trace!(
-            "Getting device handler for device: {:?} : Success",
-            device_id
-        );
+        // Get an inner subscriber for device's stream
+        let subscriber = self.get_subscriber(device_id).await?;
 
-            if self.device.get(&device_id).unwrap().status == DeviceStatus::Running {
-                let handler: DeviceActorHandler =
-                    self.device.get(&device_id).unwrap().handler.clone();
-                return Ok(Answer::InnerDeviceHandler(handler));
-            };
-            return Err(ManagerError::DeviceIsStopped(device_id));
+        let broadcast_handle = self
+            .continuous_mode_start(subscriber, device_id, device_type.clone())
+            .await;
+        if let Some(handle) = &broadcast_handle {
+            if !handle.is_finished() {
+                trace!("Success start_continuous_mode for {device_id:?}");
+            } else {
+                return Err(ManagerError::Other(
+                    "Error while start_continuous_mode".to_string(),
+                ));
+            }
+        } else {
+            return Err(ManagerError::Other(
+                "Error while start_continuous_mode".to_string(),
+            ));
+        };
+
+        self.continuous_mode_startup_routine(device_id, device_type)
+            .await?;
+
+        let device = self.get_mut_device(device_id)?;
+        device.broadcast = broadcast_handle;
+        device.status = DeviceStatus::ContinuousMode;
+
+        let updated_device_info = self.get_device(device_id)?.info();
+
+        Ok(Answer::DeviceInfo(vec![updated_device_info]))
+    }
+
+    pub async fn continuous_mode_off(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
+        self.check_device_status(device_id, &[DeviceStatus::ContinuousMode])?;
+        let device_type = self.get_device_type(device_id)?;
+
+        let device = self.get_mut_device(device_id)?;
+        if let Some(broadcast) = device.broadcast.take() {
+            broadcast.abort_handle().abort();
         }
-        error!(
-            "Getting device handler for device: {:?} : Error, device doesn't exist",
-            device_id
-        );
-        Err(ManagerError::DeviceNotExist(device_id))
-    }
 
-    fn check_device_status(
-        &self,
-        device_id: Uuid,
-        valid_statuses: &[DeviceStatus],
-    ) -> Result<(), ManagerError> {
-        let status = &self.get_device(device_id)?.status;
-        if !valid_statuses.contains(status) {
-            return Err(ManagerError::DeviceStatus(status.clone(), device_id));
-        }
-        Ok(())
-    }
+        device.status = DeviceStatus::Running;
 
-    fn get_device(&self, device_id: Uuid) -> Result<&Device, ManagerError> {
-        let device = self
-            .device
-            .get(&device_id)
-            .ok_or(ManagerError::DeviceNotExist(device_id))?;
-        Ok(device)
-    }
+        let updated_device_info = device.info();
 
-    fn get_mut_device(&mut self, device_id: Uuid) -> Result<&mut Device, ManagerError> {
-        let device = self
-            .device
-            .get_mut(&device_id)
-            .ok_or(ManagerError::DeviceNotExist(device_id))?;
-        Ok(device)
-    }
+        self.continuous_mode_shutdown_routine(device_id, device_type)
+            .await?;
 
-    fn get_device_type(&self, device_id: Uuid) -> Result<DeviceSelection, ManagerError> {
-        let device_type = self.device.get(&device_id).unwrap().device_type.clone();
-        Ok(device_type)
-    }
-
-    fn extract_handler(&self, device_handler: Answer) -> Result<DeviceActorHandler, ManagerError> {
-        match device_handler {
-            Answer::InnerDeviceHandler(handler) => Ok(handler),
-            answer => Err(ManagerError::Other(format!(
-                "Unreachable: extract_handler helper, detail: {answer:?}"
-            ))),
-        }
-    }
-
-    async fn get_subscriber(
-        &self,
-        device_id: Uuid,
-    ) -> Result<
-        tokio::sync::broadcast::Receiver<bluerobotics_ping::message::ProtocolMessage>,
-        ManagerError,
-    > {
-        let handler_request = self.get_device_handler(device_id).await?;
-        let handler = self.extract_handler(handler_request)?;
-
-        let subscriber = handler
-            .send(super::devices::PingRequest::GetSubscriber)
-            .await
-            .map_err(|err| {
-                trace!("Something went wrong while executing get_subscriber, details: {err:?}");
-                ManagerError::DeviceError(err)
-            })?;
-
-        match subscriber {
-            super::devices::PingAnswer::Subscriber(subscriber) => Ok(subscriber),
-            _ => Err(ManagerError::Other(
-                "Unreachable: get_subscriber helper".to_string(),
-            )),
-        }
+        Ok(Answer::DeviceInfo(vec![updated_device_info]))
     }
 }
 
@@ -554,7 +517,7 @@ impl ManagerActorHandler {
                     .map_err(|err| ManagerError::TokioMpsc(err.to_string()))?
                 {
                     Ok(ans) => {
-                        info!("Handling DeviceManager request: {request:?}: Success");
+                        trace!("Handling DeviceManager request: {request:?}: Success");
                         Ok(ans)
                     }
                     Err(err) => {
