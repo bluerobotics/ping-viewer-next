@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 actix = "0.13.3"
 actix-web = "4.6.0"
-bluerobotics-ping = "0.2.3"
+bluerobotics-ping = "0.3.0"
 actix-web-actors = "4.3.0"
 chrono = "0.4.38"
 clap = {version = "4.5.4", features = ["derive"] }
