@@ -305,7 +305,7 @@ pub enum Ping1DRequest {
     SetGainSetting(bluerobotics_ping::ping1d::SetGainSettingStruct),
     ContinuousStart(bluerobotics_ping::ping1d::ContinuousStartStruct),
     ContinuousStop(bluerobotics_ping::ping1d::ContinuousStopStruct),
-    GotoBootloader(bluerobotics_ping::ping1d::GotoBootloaderStruct),
+    GotoBootloader,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -313,10 +313,10 @@ pub enum Ping360Request {
     MotorOff,
     DeviceData,
     AutoDeviceData,
-    SetDeviceId(bluerobotics_ping::ping1d::SetDeviceIdStruct),
-    Transducer,
-    Reset,
-    AutoTransmit,
+    SetDeviceId(bluerobotics_ping::ping360::SetDeviceIdStruct),
+    Transducer(bluerobotics_ping::ping360::TransducerStruct),
+    Reset(bluerobotics_ping::ping360::ResetStruct),
+    AutoTransmit(bluerobotics_ping::ping360::AutoTransmitStruct),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -491,7 +491,49 @@ impl Requests<Ping1DRequest> for bluerobotics_ping::device::Ping1D {
                     Err(e) => Err(DeviceError::PingError(e)),
                 }
             }
-            _ => Ok(PingAnswer::NotImplemented(PingRequest::Ping1D(msg))),
+            Ping1DRequest::SetModeAuto(req_body) => {
+                match self.set_mode_auto(req_body.mode_auto).await {
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
+                }
+            }
+            Ping1DRequest::SetPingInterval(req_body) => {
+                match self.set_ping_interval(req_body.ping_interval).await {
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
+                }
+            }
+            Ping1DRequest::SetPingEnable(req_body) => {
+                match self.set_ping_enable(req_body.ping_enabled).await {
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
+                }
+            }
+            Ping1DRequest::SetSpeedOfSound(req_body) => {
+                match self.set_speed_of_sound(req_body.speed_of_sound).await {
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
+                }
+            }
+            Ping1DRequest::SetRange(req_body) => {
+                match self
+                    .set_range(req_body.scan_start, req_body.scan_length)
+                    .await
+                {
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
+                }
+            }
+            Ping1DRequest::SetGainSetting(req_body) => {
+                match self.set_gain_setting(req_body.gain_setting).await {
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
+                }
+            }
+            Ping1DRequest::GotoBootloader => match self.goto_bootloader().await {
+                Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping1D(msg))),
+                Err(e) => Err(DeviceError::PingError(e)),
+            },
         }
     }
 }
@@ -505,7 +547,77 @@ impl Requests<Ping360Request> for bluerobotics_ping::device::Ping360 {
                 Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping360(msg))),
                 Err(e) => Err(DeviceError::PingError(e)),
             },
-            _ => Ok(PingAnswer::NotImplemented(PingRequest::Ping360(msg))),
+            Ping360Request::AutoDeviceData => match self.auto_device_data().await {
+                Ok(answer) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping360(
+                        bluerobotics_ping::ping360::Messages::AutoDeviceData(answer),
+                    ),
+                )),
+                Err(e) => Err(DeviceError::PingError(e)),
+            },
+            Ping360Request::DeviceData => match self.device_data().await {
+                Ok(answer) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Ping360(
+                        bluerobotics_ping::ping360::Messages::DeviceData(answer),
+                    ),
+                )),
+                Err(e) => Err(DeviceError::PingError(e)),
+            },
+            Ping360Request::SetDeviceId(req_body) => {
+                match self.set_device_id(req_body.id, req_body.reserved).await {
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping360(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
+                }
+            }
+            Ping360Request::Reset(req_body) => {
+                match self.reset(req_body.bootloader, req_body.reserved).await {
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping360(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
+                }
+            }
+            Ping360Request::AutoTransmit(req_body) => {
+                match self
+                    .auto_transmit(
+                        req_body.mode,
+                        req_body.gain_setting,
+                        req_body.transmit_duration,
+                        req_body.sample_period,
+                        req_body.transmit_frequency,
+                        req_body.number_of_samples,
+                        req_body.start_angle,
+                        req_body.stop_angle,
+                        req_body.num_steps,
+                        req_body.delay,
+                    )
+                    .await
+                {
+                    Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping360(msg))),
+                    Err(e) => Err(DeviceError::PingError(e)),
+                }
+            }
+            Ping360Request::Transducer(req_body) => {
+                match self
+                    .transducer(
+                        req_body.mode,
+                        req_body.gain_setting,
+                        req_body.angle,
+                        req_body.transmit_duration,
+                        req_body.sample_period,
+                        req_body.transmit_frequency,
+                        req_body.number_of_samples,
+                        req_body.transmit,
+                        req_body.reserved,
+                    )
+                    .await
+                {
+                    Ok(answer) => Ok(PingAnswer::PingMessage(
+                        bluerobotics_ping::Messages::Ping360(
+                            bluerobotics_ping::ping360::Messages::DeviceData(answer),
+                        ),
+                    )),
+                    Err(e) => Err(DeviceError::PingError(e)),
+                }
+            }
         }
     }
 }
