@@ -9,6 +9,16 @@ mod device;
 mod logger;
 mod server;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Command {
+    pub command: CommandType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CommandType {
+    DeviceManager(device::manager::Request),
+}
+
 #[tokio::main]
 async fn main() {
     // CLI should be started before logger to allow control over verbosity

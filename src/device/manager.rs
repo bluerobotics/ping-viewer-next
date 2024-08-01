@@ -138,16 +138,40 @@ pub struct DeviceAnswer {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
+#[serde(tag = "type", content = "payload")]
 pub enum Request {
     Create(CreateStruct),
-    Delete(Uuid),
+    Delete(UuidWrapper),
     List,
-    Info(Uuid),
+    Info(UuidWrapper),
     Search,
     Ping(DeviceRequestStruct),
-    GetDeviceHandler(Uuid),
-    EnableContinuousMode(Uuid),
-    DisableContinuousMode(Uuid),
+    GetDeviceHandler(UuidWrapper),
+    EnableContinuousMode(UuidWrapper),
+    DisableContinuousMode(UuidWrapper),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UuidWrapper {
+    pub uuid: Uuid,
+}
+
+impl UuidWrapper {
+    pub fn uuid(&self) -> Uuid {
+        self.uuid
+    }
+}
+
+impl From<Uuid> for UuidWrapper {
+    fn from(uuid: Uuid) -> Self {
+        UuidWrapper { uuid }
+    }
+}
+
+impl From<UuidWrapper> for Uuid {
+    fn from(wrapper: UuidWrapper) -> Self {
+        wrapper.uuid
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -158,8 +182,8 @@ pub struct CreateStruct {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceRequestStruct {
-    pub target: Uuid,
-    pub request: crate::device::devices::PingRequest,
+    pub uuid: Uuid,
+    pub device_request: crate::device::devices::PingRequest,
 }
 
 impl DeviceManager {
@@ -173,7 +197,7 @@ impl DeviceManager {
                 }
             }
             Request::Delete(uuid) => {
-                let result = self.delete(uuid).await;
+                let result = self.delete(uuid.into()).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
                     error!("DeviceManager: Failed to return Delete response: {e:?}");
                 }
@@ -185,13 +209,13 @@ impl DeviceManager {
                 }
             }
             Request::Info(device_id) => {
-                let result = self.info(device_id).await;
+                let result = self.info(device_id.into()).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
                     error!("DeviceManager: Failed to return Info response: {:?}", e);
                 }
             }
             Request::EnableContinuousMode(uuid) => {
-                let result = self.continuous_mode(uuid).await;
+                let result = self.continuous_mode(uuid.into()).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
                     error!(
                         "DeviceManager: Failed to return EnableContinuousMode response: {:?}",
@@ -200,7 +224,7 @@ impl DeviceManager {
                 }
             }
             Request::DisableContinuousMode(uuid) => {
-                let result = self.continuous_mode_off(uuid).await;
+                let result = self.continuous_mode_off(uuid.into()).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
                     error!(
                         "DeviceManager: Failed to return DisableContinuousMode response: {:?}",
@@ -209,7 +233,7 @@ impl DeviceManager {
                 }
             }
             Request::GetDeviceHandler(id) => {
-                let answer = self.get_device_handler(id).await;
+                let answer = self.get_device_handler(id.into()).await;
                 if let Err(e) = actor_request.respond_to.send(answer) {
                     error!("DeviceManager: Failed to return GetDeviceHandler response: {e:?}");
                 }
@@ -471,8 +495,11 @@ impl ManagerActorHandler {
             // Devices requests are forwarded directly to device and let manager handle other incoming request.
             Request::Ping(request) => {
                 trace!("Handling Ping request: {request:?}: Forwarding request to device handler");
-                let get_handler_target = request.target;
-                let handler_request = Request::GetDeviceHandler(get_handler_target);
+                let get_handler_target = request.uuid;
+                let handler_request =
+                    Request::GetDeviceHandler(crate::device::manager::UuidWrapper {
+                        uuid: get_handler_target,
+                    });
                 let manager_request = ManagerActorRequest {
                     request: handler_request,
                     respond_to: result_sender,
@@ -497,13 +524,13 @@ impl ManagerActorHandler {
                         trace!(
                             "Handling Ping request: {request:?}: Successfully received the handler"
                         );
-                        let result = handler.send(request.request.clone()).await;
+                        let result = handler.send(request.device_request.clone()).await;
                         match result {
                             Ok(result) => {
                                 info!("Handling Ping request: {request:?}: Success");
                                 Ok(Answer::DeviceMessage(DeviceAnswer {
                                     answer: result,
-                                    device_id: request.target,
+                                    device_id: request.uuid,
                                 }))
                             }
                             Err(err) => {
