@@ -4,6 +4,7 @@ use tracing::info;
 extern crate lazy_static;
 
 mod cli;
+/// The Device module consists of two main modules: devices and manager.
 mod device;
 mod logger;
 mod server;

@@ -1,3 +1,8 @@
+/// Specially for DeviceManager to retrieve checks and structures from Devices stored in it's hashmap collection
+pub mod continuous_mode;
+/// Specially for continuous_mode methods, startup, shutdown, handle and errors routines for each device type
+pub mod device_handle;
+
 use paperclip::actix::Apiv2Schema;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -193,19 +198,13 @@ impl DeviceManager {
             Request::EnableContinuousMode(uuid) => {
                 let result = self.continuous_mode(uuid).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
-                    error!(
-                        "DeviceManager: Failed to return EnableContinuousMode response: {:?}",
-                        e
-                    );
+                    error!("DeviceManager: Failed to return EnableContinuousMode response: {e:?}");
                 }
             }
             Request::DisableContinuousMode(uuid) => {
                 let result = self.continuous_mode_off(uuid).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
-                    error!(
-                        "DeviceManager: Failed to return DisableContinuousMode response: {:?}",
-                        e
-                    );
+                    error!("DeviceManager: Failed to return DisableContinuousMode response: {e:?}");
                 }
             }
             Request::GetDeviceHandler(id) => {
@@ -397,7 +396,7 @@ impl DeviceManager {
             Some(device) => {
                 let device_info = device.info();
                 drop(device);
-                trace!("Device delete id {:?}: Success", device_id);
+                trace!("Device delete id {device_id:?}: Success",);
                 Ok(Answer::DeviceInfo(vec![device_info]))
             }
             None => {
