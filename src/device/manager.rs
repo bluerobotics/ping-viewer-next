@@ -8,6 +8,7 @@ use std::{
 use tokio::sync::{mpsc, oneshot};
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
 use tracing::{error, info, trace, warn};
+use ts_rs::TS;
 use udp_stream::UdpStream;
 use uuid::Uuid;
 
@@ -56,7 +57,7 @@ impl Drop for Device {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub enum DeviceSelection {
     Common,
     Ping1D,
@@ -64,7 +65,7 @@ pub enum DeviceSelection {
     Auto,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Hash)]
+#[derive(Debug, Clone, Deserialize, Serialize, Hash, TS)]
 pub enum SourceSelection {
     UdpStream(SourceUdpStruct),
     SerialStream(SourceSerialStruct),
@@ -75,13 +76,13 @@ enum SourceType {
     Serial(SerialStream),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema, TS)]
 pub struct SourceUdpStruct {
     pub ip: Ipv4Addr,
     pub port: u16,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema, TS)]
 pub struct SourceSerialStruct {
     pub path: String,
     pub baudrate: u32,
@@ -137,7 +138,7 @@ pub struct DeviceAnswer {
     pub device_id: Uuid,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema, TS)]
 #[serde(tag = "type", content = "payload")]
 pub enum Request {
     Create(CreateStruct),
@@ -151,7 +152,7 @@ pub enum Request {
     DisableContinuousMode(UuidWrapper),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct UuidWrapper {
     pub uuid: Uuid,
 }
@@ -174,13 +175,13 @@ impl From<UuidWrapper> for Uuid {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct CreateStruct {
     pub source: SourceSelection,
     pub device_selection: DeviceSelection,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct DeviceRequestStruct {
     pub uuid: Uuid,
     pub device_request: crate::device::devices::PingRequest,
