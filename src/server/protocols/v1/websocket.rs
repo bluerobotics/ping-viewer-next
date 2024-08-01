@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex};
 use tracing::info;
 use uuid::Uuid;
 
-use crate::device::manager::{ManagerActorHandler, Request};
+use crate::device::manager::ManagerActorHandler;
 
 pub struct StringMessage(String);
 
@@ -134,7 +134,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebsocketActor {
         match msg {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
             Ok(ws::Message::Text(text)) => {
-                let manager_requests: Vec<Request> = match serde_json::from_str(&text) {
+                let manager_requests: Vec<crate::ModuleType> = match serde_json::from_str(&text) {
                     Ok(requests) => requests,
                     Err(err) => match serde_json::from_str(&text) {
                         Ok(request) => vec![request],
@@ -147,27 +147,31 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebsocketActor {
                 };
 
                 for request in manager_requests {
-                    let manager_handler = self.manager_handler.clone();
+                    match request {
+                        crate::ModuleType::DeviceManager(request) => {
+                            let manager_handler = self.manager_handler.clone();
 
-                    let future =
-                        async move { manager_handler.send(request).await }.into_actor(self);
+                            let future =
+                                async move { manager_handler.send(request).await }.into_actor(self);
 
-                    future
-                        .then(|res, _, ctx| {
-                            match &res {
-                                Ok(result) => {
-                                    crate::server::protocols::v1::websocket::send_to_websockets(
-                                        json!(result),
-                                        None,
-                                    );
-                                }
-                                Err(err) => {
-                                    ctx.text(serde_json::to_string_pretty(err).unwrap());
-                                }
-                            }
-                            fut::ready(())
-                        })
-                        .wait(ctx);
+                            future
+                                .then(|res, _, ctx| {
+                                    match &res {
+                                        Ok(result) => {
+                                            crate::server::protocols::v1::websocket::send_to_websockets(
+                                                json!(result),
+                                                None,
+                                            );
+                                        }
+                                        Err(err) => {
+                                            ctx.text(serde_json::to_string_pretty(err).unwrap());
+                                        }
+                                    }
+                                    fut::ready(())
+                                })
+                                .wait(ctx);
+                        }
+                    }
                 }
             }
             Ok(ws::Message::Close(msg)) => ctx.close(msg),
@@ -191,7 +195,9 @@ pub async fn websocket(
     let device_number = query.into_inner().device_number;
 
     if let Some(device_number) = device_number {
-        let request = crate::device::manager::Request::Info(device_number);
+        let request = crate::device::manager::Request::Info(crate::device::manager::UuidWrapper {
+            uuid: device_number,
+        });
         match manager_handler.send(request).await {
             Ok(response) => {
                 info!(

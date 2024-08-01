@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use tracing::info;
 
 #[macro_use]
@@ -8,6 +9,12 @@ mod cli;
 mod device;
 mod logger;
 mod server;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "module")]
+pub enum ModuleType {
+    DeviceManager(device::manager::Request),
+}
 
 #[tokio::main]
 async fn main() {
