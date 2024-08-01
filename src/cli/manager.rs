@@ -5,6 +5,10 @@ use std::sync::Arc;
 #[derive(Parser, Debug)]
 #[command(version = env!("CARGO_PKG_VERSION"), author = env!("CARGO_PKG_AUTHORS"), about = env!("CARGO_PKG_DESCRIPTION"))]
 struct Args {
+    /// Call AutoCreate on DeviceManager during application startup.
+    #[arg(long, default_value = "false")]
+    enable_auto_create: bool,
+
     /// Deletes settings file before starting.
     #[arg(long)]
     reset: bool,
@@ -71,6 +75,10 @@ pub fn is_tracy() -> bool {
 
 pub fn log_current_crate_only() -> bool {
     MANAGER.clap_matches.log_current_crate_only
+}
+
+pub fn is_enable_auto_create() -> bool {
+    MANAGER.clap_matches.enable_auto_create
 }
 
 pub fn log_path() -> String {
