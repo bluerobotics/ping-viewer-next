@@ -8,19 +8,21 @@ use std::{
 use tokio::sync::{mpsc, oneshot};
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
 use tracing::{error, info, trace, warn};
+use ts_rs::TS;
 use udp_stream::UdpStream;
 use uuid::Uuid;
 
 use super::devices::{DeviceActor, DeviceActorHandler};
 use bluerobotics_ping::device::{Ping1D, Ping360};
 
-struct Device {
-    id: Uuid,
-    source: SourceSelection,
-    handler: super::devices::DeviceActorHandler,
-    actor: tokio::task::JoinHandle<DeviceActor>,
-    status: DeviceStatus,
-    device_type: DeviceSelection,
+pub struct Device {
+    pub id: Uuid,
+    pub source: SourceSelection,
+    pub handler: super::devices::DeviceActorHandler,
+    pub actor: tokio::task::JoinHandle<DeviceActor>,
+    pub broadcast: Option<tokio::task::JoinHandle<()>>,
+    pub status: DeviceStatus,
+    pub device_type: DeviceSelection,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -41,7 +43,21 @@ impl Device {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+impl Drop for Device {
+    fn drop(&mut self) {
+        trace!(
+            "Removing Device from DeviceManager, details: {:?}",
+            self.info()
+        );
+        self.actor.abort();
+        if let Some(broadcast_handle) = &self.broadcast {
+            trace!("Device broadcast handle closed for: {:?}", self.info().id);
+            broadcast_handle.abort();
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub enum DeviceSelection {
     Common,
     Ping1D,
@@ -49,7 +65,7 @@ pub enum DeviceSelection {
     Auto,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Hash)]
+#[derive(Debug, Clone, Deserialize, Serialize, Hash, TS)]
 pub enum SourceSelection {
     UdpStream(SourceUdpStruct),
     SerialStream(SourceSerialStruct),
@@ -60,13 +76,13 @@ enum SourceType {
     Serial(SerialStream),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema, TS)]
 pub struct SourceUdpStruct {
     pub ip: Ipv4Addr,
     pub port: u16,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema, TS)]
 pub struct SourceSerialStruct {
     pub path: String,
     pub baudrate: u32,
@@ -76,11 +92,12 @@ pub struct SourceSerialStruct {
 pub enum DeviceStatus {
     Running,
     Stopped,
+    ContinuousMode,
 }
 
 pub struct DeviceManager {
     receiver: mpsc::Receiver<ManagerActorRequest>,
-    device: HashMap<Uuid, Device>,
+    pub device: HashMap<Uuid, Device>,
 }
 
 #[derive(Debug)]
@@ -105,12 +122,13 @@ pub enum Answer {
 pub enum ManagerError {
     DeviceNotExist(Uuid),
     DeviceAlreadyExist(Uuid),
-    DeviceIsStopped(Uuid),
+    DeviceStatus(DeviceStatus, Uuid),
     DeviceError(super::devices::DeviceError),
     DeviceSourceError(String),
     NoDevices,
     TokioMpsc(String),
     NotImplemented(Request),
+    Other(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -120,27 +138,53 @@ pub struct DeviceAnswer {
     pub device_id: Uuid,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema, TS)]
+#[serde(tag = "type", content = "payload")]
 pub enum Request {
     Create(CreateStruct),
-    Delete(Uuid),
+    Delete(UuidWrapper),
     List,
-    Info(Uuid),
+    Info(UuidWrapper),
     Search,
     Ping(DeviceRequestStruct),
-    GetDeviceHandler(Uuid),
+    GetDeviceHandler(UuidWrapper),
+    EnableContinuousMode(UuidWrapper),
+    DisableContinuousMode(UuidWrapper),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct UuidWrapper {
+    pub uuid: Uuid,
+}
+
+impl UuidWrapper {
+    pub fn uuid(&self) -> Uuid {
+        self.uuid
+    }
+}
+
+impl From<Uuid> for UuidWrapper {
+    fn from(uuid: Uuid) -> Self {
+        UuidWrapper { uuid }
+    }
+}
+
+impl From<UuidWrapper> for Uuid {
+    fn from(wrapper: UuidWrapper) -> Self {
+        wrapper.uuid
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct CreateStruct {
     pub source: SourceSelection,
     pub device_selection: DeviceSelection,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct DeviceRequestStruct {
-    pub target: Uuid,
-    pub request: crate::device::devices::PingRequest,
+    pub uuid: Uuid,
+    pub device_request: crate::device::devices::PingRequest,
 }
 
 impl DeviceManager {
@@ -154,7 +198,7 @@ impl DeviceManager {
                 }
             }
             Request::Delete(uuid) => {
-                let result = self.delete(uuid).await;
+                let result = self.delete(uuid.into()).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
                     error!("DeviceManager: Failed to return Delete response: {e:?}");
                 }
@@ -166,13 +210,31 @@ impl DeviceManager {
                 }
             }
             Request::Info(device_id) => {
-                let result = self.info(device_id).await;
+                let result = self.info(device_id.into()).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
                     error!("DeviceManager: Failed to return Info response: {:?}", e);
                 }
             }
+            Request::EnableContinuousMode(uuid) => {
+                let result = self.continuous_mode(uuid.into()).await;
+                if let Err(e) = actor_request.respond_to.send(result) {
+                    error!(
+                        "DeviceManager: Failed to return EnableContinuousMode response: {:?}",
+                        e
+                    );
+                }
+            }
+            Request::DisableContinuousMode(uuid) => {
+                let result = self.continuous_mode_off(uuid.into()).await;
+                if let Err(e) = actor_request.respond_to.send(result) {
+                    error!(
+                        "DeviceManager: Failed to return DisableContinuousMode response: {:?}",
+                        e
+                    );
+                }
+            }
             Request::GetDeviceHandler(id) => {
-                let answer = self.get_device_handler(id).await;
+                let answer = self.get_device_handler(id.into()).await;
                 if let Err(e) = actor_request.respond_to.send(answer) {
                     error!("DeviceManager: Failed to return GetDeviceHandler response: {e:?}");
                 }
@@ -325,18 +387,17 @@ impl DeviceManager {
             handler,
             actor,
             status: DeviceStatus::Running,
+            broadcast: None,
             device_type: device_selection,
         };
 
-        let device_info = device.info();
-
         self.device.insert(hash, device);
 
-        info!(
-            "New device created and available, details: {:?}",
-            device_info
-        );
-        Ok(Answer::DeviceInfo(vec![device_info]))
+        trace!("Device broadcast enable by default for: {hash:?}");
+        let device_info = self.continuous_mode(hash).await?;
+
+        info!("New device created and available, details: {device_info:?}");
+        Ok(device_info)
     }
 
     pub async fn list(&self) -> Result<Answer, ManagerError> {
@@ -356,30 +417,13 @@ impl DeviceManager {
         Ok(Answer::DeviceInfo(vec![self.get_device(device_id)?.info()]))
     }
 
-    fn check_device_uuid(&self, device_id: Uuid) -> Result<(), ManagerError> {
-        if self.device.contains_key(&device_id) {
-            return Ok(());
-        }
-        error!(
-            "Getting device handler for device: {:?} : Error, device doesn't exist",
-            device_id
-        );
-        Err(ManagerError::DeviceNotExist(device_id))
-    }
-
-    fn get_device(&self, device_id: Uuid) -> Result<&Device, ManagerError> {
-        let device = self
-            .device
-            .get(&device_id)
-            .ok_or(ManagerError::DeviceNotExist(device_id))?;
-        Ok(device)
-    }
-
     pub async fn delete(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
         match self.device.remove(&device_id) {
             Some(device) => {
-                info!("Device delete id {:?}: Success", device_id);
-                Ok(Answer::DeviceInfo(vec![device.info()]))
+                let device_info = device.info();
+                drop(device);
+                trace!("Device delete id {:?}: Success", device_id);
+                Ok(Answer::DeviceInfo(vec![device_info]))
             }
             None => {
                 error!("Device delete id {device_id:?} : Error, device doesn't exist");
@@ -388,19 +432,59 @@ impl DeviceManager {
         }
     }
 
-    pub async fn get_device_handler(&self, device_id: Uuid) -> Result<Answer, ManagerError> {
-        if self.device.contains_key(&device_id) {
-            trace!("Getting device handler for device: {device_id:?} : Success");
+    pub async fn continuous_mode(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
+        self.check_device_status(device_id, &[DeviceStatus::Running])?;
+        let device_type = self.get_device_type(device_id)?;
 
-            if self.device.get(&device_id).unwrap().status == DeviceStatus::Running {
-                let handler: DeviceActorHandler =
-                    self.device.get(&device_id).unwrap().handler.clone();
-                return Ok(Answer::InnerDeviceHandler(handler));
-            };
-            return Err(ManagerError::DeviceIsStopped(device_id));
+        // Get an inner subscriber for device's stream
+        let subscriber = self.get_subscriber(device_id).await?;
+
+        let broadcast_handle = self
+            .continuous_mode_start(subscriber, device_id, device_type.clone())
+            .await;
+        if let Some(handle) = &broadcast_handle {
+            if !handle.is_finished() {
+                trace!("Success start_continuous_mode for {device_id:?}");
+            } else {
+                return Err(ManagerError::Other(
+                    "Error while start_continuous_mode".to_string(),
+                ));
+            }
+        } else {
+            return Err(ManagerError::Other(
+                "Error while start_continuous_mode".to_string(),
+            ));
+        };
+
+        self.continuous_mode_startup_routine(device_id, device_type)
+            .await?;
+
+        let device = self.get_mut_device(device_id)?;
+        device.broadcast = broadcast_handle;
+        device.status = DeviceStatus::ContinuousMode;
+
+        let updated_device_info = self.get_device(device_id)?.info();
+
+        Ok(Answer::DeviceInfo(vec![updated_device_info]))
+    }
+
+    pub async fn continuous_mode_off(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
+        self.check_device_status(device_id, &[DeviceStatus::ContinuousMode])?;
+        let device_type = self.get_device_type(device_id)?;
+
+        let device = self.get_mut_device(device_id)?;
+        if let Some(broadcast) = device.broadcast.take() {
+            broadcast.abort_handle().abort();
         }
-        error!("Getting device handler for device: {device_id:?} : Error, device doesn't exist");
-        Err(ManagerError::DeviceNotExist(device_id))
+
+        device.status = DeviceStatus::Running;
+
+        let updated_device_info = device.info();
+
+        self.continuous_mode_shutdown_routine(device_id, device_type)
+            .await?;
+
+        Ok(Answer::DeviceInfo(vec![updated_device_info]))
     }
 }
 
@@ -412,8 +496,11 @@ impl ManagerActorHandler {
             // Devices requests are forwarded directly to device and let manager handle other incoming request.
             Request::Ping(request) => {
                 trace!("Handling Ping request: {request:?}: Forwarding request to device handler");
-                let get_handler_target = request.target;
-                let handler_request = Request::GetDeviceHandler(get_handler_target);
+                let get_handler_target = request.uuid;
+                let handler_request =
+                    Request::GetDeviceHandler(crate::device::manager::UuidWrapper {
+                        uuid: get_handler_target,
+                    });
                 let manager_request = ManagerActorRequest {
                     request: handler_request,
                     respond_to: result_sender,
@@ -438,13 +525,13 @@ impl ManagerActorHandler {
                         trace!(
                             "Handling Ping request: {request:?}: Successfully received the handler"
                         );
-                        let result = handler.send(request.request.clone()).await;
+                        let result = handler.send(request.device_request.clone()).await;
                         match result {
                             Ok(result) => {
                                 info!("Handling Ping request: {request:?}: Success");
                                 Ok(Answer::DeviceMessage(DeviceAnswer {
                                     answer: result,
-                                    device_id: request.target,
+                                    device_id: request.uuid,
                                 }))
                             }
                             Err(err) => {
@@ -474,7 +561,7 @@ impl ManagerActorHandler {
                     .map_err(|err| ManagerError::TokioMpsc(err.to_string()))?
                 {
                     Ok(ans) => {
-                        info!("Handling DeviceManager request: {request:?}: Success");
+                        trace!("Handling DeviceManager request: {request:?}: Success");
                         Ok(ans)
                     }
                     Err(err) => {

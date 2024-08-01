@@ -2,6 +2,7 @@ use bluerobotics_ping::device::PingDevice;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, trace, warn};
+use ts_rs::TS;
 
 pub struct DeviceActor {
     pub receiver: mpsc::Receiver<DeviceActorRequest>,
@@ -267,7 +268,7 @@ pub enum UpgradeResult {
     Ping360,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub enum PingRequest {
     Ping1D(Ping1DRequest),
     Ping360(Ping360Request),
@@ -277,7 +278,7 @@ pub enum PingRequest {
     Stop,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub enum Ping1DRequest {
     DeviceID,
     ModeAuto,
@@ -296,33 +297,47 @@ pub enum Ping1DRequest {
     GainSetting,
     PingEnable,
     DistanceSimple,
+    #[ts(skip)]
     SetDeviceId(bluerobotics_ping::ping1d::SetDeviceIdStruct),
+    #[ts(skip)]
     SetModeAuto(bluerobotics_ping::ping1d::SetModeAutoStruct),
+    #[ts(skip)]
     SetPingInterval(bluerobotics_ping::ping1d::SetPingIntervalStruct),
+    #[ts(skip)]
     SetPingEnable(bluerobotics_ping::ping1d::SetPingEnableStruct),
+    #[ts(skip)]
     SetSpeedOfSound(bluerobotics_ping::ping1d::SetSpeedOfSoundStruct),
+    #[ts(skip)]
     SetRange(bluerobotics_ping::ping1d::SetRangeStruct),
+    #[ts(skip)]
     SetGainSetting(bluerobotics_ping::ping1d::SetGainSettingStruct),
+    #[ts(skip)]
     ContinuousStart(bluerobotics_ping::ping1d::ContinuousStartStruct),
+    #[ts(skip)]
     ContinuousStop(bluerobotics_ping::ping1d::ContinuousStopStruct),
     GotoBootloader,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub enum Ping360Request {
     MotorOff,
     DeviceData,
     AutoDeviceData,
+    #[ts(skip)]
     SetDeviceId(bluerobotics_ping::ping360::SetDeviceIdStruct),
+    #[ts(skip)]
     Transducer(bluerobotics_ping::ping360::TransducerStruct),
+    #[ts(skip)]
     Reset(bluerobotics_ping::ping360::ResetStruct),
+    #[ts(skip)]
     AutoTransmit(bluerobotics_ping::ping360::AutoTransmitStruct),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub enum PingCommonRequest {
     DeviceInformation,
     ProtocolVersion,
+    #[ts(skip)]
     SetDeviceId(bluerobotics_ping::common::SetDeviceIdStruct),
 }
 
