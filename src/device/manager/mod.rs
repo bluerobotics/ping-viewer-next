@@ -11,6 +11,8 @@ use std::{
     net::{Ipv4Addr, SocketAddrV4},
 };
 use tokio::sync::{mpsc, oneshot};
+use tokio_serial::available_ports;
+
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
 use tracing::{error, info, trace, warn};
 use udp_stream::UdpStream;
@@ -144,6 +146,7 @@ pub struct DeviceAnswer {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
 pub enum Request {
+    AutoCreate,
     Create(CreateStruct),
     Delete(Uuid),
     List,
@@ -171,6 +174,12 @@ impl DeviceManager {
     async fn handle_message(&mut self, actor_request: ManagerActorRequest) {
         trace!("DeviceManager: Received a request, details: {actor_request:?}");
         match actor_request.request {
+            Request::AutoCreate => {
+                let result = self.auto_create().await;
+                if let Err(e) = actor_request.respond_to.send(result) {
+                    error!("DeviceManager: Failed to return AutoCreate response: {e:?}");
+                }
+            }
             Request::Create(request) => {
                 let result = self.create(request.source, request.device_selection).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
@@ -237,6 +246,7 @@ impl DeviceManager {
     }
 
     pub async fn run(mut self) {
+        info!("DeviceManager is running");
         while let Some(msg) = self.receiver.recv().await {
             self.update_devices_status().await; // Todo: move to an outer process
             self.handle_message(msg).await;
@@ -372,6 +382,41 @@ impl DeviceManager {
 
         info!("New device created and available, details: {device_info:?}");
         Ok(device_info)
+    }
+
+    pub async fn auto_create(&mut self) -> Result<Answer, ManagerError> {
+        let serial_ports =
+            available_ports().map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
+
+        let mut results = Vec::new();
+
+        for port_info in serial_ports {
+            let source = SourceSelection::SerialStream(SourceSerialStruct {
+                path: port_info.port_name.clone(),
+                baudrate: 115200,
+            });
+
+            let device_selection = DeviceSelection::Auto;
+
+            match self.create(source, device_selection).await {
+                Ok(answer) => match answer {
+                    Answer::DeviceInfo(device_info) => {
+                        results.extend(device_info);
+                    }
+                    msg => {
+                        warn!("Some unexpected message during auto_create, details: {msg:?}")
+                    }
+                },
+                Err(err) => {
+                    error!(
+                        "Failed to create device for port {}: {:?}",
+                        port_info.port_name, err
+                    );
+                }
+            }
+        }
+
+        Ok(Answer::DeviceInfo(results))
     }
 
     pub async fn list(&self) -> Result<Answer, ManagerError> {
