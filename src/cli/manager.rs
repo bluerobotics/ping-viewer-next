@@ -26,7 +26,7 @@ struct Args {
     enable_tracing_level_log_file: bool,
 
     /// Filter to show only own crate related logs
-    #[arg(long, default_value = "false")]
+    #[arg(long, default_value = "true")]
     log_current_crate_only: bool,
 
     /// Turns on the Tracy tool integration.
