@@ -82,11 +82,14 @@ pub fn is_enable_auto_create() -> bool {
 }
 
 pub fn log_path() -> String {
-    MANAGER
-        .clap_matches
-        .log_path
-        .clone()
-        .expect("Clap arg \"log-path\" should always be \"Some(_)\" because of the default value.")
+    let log_path =
+        MANAGER.clap_matches.log_path.clone().expect(
+            "Clap arg \"log-path\" should always be \"Some(_)\" because of the default value.",
+        );
+
+    shellexpand::full(&log_path)
+        .expect("Failed to expand path")
+        .to_string()
 }
 
 // Return the desired address for the REST API
