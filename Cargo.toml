@@ -28,6 +28,7 @@ udp-stream = "0.0.12"
 uuid = { version = "1.8", features = ["serde"] }
 validator = "0.18.1"
 thiserror = "1.0.61"
+shellexpand = "3.1"
 
 [build-dependencies]
 vergen-gix = { version = "1.0.0-beta.2", default-features = false, features = ["build", "cargo"] }
