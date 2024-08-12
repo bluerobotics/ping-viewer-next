@@ -1,4 +1,4 @@
-use crate::device::manager::ManagerActorHandler;
+use crate::device::manager::{ManagerActorHandler, UuidWrapper};
 use crate::server::protocols::v1::errors::Error;
 use actix_web::Responder;
 use mime_guess::from_path;
@@ -9,6 +9,7 @@ use paperclip::actix::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use uuid::Uuid;
 
 #[derive(rust_embed::RustEmbed)]
 #[folder = "src/server/protocols/v1/frontend"]
@@ -46,24 +47,189 @@ async fn server_metadata() -> Result<Json<ServerMetadata>, Error> {
 pub fn register_services(cfg: &mut web::ServiceConfig) {
     cfg.service(index)
         .service(post_request)
+        .service(device_manager_get)
+        .service(device_manager_post)
+        .service(post_create)
+        .service(device_manager_device_get)
+        .service(device_manager_device_ping1d_get)
+        .service(device_manager_device_ping360_get)
+        .service(device_manager_device_common_get)
         .service(index_files);
 }
 
-#[api_v2_operation]
-#[post("device/request")]
+async fn send_request_and_broadcast(
+    manager_handler: &web::Data<ManagerActorHandler>,
+    request: crate::device::manager::Request,
+) -> Result<Json<crate::device::manager::Answer>, Error> {
+    let answer = manager_handler.send(request).await?;
+    crate::server::protocols::v1::websocket::send_to_websockets(json!(answer), None);
+    Ok(Json(answer))
+}
+
+#[api_v2_operation(tags("Device Manager"))]
+#[post("device_manager/request")]
 async fn post_request(
     manager_handler: web::Data<ManagerActorHandler>,
     json: web::Json<crate::device::manager::Request>,
 ) -> Result<Json<crate::device::manager::Answer>, Error> {
     let request = json.into_inner();
 
-    let answer = manager_handler.send(request).await?;
-
-    // Broadcast the results to webscoket clients.
-    crate::server::protocols::v1::websocket::send_to_websockets(json!(answer), None);
-
-    Ok(Json(answer))
+    send_request_and_broadcast(&manager_handler, request).await
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
+pub enum DeviceManagerGetOptionsV1 {
+    AutoCreate,
+    List,
+    Search,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
+pub enum DeviceManagerPostOptionsV1 {
+    Delete,
+    Info,
+    EnableContinuousMode,
+    DisableContinuousMode,
+}
+
+#[api_v2_operation(tags("Device Manager"))]
+#[get("device_manager/{selection}")]
+async fn device_manager_get(
+    manager_handler: web::Data<ManagerActorHandler>,
+    selection: web::Path<DeviceManagerGetOptionsV1>,
+) -> Result<Json<crate::device::manager::Answer>, Error> {
+    let request = match selection.into_inner() {
+        DeviceManagerGetOptionsV1::AutoCreate => crate::device::manager::Request::AutoCreate,
+        DeviceManagerGetOptionsV1::List => crate::device::manager::Request::List,
+        DeviceManagerGetOptionsV1::Search => crate::device::manager::Request::Search,
+    };
+
+    send_request_and_broadcast(&manager_handler, request).await
+}
+
+#[api_v2_operation(tags("Device Manager"))]
+#[post("device_manager/create")]
+async fn post_create(
+    manager_handler: web::Data<ManagerActorHandler>,
+    info: web::Json<crate::device::manager::CreateStruct>,
+) -> Result<Json<crate::device::manager::Answer>, Error> {
+    let create_struct = info.into_inner();
+
+    let request = crate::device::manager::Request::Create(create_struct);
+
+    send_request_and_broadcast(&manager_handler, request).await
+}
+
+#[api_v2_operation(tags("Device Manager : Device"))]
+#[post("device_manager/{device}/{selection}")]
+async fn device_manager_post(
+    manager_handler: web::Data<ManagerActorHandler>,
+    info: web::Path<(Uuid, DeviceManagerPostOptionsV1)>,
+) -> Result<Json<crate::device::manager::Answer>, Error> {
+    let info = info.into_inner();
+    let uuid = info.0;
+    let request = info.1;
+
+    let request = match request {
+        DeviceManagerPostOptionsV1::Delete => {
+            crate::device::manager::Request::Delete(UuidWrapper { uuid })
+        }
+        DeviceManagerPostOptionsV1::Info => {
+            crate::device::manager::Request::Info(UuidWrapper { uuid })
+        }
+        DeviceManagerPostOptionsV1::EnableContinuousMode => {
+            crate::device::manager::Request::EnableContinuousMode(UuidWrapper { uuid })
+        }
+        DeviceManagerPostOptionsV1::DisableContinuousMode => {
+            crate::device::manager::Request::DisableContinuousMode(UuidWrapper { uuid })
+        }
+    };
+
+    send_request_and_broadcast(&manager_handler, request).await
+}
+
+#[api_v2_operation(tags("Device Manager : Device"))]
+#[get("device_manager/{device}/{request}")]
+async fn device_manager_device_get(
+    manager_handler: web::Data<ManagerActorHandler>,
+    info: web::Path<(Uuid, crate::device::devices::PingRequest)>,
+) -> Result<Json<crate::device::manager::Answer>, Error> {
+    let info = info.into_inner();
+    let uuid = info.0;
+    let request = info.1;
+
+    let request =
+        crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
+            uuid,
+            device_request: request,
+        });
+
+    send_request_and_broadcast(&manager_handler, request).await
+}
+
+#[api_v2_operation(tags("Device Manager : Device"))]
+#[get("device_manager/{device}/ping1d/{request}")]
+async fn device_manager_device_ping1d_get(
+    manager_handler: web::Data<ManagerActorHandler>,
+    info: web::Path<(Uuid, crate::device::devices::Ping1DRequest)>,
+) -> Result<Json<crate::device::manager::Answer>, Error> {
+    let info = info.into_inner();
+    let uuid = info.0;
+    let request = info.1;
+
+    let request = crate::device::devices::PingRequest::Ping1D(request);
+
+    let request =
+        crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
+            uuid: uuid,
+            device_request: request,
+        });
+
+    send_request_and_broadcast(&manager_handler, request).await
+}
+
+#[api_v2_operation(tags("Device Manager : Device"))]
+#[get("device_manager/{device}/ping360/{request}")]
+async fn device_manager_device_ping360_get(
+    manager_handler: web::Data<ManagerActorHandler>,
+    info: web::Path<(Uuid, crate::device::devices::Ping360Request)>,
+) -> Result<Json<crate::device::manager::Answer>, Error> {
+    let info = info.into_inner();
+    let uuid = info.0;
+    let request = info.1;
+
+    let request = crate::device::devices::PingRequest::Ping360(request);
+
+    let request =
+        crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
+            uuid: uuid,
+            device_request: request,
+        });
+
+    send_request_and_broadcast(&manager_handler, request).await
+}
+
+#[api_v2_operation(tags("Device Manager : Device"))]
+#[get("device_manager/{device}/common/{request}")]
+async fn device_manager_device_common_get(
+    manager_handler: web::Data<ManagerActorHandler>,
+    info: web::Path<(Uuid, crate::device::devices::PingCommonRequest)>,
+) -> Result<Json<crate::device::manager::Answer>, Error> {
+    let info = info.into_inner();
+    let uuid = info.0;
+    let request = info.1;
+
+    let request = crate::device::devices::PingRequest::Common(request);
+
+    let request =
+        crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
+            uuid: uuid,
+            device_request: request,
+        });
+
+    send_request_and_broadcast(&manager_handler, request).await
+}
+
 #[derive(Debug, Serialize, Deserialize, Apiv2Schema)]
 pub struct ServerMetadata {
     pub name: &'static str,

@@ -1,4 +1,5 @@
 use bluerobotics_ping::device::PingDevice;
+use paperclip::actix::Apiv2Schema;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, trace, warn};
@@ -267,7 +268,7 @@ pub enum UpgradeResult {
     Ping360,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
 pub enum PingRequest {
     Ping1D(Ping1DRequest),
     Ping360(Ping360Request),
@@ -277,7 +278,7 @@ pub enum PingRequest {
     Stop,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
 pub enum Ping1DRequest {
     DeviceID,
     ModeAuto,
@@ -308,7 +309,7 @@ pub enum Ping1DRequest {
     GotoBootloader,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
 pub enum Ping360Request {
     MotorOff,
     DeviceData,
@@ -319,7 +320,7 @@ pub enum Ping360Request {
     AutoTransmit(bluerobotics_ping::ping360::AutoTransmitStruct),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
 pub enum PingCommonRequest {
     DeviceInformation,
     ProtocolVersion,

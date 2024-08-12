@@ -64,7 +64,7 @@ impl Drop for Device {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Apiv2Schema)]
 pub enum DeviceSelection {
     Common,
     Ping1D,
@@ -72,7 +72,7 @@ pub enum DeviceSelection {
     Auto,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Hash)]
+#[derive(Debug, Clone, Deserialize, Serialize, Hash, Apiv2Schema)]
 pub enum SourceSelection {
     UdpStream(SourceUdpStruct),
     SerialStream(SourceSerialStruct),
@@ -160,7 +160,7 @@ pub enum Request {
     DisableContinuousMode(UuidWrapper),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
 pub struct UuidWrapper {
     pub uuid: Uuid,
 }
@@ -172,7 +172,7 @@ impl Deref for UuidWrapper {
         &self.uuid
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
 pub struct CreateStruct {
     pub source: SourceSelection,
     pub device_selection: DeviceSelection,
