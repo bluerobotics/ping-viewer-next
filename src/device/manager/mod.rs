@@ -1,5 +1,7 @@
 /// Specially for DeviceManager to retrieve checks and structures from Devices stored in it's hashmap collection
 pub mod continuous_mode;
+/// Specially for auto creation methods, from UDP or serial port
+pub mod device_discovery;
 /// Specially for continuous_mode methods, startup, shutdown, handle and errors routines for each device type
 pub mod device_handle;
 
@@ -12,7 +14,6 @@ use std::{
     ops::Deref,
 };
 use tokio::sync::{mpsc, oneshot};
-use tokio_serial::available_ports;
 
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
 use tracing::{error, info, trace, warn};
@@ -399,20 +400,22 @@ impl DeviceManager {
     }
 
     pub async fn auto_create(&mut self) -> Result<Answer, ManagerError> {
-        let serial_ports =
-            available_ports().map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
-
         let mut results = Vec::new();
 
-        for port_info in serial_ports {
-            let source = SourceSelection::SerialStream(SourceSerialStruct {
-                path: port_info.port_name.clone(),
-                baudrate: 115200,
-            });
+        let mut available_source = Vec::new();
 
-            let device_selection = DeviceSelection::Auto;
+        match device_discovery::serial_discovery() {
+            Some(result) => available_source.extend(result),
+            None => warn!("Auto create: Unable to find available devices on serial ports"),
+        }
 
-            match self.create(source, device_selection).await {
+        match device_discovery::network_discovery() {
+            Some(result) => available_source.extend(result),
+            None => warn!("Auto create: Unable to find available devices on network"),
+        }
+
+        for source in available_source {
+            match self.create(source.clone(), DeviceSelection::Auto).await {
                 Ok(answer) => match answer {
                     Answer::DeviceInfo(device_info) => {
                         results.extend(device_info);
@@ -422,10 +425,7 @@ impl DeviceManager {
                     }
                 },
                 Err(err) => {
-                    error!(
-                        "Failed to create device for port {}: {:?}",
-                        port_info.port_name, err
-                    );
+                    error!("Failed to create device for source {source:?}: {err:?}");
                 }
             }
         }
