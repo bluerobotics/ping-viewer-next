@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
     hash::{Hash, Hasher},
-    net::{Ipv4Addr, SocketAddrV4},
+    net::{Ipv4Addr, SocketAddrV4, UdpSocket},
     ops::Deref,
 };
 use tokio::sync::{mpsc, oneshot};
@@ -157,8 +157,20 @@ pub enum Request {
     Search,
     Ping(DeviceRequestStruct),
     GetDeviceHandler(UuidWrapper),
+    ModifyDevice(ModifyDevice),
     EnableContinuousMode(UuidWrapper),
     DisableContinuousMode(UuidWrapper),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
+pub enum ModifyDeviceCommand {
+    Ip(Ipv4Addr),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
+pub struct ModifyDevice {
+    pub uuid: Uuid,
+    pub modify: ModifyDeviceCommand,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
@@ -235,6 +247,12 @@ impl DeviceManager {
                 let answer = self.get_device_handler(*id).await;
                 if let Err(e) = actor_request.respond_to.send(answer) {
                     error!("DeviceManager: Failed to return GetDeviceHandler response: {e:?}");
+                }
+            }
+            Request::ModifyDevice(request) => {
+                let answer = self.modify_device(request).await;
+                if let Err(err) = actor_request.respond_to.send(answer) {
+                    error!("DeviceManager: Failed to return ModifyDevice response: {err:?}");
                 }
             }
             _ => {
@@ -518,6 +536,50 @@ impl DeviceManager {
             .await?;
 
         Ok(Answer::DeviceInfo(vec![updated_device_info]))
+    }
+
+    pub async fn modify_device(&mut self, request: ModifyDevice) -> Result<Answer, ManagerError> {
+        match request.modify {
+            ModifyDeviceCommand::Ip(ip) => {
+                let device_info = self.info(request.uuid).await?;
+                let Answer::DeviceInfo(data) = device_info else {
+                    return Err(ManagerError::NoDevices);
+                };
+
+                let Some(info) = data.first() else {
+                    return Err(ManagerError::NoDevices);
+                };
+
+                let SourceSelection::UdpStream(inner) = &info.source else {
+                    return Err(ManagerError::Other(format!(
+                        "modify_device : invalid request for device : {request:?}"
+                    )));
+                };
+
+                self.modify_device_ip(ip, inner.ip).await?;
+                return self.delete(request.uuid).await;
+            }
+        }
+        Err(ManagerError::NoDevices)
+    }
+
+    pub async fn modify_device_ip(
+        &mut self,
+        ip: Ipv4Addr,
+        destination: Ipv4Addr,
+    ) -> Result<(), ManagerError> {
+        let socket =
+            UdpSocket::bind("0.0.0.0:0").map_err(|err| ManagerError::Other(err.to_string()))?; // Bind to any available port
+        socket
+            .set_broadcast(true)
+            .map_err(|err| ManagerError::Other(err.to_string()))?;
+
+        let command = format!("SetSS1IP {}", ip);
+
+        socket
+            .send_to(command.as_bytes(), format!("{destination}:30303"))
+            .map_err(|err| ManagerError::Other(err.to_string()))?;
+        Ok(())
     }
 }
 
