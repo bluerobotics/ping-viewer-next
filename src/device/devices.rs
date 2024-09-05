@@ -58,6 +58,16 @@ impl DeviceActor {
                     let answer = device.handle(device_request).await;
                     let _ = request.respond_to.send(answer);
                 }
+                DeviceType::Ping1D(device) => {
+                    trace!("Handling Common request: {device_request:?}");
+                    let answer = device.handle(device_request).await;
+                    let _ = request.respond_to.send(answer);
+                }
+                DeviceType::Ping360(device) => {
+                    trace!("Handling Common request: {device_request:?}");
+                    let answer = device.handle(device_request).await;
+                    let _ = request.respond_to.send(answer);
+                }
                 _ => {
                     warn!(
                         "Unsupported request for device type: {:?}",
@@ -624,6 +634,58 @@ impl Requests<Ping360Request> for bluerobotics_ping::device::Ping360 {
 }
 
 impl Requests<PingCommonRequest> for bluerobotics_ping::common::Device {
+    type Reply = Result<PingAnswer, DeviceError>;
+
+    async fn handle(&self, msg: PingCommonRequest) -> Self::Reply {
+        match msg.clone() {
+            PingCommonRequest::ProtocolVersion => match self.protocol_version().await {
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Common(
+                        bluerobotics_ping::common::Messages::ProtocolVersion(result),
+                    ),
+                )),
+                Err(e) => Err(DeviceError::PingError(e)),
+            },
+            PingCommonRequest::DeviceInformation => match self.device_information().await {
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Common(
+                        bluerobotics_ping::common::Messages::DeviceInformation(result),
+                    ),
+                )),
+                Err(e) => Err(DeviceError::PingError(e)),
+            },
+            _ => Ok(PingAnswer::NotImplemented(PingRequest::Common(msg))),
+        }
+    }
+}
+
+impl Requests<PingCommonRequest> for bluerobotics_ping::ping1d::Device {
+    type Reply = Result<PingAnswer, DeviceError>;
+
+    async fn handle(&self, msg: PingCommonRequest) -> Self::Reply {
+        match msg.clone() {
+            PingCommonRequest::ProtocolVersion => match self.protocol_version().await {
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Common(
+                        bluerobotics_ping::common::Messages::ProtocolVersion(result),
+                    ),
+                )),
+                Err(e) => Err(DeviceError::PingError(e)),
+            },
+            PingCommonRequest::DeviceInformation => match self.device_information().await {
+                Ok(result) => Ok(PingAnswer::PingMessage(
+                    bluerobotics_ping::Messages::Common(
+                        bluerobotics_ping::common::Messages::DeviceInformation(result),
+                    ),
+                )),
+                Err(e) => Err(DeviceError::PingError(e)),
+            },
+            _ => Ok(PingAnswer::NotImplemented(PingRequest::Common(msg))),
+        }
+    }
+}
+
+impl Requests<PingCommonRequest> for bluerobotics_ping::ping360::Device {
     type Reply = Result<PingAnswer, DeviceError>;
 
     async fn handle(&self, msg: PingCommonRequest) -> Self::Reply {
