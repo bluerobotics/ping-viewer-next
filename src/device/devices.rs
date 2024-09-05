@@ -347,7 +347,7 @@ impl Requests<Ping1DRequest> for bluerobotics_ping::device::Ping1D {
     type Reply = Result<PingAnswer, DeviceError>;
 
     async fn handle(&self, msg: Ping1DRequest) -> Self::Reply {
-        match msg.clone() {
+        match &msg {
             Ping1DRequest::DeviceID => match self.device_id().await {
                 Ok(result) => Ok(PingAnswer::PingMessage(
                     bluerobotics_ping::Messages::Ping1D(
@@ -553,7 +553,7 @@ impl Requests<Ping360Request> for bluerobotics_ping::device::Ping360 {
     type Reply = Result<PingAnswer, DeviceError>;
 
     async fn handle(&self, msg: Ping360Request) -> Self::Reply {
-        match msg.clone() {
+        match &msg {
             Ping360Request::MotorOff => match self.motor_off().await {
                 Ok(_) => Ok(PingAnswer::PingAcknowledge(PingRequest::Ping360(msg))),
                 Err(e) => Err(DeviceError::PingError(e)),
@@ -637,7 +637,7 @@ impl Requests<PingCommonRequest> for bluerobotics_ping::common::Device {
     type Reply = Result<PingAnswer, DeviceError>;
 
     async fn handle(&self, msg: PingCommonRequest) -> Self::Reply {
-        match msg.clone() {
+        match &msg {
             PingCommonRequest::ProtocolVersion => match self.protocol_version().await {
                 Ok(result) => Ok(PingAnswer::PingMessage(
                     bluerobotics_ping::Messages::Common(
@@ -663,7 +663,7 @@ impl Requests<PingCommonRequest> for bluerobotics_ping::ping1d::Device {
     type Reply = Result<PingAnswer, DeviceError>;
 
     async fn handle(&self, msg: PingCommonRequest) -> Self::Reply {
-        match msg.clone() {
+        match &msg {
             PingCommonRequest::ProtocolVersion => match self.protocol_version().await {
                 Ok(result) => Ok(PingAnswer::PingMessage(
                     bluerobotics_ping::Messages::Common(
@@ -689,7 +689,7 @@ impl Requests<PingCommonRequest> for bluerobotics_ping::ping360::Device {
     type Reply = Result<PingAnswer, DeviceError>;
 
     async fn handle(&self, msg: PingCommonRequest) -> Self::Reply {
-        match msg.clone() {
+        match &msg {
             PingCommonRequest::ProtocolVersion => match self.protocol_version().await {
                 Ok(result) => Ok(PingAnswer::PingMessage(
                     bluerobotics_ping::Messages::Common(
@@ -714,7 +714,7 @@ impl Requests<PingCommonRequest> for bluerobotics_ping::ping360::Device {
 impl Requests<PingRequest> for DeviceActor {
     type Reply = PingAnswer;
     async fn handle(&self, msg: PingRequest) -> Self::Reply {
-        match msg {
+        match &msg {
             PingRequest::GetSubscriber => match &self.device_type {
                 DeviceType::Common(_) => PingAnswer::NotSupported(msg),
                 DeviceType::Ping1D(device) => PingAnswer::Subscriber(device.subscribe()),
