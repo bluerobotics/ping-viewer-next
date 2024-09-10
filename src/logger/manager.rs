@@ -40,7 +40,12 @@ pub fn init() {
     };
 
     let dir = cli::manager::log_path();
-    let file_appender = tracing_appender::rolling::hourly(dir, "ping-viewer.", ".log");
+    let file_appender = custom_rolling_appender(
+        dir,
+        tracing_appender::rolling::Rotation::HOURLY,
+        "ping-viewer",
+        "log",
+    );
     let file_layer = fmt::Layer::new()
         .with_writer(file_appender)
         .with_ansi(false)
@@ -113,4 +118,19 @@ pub fn init() {
         "Command line input struct call: {}",
         cli::manager::command_line()
     );
+}
+
+// Exclusive to output log-file with 'ping-viewer.2024-09-10-18.log' format.
+fn custom_rolling_appender<P: AsRef<std::path::Path>>(
+    dir: P,
+    rotation: tracing_appender::rolling::Rotation,
+    prefix: &str,
+    suffix: &str,
+) -> tracing_appender::rolling::RollingFileAppender {
+    tracing_appender::rolling::RollingFileAppender::builder()
+        .rotation(rotation)
+        .filename_prefix(prefix)
+        .filename_suffix(suffix)
+        .build(dir)
+        .expect("failed to initialize rolling file appender")
 }
