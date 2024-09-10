@@ -2,6 +2,10 @@
 name = "ping-viewer-next"
 version = "0.0.0"
 edition = "2021"
+authors = ["Raul Victor Trombin <raulvtrombin@gmail.com>"]
+description = "This crate serves as the entry point for embedding applications using Rust on Blue Robotics's Ping devices family"
+repository = "https://github.com/bluerobotics/ping-viewer-next"
+license = "MIT"
 
 [dependencies]
 actix = "0.13.3"
@@ -32,3 +36,11 @@ shellexpand = "3.1"
 
 [build-dependencies]
 vergen-gix = { version = "1.0.0-beta.2", default-features = false, features = ["build", "cargo"] }
+
+[lib]
+name = "ping_viewer_next"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ping-viewer-next"
+path = "src/main.rs"

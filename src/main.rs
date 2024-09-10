@@ -1,20 +1,6 @@
-use serde::{Deserialize, Serialize};
 use tracing::info;
 
-#[macro_use]
-extern crate lazy_static;
-
-mod cli;
-/// The Device module consists of two main modules: devices and manager.
-mod device;
-mod logger;
-mod server;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "module")]
-pub enum ModuleType {
-    DeviceManager(device::manager::Request),
-}
+use ping_viewer_next::{cli, device, logger, server};
 
 #[tokio::main]
 async fn main() {
