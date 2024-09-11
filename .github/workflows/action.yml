@@ -23,6 +23,11 @@ jobs:
         # Note: Required by vergen (https://crates.io/crates/vergen)
         run: git config --global --add safe.directory $GITHUB_WORKSPACE
 
+      - name: install dependencies (desktop-app)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
       - name: Install build dependencies - Rustup
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
@@ -92,3 +97,77 @@ jobs:
               tag: ${{ github.ref }}
               prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
               overwrite: true
+
+  build-tauri:
+          needs: quick-tests
+          permissions:
+            contents: write
+          strategy:
+            fail-fast: false
+            matrix:
+              include:
+                - platform: 'macos-latest'
+                  args: '--target aarch64-apple-darwin'
+                  label: 'Mac-ARM64'
+                - platform: 'macos-latest'
+                  args: '--target x86_64-apple-darwin'
+                  label: 'Mac-x86'
+                - platform: 'ubuntu-22.04'
+                  args: ''
+                  label: 'Linux'
+                - platform: 'windows-latest'
+                  args: ''
+                  label: 'Windows'
+
+          runs-on: ${{ matrix.platform }}
+          steps:
+            - uses: actions/checkout@v4
+
+            - name: install dependencies (ubuntu only)
+              if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
+              run: |
+                sudo apt-get update
+                sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+              # webkitgtk 4.0 is for Tauri v1 - webkitgtk 4.1 is for Tauri v2.
+
+            - name: setup node
+              uses: actions/setup-node@v4
+              with:
+                node-version: lts/*
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v1
+              with:
+                bun-version: latest
+
+            - name: install Rust stable
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
+                targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+            - name: Rust cache
+              uses: swatinem/rust-cache@v2
+              with:
+                workspaces: './src-tauri -> target'
+
+            - name: Install dependencies
+              run: |
+                cd ping-viewer-next-desktop
+                bun install
+
+            - name: Build the app
+              id: tauri-build
+              uses: tauri-apps/tauri-action@v0.5.13
+              env:
+                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              with:
+                projectPath: './ping-viewer-next-desktop'
+                args: ${{ matrix.args }}
+
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4.4.0
+              with:
+                name: 'ping-viewer_${{steps.tauri-build.outputs.appVersion}}_${{ matrix.label }}'
+                path: "${{ join(fromJSON(steps.tauri-build.outputs.artifactPaths), '\n') }}"
+                retention-days: 5
