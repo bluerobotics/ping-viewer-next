@@ -1,5 +1,6 @@
 use clap;
 use clap::Parser;
+use lazy_static::lazy_static;
 use std::sync::Arc;
 
 #[derive(Parser, Debug)]
@@ -30,8 +31,8 @@ struct Args {
     enable_tracing_level_log_file: bool,
 
     /// Filter to show only own crate related logs
-    #[arg(long, default_value = "true")]
-    log_current_crate_only: bool,
+    #[arg(long, default_value = "false")]
+    log_include_all_dependencies: bool,
 
     /// Turns on the Tracy tool integration.
     #[arg(long)]
@@ -73,8 +74,8 @@ pub fn is_tracy() -> bool {
     MANAGER.clap_matches.enable_tracy
 }
 
-pub fn log_current_crate_only() -> bool {
-    MANAGER.clap_matches.log_current_crate_only
+pub fn is_log_all_dependencies() -> bool {
+    MANAGER.clap_matches.log_include_all_dependencies
 }
 
 pub fn is_enable_auto_create() -> bool {

@@ -4,8 +4,6 @@ pub mod logger;
 pub mod server;
 
 use serde::{Deserialize, Serialize};
-#[macro_use]
-extern crate lazy_static;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "module")]
