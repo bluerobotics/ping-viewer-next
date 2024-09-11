@@ -59,33 +59,35 @@ pub fn init() {
     // Configure the default subscriber
     match (
         cli::manager::is_tracy(),
-        cli::manager::log_current_crate_only(),
+        cli::manager::is_log_all_dependencies(),
     ) {
-        (true, true) => {
-            let subscriber = subscriber.with(EnvFilter::new(format!(
-                "{}={level}",
-                env!("CARGO_PKG_NAME").replace('-', "_")
-            )));
-            let tracy_layer = tracing_tracy::TracyLayer::default();
-            let subscriber = subscriber.with(tracy_layer);
-            tracing::subscriber::set_global_default(subscriber)
-                .expect("Unable to set a global subscriber");
-        }
-        (false, true) => {
-            let subscriber = subscriber.with(EnvFilter::new(format!(
-                "{}={level}",
-                env!("CARGO_PKG_NAME").replace('-', "_")
-            )));
-            tracing::subscriber::set_global_default(subscriber)
-                .expect("Unable to set a global subscriber");
-        }
         (true, false) => {
+            let lib_name = env!("CARGO_PKG_NAME").replace('-', "_");
+            let subscriber = subscriber.with(EnvFilter::new(format!(
+                "{lib_name}={level},lib{lib_name}={level}"
+            )));
             let tracy_layer = tracing_tracy::TracyLayer::default();
             let subscriber = subscriber.with(tracy_layer);
             tracing::subscriber::set_global_default(subscriber)
                 .expect("Unable to set a global subscriber");
         }
         (false, false) => {
+            let lib_name = env!("CARGO_PKG_NAME").replace('-', "_");
+            let subscriber = subscriber.with(EnvFilter::new(format!(
+                "{lib_name}={level},lib{lib_name}={level}"
+            )));
+            tracing::subscriber::set_global_default(subscriber)
+                .expect("Unable to set a global subscriber");
+        }
+        (true, true) => {
+            let subscriber = subscriber.with(EnvFilter::new(level.to_string()));
+            let tracy_layer = tracing_tracy::TracyLayer::default();
+            let subscriber = subscriber.with(tracy_layer);
+            tracing::subscriber::set_global_default(subscriber)
+                .expect("Unable to set a global subscriber");
+        }
+        (false, true) => {
+            let subscriber = subscriber.with(EnvFilter::new(level.to_string()));
             tracing::subscriber::set_global_default(subscriber)
                 .expect("Unable to set a global subscriber");
         }
