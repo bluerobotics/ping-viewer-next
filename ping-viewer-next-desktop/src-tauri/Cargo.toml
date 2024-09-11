@@ -1,0 +1,25 @@
+[package]
+name = "ping-viewer-next-desktop"
+version = "0.1.0"
+description = "Ping Viewer Next Dekstop App"
+authors = ["Raul Victor Trombin <raulvtrombin@gmail.com>"]
+edition = "2021"
+repository = "https://github.com/bluerobotics/ping-viewer-next/"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+tauri-build = { version = "1.5.4", features = [] }
+
+[dependencies]
+tauri = { version = "1.7.2", features = ["shell-open"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ping-viewer-next = { path = "./../../", features = ["desktop-app"] }
+tokio = { version = "1.40.0", features = ["full"] }
+actix-web = "4.6.0"
+
+[features]
+# This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]
