@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
 use crate::cli;
 
@@ -39,13 +39,15 @@ pub fn init() {
         EnvFilter::new(LevelFilter::DEBUG.to_string())
     };
 
-    let dir = cli::manager::log_path();
+    let dir = get_app_log_dir();
+
     let file_appender = custom_rolling_appender(
         dir,
         tracing_appender::rolling::Rotation::HOURLY,
         "ping-viewer",
         "log",
     );
+
     let file_layer = fmt::Layer::new()
         .with_writer(file_appender)
         .with_ansi(false)
@@ -135,4 +137,42 @@ fn custom_rolling_appender<P: AsRef<std::path::Path>>(
         .filename_suffix(suffix)
         .build(dir)
         .expect("failed to initialize rolling file appender")
+}
+
+#[allow(unused)]
+#[cfg(feature = "desktop-app")]
+static APP_DIR: &str = "Ping-Viewer-Next";
+
+#[cfg(feature = "desktop-app")]
+pub fn get_app_home_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    if let Err(e) = std::env::current_dir() {
+        error!("Failed to get app home dir. Errmsg: {}", e);
+        std::process::exit(-1);
+    } else {
+        return std::env::current_dir().unwrap();
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    match tauri::api::path::home_dir() {
+        None => {
+            error!("Failed to get app home dir");
+            std::process::exit(-1);
+        }
+        Some(path) => {
+            return path.join(APP_DIR);
+        }
+    }
+}
+
+pub fn get_app_log_dir() -> PathBuf {
+    #[cfg(feature = "desktop-app")]
+    {
+        get_app_home_dir().join("logs")
+    }
+
+    #[cfg(not(feature = "desktop-app"))]
+    {
+        PathBuf::from(cli::manager::log_path())
+    }
 }
