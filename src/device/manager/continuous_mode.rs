@@ -18,7 +18,7 @@ impl DeviceManager {
         device_type: DeviceSelection,
     ) -> Option<tokio::task::JoinHandle<()>> {
         let raw_handler = match self.get_device_handler(device_id).await {
-            Ok(handler) => handler.clone(),
+            Ok(handler) => handler,
             Err(err) => {
                 trace!("Error during start_continuous_mode: Failed to get device handler: {err:?}");
                 return None;
@@ -49,8 +49,6 @@ impl DeviceManager {
             })),
             DeviceSelection::Ping360 => {
                 Some(tokio::spawn(async move {
-                    let handler = handler.clone();
-
                     // Attempt to send the Ping360 request and handle the result
                     let device_data = match handler
                         .send(crate::device::devices::PingRequest::Ping360(

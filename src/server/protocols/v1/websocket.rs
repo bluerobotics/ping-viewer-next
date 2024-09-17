@@ -188,11 +188,13 @@ pub async fn websocket(
     stream: web::Payload,
     manager_handler: web::Data<ManagerActorHandler>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    let filter = match query.clone().into_inner().filter {
-        Some(filter) => filter.clone(),
+    let query_inner = query.into_inner();
+
+    let filter = match query_inner.filter {
+        Some(filter) => filter,
         _ => ".*".to_owned(),
     };
-    let device_number = query.into_inner().device_number;
+    let device_number = query_inner.device_number;
 
     if let Some(device_number) = device_number {
         let request = crate::device::manager::Request::Info(crate::device::manager::UuidWrapper {
