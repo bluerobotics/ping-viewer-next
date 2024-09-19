@@ -27,7 +27,7 @@ tracing = { version = "0.1.40", features = ["log", "async-await"] }
 tracing-log = "0.2.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing-appender = "0.2.3"
-tracing-tracy = "0.11.0"
+tracing-tracy = {version = "0.11.0", features = ["ondemand"] }
 udp-stream = "0.0.12"
 uuid = { version = "1.10.0", features = ["serde"] }
 validator = "0.18.1"
