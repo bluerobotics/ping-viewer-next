@@ -187,7 +187,7 @@ async fn device_manager_device_ping1d_get(
 
     let request =
         crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
-            uuid: uuid,
+            uuid,
             device_request: request,
         });
 
@@ -208,7 +208,7 @@ async fn device_manager_device_ping360_get(
 
     let request =
         crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
-            uuid: uuid,
+            uuid,
             device_request: request,
         });
 
@@ -229,7 +229,7 @@ async fn device_manager_device_common_get(
 
     let request =
         crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
-            uuid: uuid,
+            uuid,
             device_request: request,
         });
 
