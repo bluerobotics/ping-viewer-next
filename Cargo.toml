@@ -44,3 +44,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "ping-viewer-next"
 path = "src/main.rs"
+
+[features]
+build-frontend = ["embed-frontend"]
+embed-frontend =[]
