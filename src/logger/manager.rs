@@ -87,14 +87,14 @@ pub fn init() {
                 .expect("Unable to set a global subscriber");
         }
         (true, true) => {
-            let subscriber = subscriber.with(EnvFilter::new(level.to_string()));
+            let subscriber = subscriber.with(EnvFilter::new(&level));
             let tracy_layer = tracing_tracy::TracyLayer::default();
             let subscriber = subscriber.with(tracy_layer);
             tracing::subscriber::set_global_default(subscriber)
                 .expect("Unable to set a global subscriber");
         }
         (false, true) => {
-            let subscriber = subscriber.with(EnvFilter::new(level.to_string()));
+            let subscriber = subscriber.with(EnvFilter::new(&level));
             tracing::subscriber::set_global_default(subscriber)
                 .expect("Unable to set a global subscriber");
         }
