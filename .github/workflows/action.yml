@@ -33,6 +33,11 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
+      - name: Install build dependencies - Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.1.22
+
       - name: Check style
         run: cargo fmt --check
 
@@ -42,8 +47,31 @@ jobs:
       - name: Build
         run: cargo build --verbose
 
+  build-frontend:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.1.22
+
+      - name: Install dependencies and build Bun project
+        run: |
+          cd ping-viewer-next-frontend
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Upload dist folder
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: dist
+          path: ./ping-viewer-next-frontend/dist
+
   build:
-          needs: quick-tests
+          needs: [quick-tests, build-frontend]
           runs-on: ${{ matrix.os }}
           strategy:
             fail-fast: false
@@ -73,11 +101,18 @@ jobs:
             run: echo "${{ matrix.TARGET }}"
 
           - uses: actions/checkout@master
+
+          - name: Download frontend build
+            uses: actions/download-artifact@v4.1.8
+            with:
+              name: dist
+              path: ./ping-viewer-next-frontend/dist
+
           - name: Build
             uses: houseabsolute/actions-rust-cross@v0.0.14
             with:
               target: ${{ matrix.TARGET }}
-              args: "--release"
+              args: "--release --features embed-frontend"
 
           - name: Rename
             run: cp target/${{ matrix.TARGET }}/release/${{ github.event.repository.name }}${{ matrix.EXTENSION }} ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
