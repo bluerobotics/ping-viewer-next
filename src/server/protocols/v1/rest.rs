@@ -11,8 +11,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
+#[cfg(not(feature = "embed-frontend"))]
 #[derive(rust_embed::RustEmbed)]
 #[folder = "src/server/protocols/v1/frontend"]
+struct Asset;
+
+#[cfg(feature = "embed-frontend")]
+#[derive(rust_embed::RustEmbed)]
+#[folder = "ping-viewer-next-frontend/dist"]
 struct Asset;
 
 fn handle_embedded_file(path: &str) -> HttpResponse {
