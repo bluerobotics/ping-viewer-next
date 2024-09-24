@@ -35,12 +35,15 @@
 <script setup>
 import { ref } from "vue";
 import WebsocketClient from "../widgets/WebsocketClient.vue";
+import Ping360Widget from "../widgets/sonar360/Ping360Loader.vue";
+
 
 const selectedComponent = ref("WebsocketClient");
 const isCollapsed = ref(false);
 
 const components = {
 	WebsocketClient,
+  Ping360Widget
 };
 
 const toggleSidebar = () => {
