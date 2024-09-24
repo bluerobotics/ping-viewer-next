@@ -35,12 +35,14 @@
 <script setup>
 import { ref } from "vue";
 import WebsocketClient from "../widgets/WebsocketClient.vue";
+import Ping1DWidget from "../widgets/sonar1d/Ping1D_loader.vue";
 
 const selectedComponent = ref("WebsocketClient");
 const isCollapsed = ref(false);
 
 const components = {
 	WebsocketClient,
+	Ping1DWidget,
 };
 
 const toggleSidebar = () => {
