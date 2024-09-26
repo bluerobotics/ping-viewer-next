@@ -557,10 +557,9 @@ impl DeviceManager {
                 };
 
                 self.modify_device_ip(ip, inner.ip).await?;
-                return self.delete(request.uuid).await;
+                self.delete(request.uuid).await
             }
         }
-        Err(ManagerError::NoDevices)
     }
 
     pub async fn modify_device_ip(

@@ -11,8 +11,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
+#[cfg(not(feature = "embed-frontend"))]
 #[derive(rust_embed::RustEmbed)]
 #[folder = "src/server/protocols/v1/frontend"]
+struct Asset;
+
+#[cfg(feature = "embed-frontend")]
+#[derive(rust_embed::RustEmbed)]
+#[folder = "ping-viewer-next-frontend/dist"]
 struct Asset;
 
 fn handle_embedded_file(path: &str) -> HttpResponse {
@@ -181,7 +187,7 @@ async fn device_manager_device_ping1d_get(
 
     let request =
         crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
-            uuid: uuid,
+            uuid,
             device_request: request,
         });
 
@@ -202,7 +208,7 @@ async fn device_manager_device_ping360_get(
 
     let request =
         crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
-            uuid: uuid,
+            uuid,
             device_request: request,
         });
 
@@ -223,7 +229,7 @@ async fn device_manager_device_common_get(
 
     let request =
         crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
-            uuid: uuid,
+            uuid,
             device_request: request,
         });
 
