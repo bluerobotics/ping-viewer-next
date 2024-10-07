@@ -14,14 +14,14 @@ import { aliases, mdi } from "vuetify/lib/iconsets/mdi";
 
 // https://vuetifyjs.com/en/introduction/why-vuetify/#feature-guides
 export default createVuetify({
-  theme: {
-    defaultTheme: "light",
-  },
-  icons: {
-    defaultSet: "mdi",
-    aliases,
-    sets: {
-      mdi,
-    },
-  },
+	theme: {
+		defaultTheme: "light",
+	},
+	icons: {
+		defaultSet: "mdi",
+		aliases,
+		sets: {
+			mdi,
+		},
+	},
 });

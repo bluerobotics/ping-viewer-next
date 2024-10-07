@@ -40,10 +40,10 @@ const selectedComponent = ref("WebsocketClient");
 const isCollapsed = ref(false);
 
 const components = {
-  WebsocketClient,
+	WebsocketClient,
 };
 
 const toggleSidebar = () => {
-  isCollapsed.value = !isCollapsed.value;
+	isCollapsed.value = !isCollapsed.value;
 };
 </script>

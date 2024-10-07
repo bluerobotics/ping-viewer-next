@@ -55,70 +55,70 @@
 
 <script>
 export default {
-  data() {
-    return {
-      status: "Connecting...",
-      socket: null,
-      messages: [],
-      messageInput: "",
-      autoScroll: true,
-    };
-  },
-  methods: {
-    redirectToDocs() {
-      window.location.href = "/docs/";
-    },
-    connectWebSocket() {
-      this.socket = new WebSocket(`ws://${window.location.host}/ws`);
+	data() {
+		return {
+			status: "Connecting...",
+			socket: null,
+			messages: [],
+			messageInput: "",
+			autoScroll: true,
+		};
+	},
+	methods: {
+		redirectToDocs() {
+			window.location.href = "/docs/";
+		},
+		connectWebSocket() {
+			this.socket = new WebSocket(`ws://${window.location.host}/ws`);
 
-      this.socket.onopen = () => {
-        this.status = "Connected";
-      };
+			this.socket.onopen = () => {
+				this.status = "Connected";
+			};
 
-      this.socket.onmessage = (event) => {
-        this.messages.push(event.data);
-        this.$nextTick(() => {
-          if (this.autoScroll) {
-            this.scrollToBottom();
-          }
-        });
-      };
+			this.socket.onmessage = (event) => {
+				this.messages.push(event.data);
+				this.$nextTick(() => {
+					if (this.autoScroll) {
+						this.scrollToBottom();
+					}
+				});
+			};
 
-      this.socket.onclose = () => {
-        this.status = "Disconnected";
-      };
+			this.socket.onclose = () => {
+				this.status = "Disconnected";
+			};
 
-      this.socket.onerror = () => {
-        this.status = "Error";
-      };
-    },
-    sendMessage() {
-      if (this.messageInput && this.socket.readyState === WebSocket.OPEN) {
-        this.socket.send(this.messageInput);
-        this.messageInput = "";
-      }
-    },
-    scrollToBottom() {
-      const container = this.$refs.messagesContainer;
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
-    },
-  },
-  mounted() {
-    this.connectWebSocket();
-  },
-  beforeDestroy() {
-    if (this.socket) {
-      this.socket.close();
-    }
-  },
-  updated() {
-    this.$nextTick(() => {
-      if (this.autoScroll) {
-        this.scrollToBottom();
-      }
-    });
-  },
+			this.socket.onerror = () => {
+				this.status = "Error";
+			};
+		},
+		sendMessage() {
+			if (this.messageInput && this.socket.readyState === WebSocket.OPEN) {
+				this.socket.send(this.messageInput);
+				this.messageInput = "";
+			}
+		},
+		scrollToBottom() {
+			const container = this.$refs.messagesContainer;
+			if (container) {
+				container.scrollTop = container.scrollHeight;
+			}
+		},
+	},
+	mounted() {
+		this.connectWebSocket();
+	},
+	beforeDestroy() {
+		if (this.socket) {
+			this.socket.close();
+		}
+	},
+	updated() {
+		this.$nextTick(() => {
+			if (this.autoScroll) {
+				this.scrollToBottom();
+			}
+		});
+	},
 };
 </script>
