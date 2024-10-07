@@ -50,6 +50,6 @@ path = "src/main.rs"
 
 [features]
 default = []
-desktop-app = ["tauri"]
+desktop-app = ["tauri", "build-frontend"]
 build-frontend = ["embed-frontend"]
 embed-frontend =[]
