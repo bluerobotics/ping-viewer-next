@@ -12,8 +12,12 @@ use std::{
     hash::{Hash, Hasher},
     net::{Ipv4Addr, SocketAddrV4, UdpSocket},
     ops::Deref,
+    time::Duration,
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::{
+    sync::{mpsc, oneshot},
+    time::sleep,
+};
 
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
 use tracing::{error, info, trace, warn};
@@ -327,12 +331,16 @@ impl DeviceManager {
                 SourceType::Udp(udp_stream)
             }
             SourceSelection::SerialStream(source_serial_struct) => {
-                let serial_stream = tokio_serial::new(
-                    source_serial_struct.path.clone(),
+                let mut serial_stream: SerialStream =
+                    tokio_serial::new(&source_serial_struct.path, source_serial_struct.baudrate)
+                        .open_native_async()
+                        .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
+
+                device_discovery::set_baudrate_pre_routine(
+                    &mut serial_stream,
                     source_serial_struct.baudrate,
                 )
-                .open_native_async()
-                .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
+                .await?;
 
                 serial_stream
                     .clear(tokio_serial::ClearBuffer::All)
@@ -374,25 +382,46 @@ impl DeviceManager {
         let (mut device, handler) = super::devices::DeviceActor::new(device, 10);
 
         if device_selection == DeviceSelection::Auto {
-            match device.try_upgrade().await {
-                Ok(super::devices::PingAnswer::UpgradeResult(result)) => match result {
-                    super::devices::UpgradeResult::Unknown => {
-                        device_selection = DeviceSelection::Common;
+            let mut retry_count = 0;
+            let max_retries = 3;
+            let retry_delay = Duration::from_millis(100);
+
+            loop {
+                match device.try_upgrade().await {
+                    Ok(super::devices::PingAnswer::UpgradeResult(result)) => {
+                        match result {
+                            super::devices::UpgradeResult::Unknown => {
+                                device_selection = DeviceSelection::Common;
+                            }
+                            super::devices::UpgradeResult::Ping1D => {
+                                device_selection = DeviceSelection::Ping1D;
+                            }
+                            super::devices::UpgradeResult::Ping360 => {
+                                device_selection = DeviceSelection::Ping360;
+                            }
+                        }
+                        break;
                     }
-                    super::devices::UpgradeResult::Ping1D => {
-                        device_selection = DeviceSelection::Ping1D;
+                    Err(err) => {
+                        retry_count += 1;
+                        if retry_count >= max_retries {
+                            error!(
+                                "Device creation error: Can't auto upgrade the DeviceType after {} attempts, details: {err:?}",
+                                max_retries
+                            );
+                            return Err(ManagerError::DeviceError(err));
+                        }
+
+                        warn!(
+                            "Device creation error: Device upgrade attempt {} of {} failed: {err:?}. Retrying...",
+                            retry_count, max_retries
+                        );
+
+                        sleep(retry_delay).await;
+                        continue;
                     }
-                    super::devices::UpgradeResult::Ping360 => {
-                        device_selection = DeviceSelection::Ping360;
-                    }
-                },
-                Err(err) => {
-                    error!(
-                        "Device creation error: Can't auto upgrade the DeviceType, details: {err:?}"
-                    );
-                    return Err(ManagerError::DeviceError(err));
+                    e => warn!("Device creation error: Abnormal answer: {e:?}."),
                 }
-                _ => todo!(),
             }
         }
 
@@ -422,7 +451,7 @@ impl DeviceManager {
 
         let mut available_source = Vec::new();
 
-        match device_discovery::serial_discovery() {
+        match device_discovery::serial_discovery().await {
             Some(result) => available_source.extend(result),
             None => warn!("Auto create: Unable to find available devices on serial ports"),
         }
