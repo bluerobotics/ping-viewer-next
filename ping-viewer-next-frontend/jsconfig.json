@@ -1,14 +1,14 @@
 {
-	"compilerOptions": {
-		"allowJs": true,
-		"target": "es5",
-		"module": "esnext",
-		"baseUrl": "./",
-		"moduleResolution": "bundler",
-		"paths": {
-			"@/*": ["src/*"],
-			"@components/*": ["src/components/*"]
-		},
-		"lib": ["esnext", "dom", "dom.iterable", "scripthost"]
-	}
+  "compilerOptions": {
+    "allowJs": true,
+    "target": "es5",
+    "module": "esnext",
+    "baseUrl": "./",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@/*": ["src/*"],
+      "@components/*": ["src/components/*"]
+    },
+    "lib": ["esnext", "dom", "dom.iterable", "scripthost"]
+  }
 }

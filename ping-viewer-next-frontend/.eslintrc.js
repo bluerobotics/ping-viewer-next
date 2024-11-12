@@ -5,12 +5,12 @@
  */
 
 module.exports = {
-	root: true,
-	env: {
-		node: true,
-	},
-	extends: ["vuetify", "./.eslintrc-auto-import.json"],
-	rules: {
-		"vue/multi-word-component-names": "off",
-	},
+  root: true,
+  env: {
+    node: true,
+  },
+  extends: ['vuetify', './.eslintrc-auto-import.json'],
+  rules: {
+    'vue/multi-word-component-names': 'off',
+  },
 };
