@@ -25,8 +25,11 @@ use tracing::{error, info, trace, warn};
 use udp_stream::UdpStream;
 use uuid::Uuid;
 
-use super::devices::{DeviceActor, DeviceActorHandler};
-use bluerobotics_ping::device::{Ping1D, Ping360};
+use super::devices::{DeviceActor, DeviceActorHandler, PingAnswer};
+use bluerobotics_ping::{
+    common::{DeviceInformationStruct, ProtocolVersionStruct},
+    device::{Ping1D, Ping360},
+};
 
 pub struct Device {
     pub id: Uuid,
@@ -170,6 +173,7 @@ pub enum Answer {
     #[serde(skip)]
     InnerDeviceHandler(DeviceActorHandler),
     DeviceInfo(Vec<DeviceInfo>),
+    DeviceConfig(ModifyDeviceResult),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -210,7 +214,15 @@ pub enum Request {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
 pub enum ModifyDeviceCommand {
-    Ip(Ipv4Addr),
+    SetIp(Ipv4Addr),
+    SetPing360Config(Ping360Config),
+    GetPing360Config,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum ModifyDeviceResult {
+    ConfigAcknowledge(ModifyDevice),
+    Ping360Config(Ping360Config),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
@@ -731,9 +743,48 @@ impl DeviceManager {
         Ok(device.properties.clone())
     }
 
+    pub async fn update_ping360_config(
+        &self,
+        device_id: Uuid,
+        new_config: Ping360Config,
+    ) -> Result<(), ManagerError> {
+        let device = self.get_device(device_id)?;
+        if let Some(DeviceProperties::Ping360(properties)) = &device.properties {
+            let mut config = properties
+                .continuous_mode_settings
+                .write()
+                .map_err(|err| ManagerError::Other(err.to_string()))?;
+            *config = new_config;
+            return Ok(());
+        }
+        Err(ManagerError::DeviceSourceError(
+            "set_ping360_config: Can't set Ping360Config".to_string(),
+        ))
+    }
+
+    pub async fn get_ping360_config(&self, device_id: Uuid) -> Result<Answer, ManagerError> {
+        let device = self.get_device(device_id)?;
+        if let Some(DeviceProperties::Ping360(properties)) = &device.properties {
+            return Ok(Answer::DeviceConfig(ModifyDeviceResult::Ping360Config(
+                properties
+                    .continuous_mode_settings
+                    .read()
+                    .map_err(|err| {
+                        ManagerError::Other(format!(
+                            "get_ping360_config: {err}, device: {device_id}"
+                        ))
+                    })?
+                    .clone(),
+            )));
+        }
+        Err(ManagerError::DeviceSourceError(
+            "get_ping360_config: Can't return Ping360Config".to_string(),
+        ))
+    }
+
     pub async fn modify_device(&mut self, request: ModifyDevice) -> Result<Answer, ManagerError> {
         match request.modify {
-            ModifyDeviceCommand::Ip(ip) => {
+            ModifyDeviceCommand::SetIp(ip) => {
                 let device_info = self.info(request.uuid).await?;
                 let Answer::DeviceInfo(data) = device_info else {
                     return Err(ManagerError::NoDevices);
@@ -750,8 +801,18 @@ impl DeviceManager {
                 };
 
                 self.modify_device_ip(ip, inner.ip).await?;
-                self.delete(request.uuid).await
+                self.delete(request.uuid).await?;
+                Ok(Answer::DeviceConfig(ModifyDeviceResult::ConfigAcknowledge(
+                    request,
+                )))
             }
+            ModifyDeviceCommand::SetPing360Config(config) => {
+                self.update_ping360_config(request.uuid, config).await?;
+                Ok(Answer::DeviceConfig(ModifyDeviceResult::ConfigAcknowledge(
+                    request,
+                )))
+            }
+            ModifyDeviceCommand::GetPing360Config => self.get_ping360_config(request.uuid).await,
         }
     }
 
@@ -823,7 +884,7 @@ impl ManagerActorHandler {
                             }
                             Err(err) => {
                                 error!(
-                                    "Handling Ping request: {request:?}: Error ocurred on device: {err:?}"                                );
+                                    "Handling Ping request: {request:?}: Error occurred on device: {err:?}"                                );
                                 Err(ManagerError::DeviceError(err))
                             }
                         }
