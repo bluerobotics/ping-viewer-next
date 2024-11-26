@@ -1,4 +1,4 @@
-use crate::device::manager::{ManagerActorHandler, UuidWrapper};
+use crate::device::manager::{ManagerActorHandler, Request, UuidWrapper};
 use crate::server::protocols::v1::errors::Error;
 use actix_web::Responder;
 use mime_guess::from_path;
@@ -65,10 +65,20 @@ pub fn register_services(cfg: &mut web::ServiceConfig) {
 
 async fn send_request_and_broadcast(
     manager_handler: &web::Data<ManagerActorHandler>,
-    request: crate::device::manager::Request,
+    request: Request,
 ) -> Result<Json<crate::device::manager::Answer>, Error> {
+    let request_has_id = match &request {
+        Request::ModifyDevice(modify) => Some(modify.uuid),
+        Request::Ping(device_request) => Some(device_request.uuid),
+        Request::Delete(uuid_wrapper) => Some(uuid_wrapper.uuid),
+        Request::Info(uuid_wrapper) => Some(uuid_wrapper.uuid),
+        Request::EnableContinuousMode(uuid_wrapper) => Some(uuid_wrapper.uuid),
+        Request::DisableContinuousMode(uuid_wrapper) => Some(uuid_wrapper.uuid),
+        _ => None,
+    };
+
     let answer = manager_handler.send(request).await?;
-    crate::server::protocols::v1::websocket::send_to_websockets(json!(answer), None);
+    crate::server::protocols::v1::websocket::send_to_websockets(json!(answer), request_has_id);
     Ok(Json(answer))
 }
 

@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex};
 use tracing::info;
 use uuid::Uuid;
 
-use crate::device::manager::ManagerActorHandler;
+use crate::device::manager::{ManagerActorHandler, Request};
 
 pub struct StringMessage(String);
 
@@ -151,16 +151,34 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebsocketActor {
                         crate::ModuleType::DeviceManager(request) => {
                             let manager_handler = self.manager_handler.clone();
 
+                            let request_has_id = match &request {
+                                Request::ModifyDevice(modify) => Some(modify.uuid),
+                                Request::Ping(device_request) => Some(device_request.uuid),
+                                Request::Delete(uuid_wrapper) => Some(uuid_wrapper.uuid),
+                                Request::Info(uuid_wrapper) => Some(uuid_wrapper.uuid),
+                                Request::EnableContinuousMode(uuid_wrapper) => {
+                                    Some(uuid_wrapper.uuid)
+                                }
+                                Request::DisableContinuousMode(uuid_wrapper) => {
+                                    Some(uuid_wrapper.uuid)
+                                }
+                                _ => None,
+                            };
+
                             let future =
                                 async move { manager_handler.send(request).await }.into_actor(self);
 
                             future
-                                .then(|res, _, ctx| {
+                                .then(move |res, actor, ctx| {
                                     match &res {
                                         Ok(result) => {
+                                            let device_number = match request_has_id{
+                                                Some(device_number) => Some(device_number),
+                                                None => actor.device_number,
+                                            };
                                             crate::server::protocols::v1::websocket::send_to_websockets(
                                                 json!(result),
-                                                None,
+                                                device_number,
                                             );
                                         }
                                         Err(err) => {
