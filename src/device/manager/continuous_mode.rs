@@ -1,11 +1,13 @@
 use serde_json::json;
-use tracing::{error, trace, warn};
+use tracing::{error, trace};
 use uuid::Uuid;
 
 use crate::device::{
-    manager::{Answer, DeviceAnswer, ManagerError},
-    manager::{DeviceManager, DeviceSelection},
+    devices::DeviceActorHandler,
+    manager::{Answer, DeviceAnswer, DeviceManager, DeviceSelection, ManagerError},
 };
+
+use super::{DeviceProperties, Ping360Properties};
 
 impl DeviceManager {
     // Call the helpers specifically for each device type
@@ -48,75 +50,29 @@ impl DeviceManager {
                 }
             })),
             DeviceSelection::Ping360 => {
-                Some(tokio::spawn(async move {
-                    // Attempt to send the Ping360 request and handle the result
-                    let device_data = match handler
-                        .send(crate::device::devices::PingRequest::Ping360(
-                            crate::device::devices::Ping360Request::DeviceData,
-                        ))
-                        .await
-                    {
-                        Ok(response) => match response {
-                            crate::device::devices::PingAnswer::PingMessage(
-                                bluerobotics_ping::Messages::Ping360(
-                                    bluerobotics_ping::ping360::Messages::DeviceData(msg),
-                                ),
-                            ) => msg,
-                            msg => {
-                                error!("Error during start_continuous_mode: unexpected message: {msg:?}");
-                                return;
-                            }
-                        },
-                        Err(err) => {
-                            error!("Error during start_continuous_mode: Device Error: {err:?}");
-                            return;
-                        }
-                    };
+                let device_properties = self.get_device_properties(device_id).await.ok()?;
+                let Some(DeviceProperties::Ping360(properties)) = device_properties else {
+                    error!("No properties available for Ping360 device, device: {device_id}");
+                    return None;
+                };
 
-                    loop {
-                        for n in 0..=399 {
-                            // Handle timeout and errors
-                            let result = tokio::time::timeout(
-                                std::time::Duration::from_millis(1000),
-                                handler.send(crate::device::devices::PingRequest::Ping360(
-                                    crate::device::devices::Ping360Request::Transducer(
-                                        bluerobotics_ping::ping360::TransducerStruct {
-                                            mode: device_data.mode,
-                                            gain_setting: device_data.gain_setting,
-                                            transmit_duration: device_data.transmit_duration,
-                                            sample_period: device_data.sample_period,
-                                            transmit_frequency: device_data.transmit_frequency,
-                                            number_of_samples: device_data.number_of_samples,
-                                            angle: n,
-                                            transmit: 1,
-                                            reserved: 0,
-                                        },
-                                    ),
-                                )),
-                            )
-                            .await;
-
-                            match result {
-                                Ok(Ok(answer)) => match answer {
-                                    crate::device::devices::PingAnswer::PingMessage(msg) => {
-                                        Self::ping360_continuous_mode_helper(msg, device_id)
-                                    }
-                                    msg => {
-                                        error!("Error during continuous_mode: Unexpected Message: {msg:?}");
-                                        return;
-                                    }
-                                },
-                                Ok(Err(err)) => {
-                                    error!("Error during continuous_mode: Device Error: {err:?}");
-                                    return;
-                                }
-                                Err(_err) => {
-                                    warn!("Error during continuous_mode: Answer delayed more than 1 s");
-                                }
-                            }
-                        }
-                    }
-                }))
+                // Check if firmware supports auto-transmit mode
+                if properties.common.device_information.firmware_version_major >= 3
+                    && properties.common.device_information.firmware_version_minor >= 3
+                {
+                    Some(Self::start_ping360_firmware_mode(
+                        handler,
+                        device_id,
+                        properties.clone(),
+                        subscriber,
+                    ))
+                } else {
+                    Some(Self::start_ping360_software_mode(
+                        handler,
+                        device_id,
+                        properties.clone(),
+                    ))
+                }
             }
             DeviceSelection::Common | DeviceSelection::Auto => None,
         }
@@ -154,17 +110,33 @@ impl DeviceManager {
         let handler_request = self.get_device_handler(device_id).await?;
         let handler = self.extract_handler(handler_request)?;
 
-        if device_type == DeviceSelection::Ping1D {
-            let id = <bluerobotics_ping::ping1d::ProfileStruct as bluerobotics_ping::message::MessageInfo>::id();
-            let _ = handler
-                .send(crate::device::devices::PingRequest::Ping1D(
-                    crate::device::devices::Ping1DRequest::ContinuousStop(
-                        bluerobotics_ping::ping1d::ContinuousStopStruct { id },
-                    ),
-                ))
-                .await
-                .map_err(|err| {trace!("Something went wrong while executing broadcast_startup_routine, details: {err:?}"); ManagerError::DeviceError(err)})?;
+        match device_type {
+            DeviceSelection::Ping1D => {
+                let id = <bluerobotics_ping::ping1d::ProfileStruct as bluerobotics_ping::message::MessageInfo>::id();
+                if let Err(err) = handler
+                    .send(crate::device::devices::PingRequest::Ping1D(
+                        crate::device::devices::Ping1DRequest::ContinuousStop(
+                            bluerobotics_ping::ping1d::ContinuousStopStruct { id },
+                        ),
+                    ))
+                    .await
+                {
+                    error!("Something went wrong while executing continuous_mode_shutdown_routine, details: {err:?}, device: {device_id}");
+                }
+            }
+            DeviceSelection::Ping360 => {
+                if let Err(err) = handler
+                    .send(crate::device::devices::PingRequest::Ping360(
+                        crate::device::devices::Ping360Request::MotorOff,
+                    ))
+                    .await
+                {
+                    error!("Something went wrong while executing continuous_mode_shutdown_routine, details: {err:?}, device: {device_id}");
+                }
+            }
+            _ => {}
         }
+
         Ok(())
     }
 
@@ -177,13 +149,41 @@ impl DeviceManager {
             if let Ok(bluerobotics_ping::Messages::Ping1D(bluerobotics_ping::ping1d::Messages::Profile(_answer))) = bluerobotics_ping::Messages::try_from(&msg) {
                 let answer = Answer::DeviceMessage(DeviceAnswer {
                     answer: crate::device::devices::PingAnswer::PingMessage(
-                        bluerobotics_ping::Messages::try_from(&msg).unwrap(),
+                        match  bluerobotics_ping::Messages::try_from(&msg){
+                            Ok(msg) => msg,
+                            Err(err) => {
+                                error!("Unexpected message during scan: {err:?}");
+                                return},
+                        }
                     ),
                     device_id,
                 });
                 crate::server::protocols::v1::websocket::send_to_websockets(json!(answer), Some(device_id));
             }
         }
+    }
+
+    // An inner helper focused on Ping360 on AutoTransmit mode, which uses AutoDeviceData.
+    pub fn ping360_continuous_mode_helper_auto(
+        msg: bluerobotics_ping::message::ProtocolMessage,
+        device_id: Uuid,
+    ) {
+        if msg.message_id == <bluerobotics_ping::ping360::AutoDeviceDataStruct as bluerobotics_ping::message::MessageInfo>::id() {
+                if let Ok(bluerobotics_ping::Messages::Ping360(bluerobotics_ping::ping360::Messages::AutoDeviceData(_answer))) = bluerobotics_ping::Messages::try_from(&msg) {
+                    let answer = Answer::DeviceMessage(DeviceAnswer {
+                        answer: crate::device::devices::PingAnswer::PingMessage(
+                            match  bluerobotics_ping::Messages::try_from(&msg){
+                                Ok(msg) => msg,
+                                Err(err) => {
+                                    error!("Unexpected message during scan: {err:?}");
+                                    return},
+                            }
+                        ),
+                        device_id,
+                    });
+                    crate::server::protocols::v1::websocket::send_to_websockets(json!(answer), Some(device_id));
+                }
+            }
     }
 
     // An inner helper focused on Ping360, which uses DeviceData message to plot graphs
@@ -204,5 +204,196 @@ impl DeviceManager {
             bluerobotics_ping::error::PingError::TokioBroadcastError(error.to_string()),
         ));
         crate::server::protocols::v1::websocket::send_to_websockets(json!(error), Some(device_id));
+    }
+
+    fn start_ping360_firmware_mode(
+        handler: DeviceActorHandler,
+        device_id: Uuid,
+        properties: Ping360Properties,
+        mut subscriber: tokio::sync::broadcast::Receiver<
+            bluerobotics_ping::message::ProtocolMessage,
+        >,
+    ) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            loop {
+                let config = properties.continuous_mode_settings.clone();
+                let initial_settings = match config.read() {
+                    Ok(settings) => settings.clone(),
+                    Err(err) => {
+                        error!("Failed to read Ping360Config: {err:?}, device: {device_id}");
+                        break;
+                    }
+                };
+
+                // Stop the motor before starting auto-transmit
+                if let Err(err) = handler
+                    .send(crate::device::devices::PingRequest::Ping360(
+                        crate::device::devices::Ping360Request::MotorOff,
+                    ))
+                    .await
+                {
+                    error!("Failed to stop motor: {err:?}, device: {device_id}");
+                    break;
+                }
+
+                // Start auto-transmit mode
+                if let Err(err) = handler
+                    .send(crate::device::devices::PingRequest::Ping360(
+                        crate::device::devices::Ping360Request::AutoTransmit(
+                            bluerobotics_ping::ping360::AutoTransmitStruct {
+                                mode: initial_settings.mode,
+                                gain_setting: initial_settings.gain_setting,
+                                transmit_duration: initial_settings.transmit_duration,
+                                sample_period: initial_settings.sample_period,
+                                transmit_frequency: initial_settings.transmit_frequency,
+                                number_of_samples: initial_settings.number_of_samples,
+                                start_angle: initial_settings.start_angle,
+                                stop_angle: initial_settings.stop_angle,
+                                num_steps: initial_settings.num_steps,
+                                delay: initial_settings.delay,
+                            },
+                        ),
+                    ))
+                    .await
+                {
+                    error!("Failed to start auto transmit: {err:?}, device: {device_id}");
+                    break;
+                }
+
+                loop {
+                    let current_settings = match config.read() {
+                        Ok(settings) => settings.clone(),
+                        Err(err) => {
+                            error!("Failed to read Ping360Config: {err:?}, device: {device_id}");
+                            break;
+                        }
+                    };
+                    if initial_settings != current_settings {
+                        break;
+                    }
+
+                    match subscriber.recv().await {
+                        Ok(msg) => Self::ping360_continuous_mode_helper_auto(msg, device_id),
+                        Err(err) => {
+                            Self::handle_error_continuous_mode(err, device_id);
+                            return;
+                        }
+                    }
+                }
+            }
+        })
+    }
+
+    fn start_ping360_software_mode(
+        handler: DeviceActorHandler,
+        device_id: Uuid,
+        properties: Ping360Properties,
+    ) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            loop {
+                let config = properties.continuous_mode_settings.clone();
+                let initial_settings = match config.read() {
+                    Ok(settings) => settings.clone(),
+                    Err(err) => {
+                        error!("Failed to read Ping360Config: {err:?}, device: {device_id}");
+                        break;
+                    }
+                };
+
+                let mut angle = initial_settings.start_angle;
+                let step_size = initial_settings.num_steps as u16;
+                let is_full_circle =
+                    initial_settings.start_angle == 0 && initial_settings.stop_angle == 399;
+                let mut direction = 1i16;
+
+                loop {
+                    let current_settings = match config.read() {
+                        Ok(settings) => settings.clone(),
+                        Err(err) => {
+                            error!("Failed to read Ping360Config: {err:?}, device: {device_id}");
+                            break;
+                        }
+                    };
+                    if initial_settings != current_settings {
+                        break;
+                    }
+
+                    match handler
+                        .send(crate::device::devices::PingRequest::Ping360(
+                            crate::device::devices::Ping360Request::Transducer(
+                                bluerobotics_ping::ping360::TransducerStruct {
+                                    mode: initial_settings.mode,
+                                    gain_setting: initial_settings.gain_setting,
+                                    transmit_duration: initial_settings.transmit_duration,
+                                    sample_period: initial_settings.sample_period,
+                                    transmit_frequency: initial_settings.transmit_frequency,
+                                    number_of_samples: initial_settings.number_of_samples,
+                                    angle,
+                                    transmit: 1,
+                                    reserved: 0,
+                                },
+                            ),
+                        ))
+                        .await
+                    {
+                        Ok(answer) => match answer {
+                            crate::device::devices::PingAnswer::PingMessage(msg) => {
+                                Self::ping360_continuous_mode_helper(msg, device_id)
+                            }
+                            msg => {
+                                error!("Unexpected message during scan: {msg:?}");
+                                return;
+                            }
+                        },
+                        Err(err) => {
+                            error!("Failed to send transducer command: {err:?}");
+                            return;
+                        }
+                    }
+
+                    angle = Self::calculate_next_angle(
+                        angle,
+                        step_size,
+                        is_full_circle,
+                        &mut direction,
+                        initial_settings.start_angle,
+                        initial_settings.stop_angle,
+                    );
+                }
+            }
+        })
+    }
+
+    fn calculate_next_angle(
+        current_angle: u16,
+        step_size: u16,
+        is_full_circle: bool,
+        direction: &mut i16,
+        start_angle: u16,
+        stop_angle: u16,
+    ) -> u16 {
+        if is_full_circle {
+            if current_angle + step_size >= 400 {
+                0
+            } else {
+                current_angle + step_size
+            }
+        } else {
+            if *direction > 0 {
+                if current_angle + step_size > stop_angle {
+                    *direction = -1;
+                    stop_angle
+                } else {
+                    current_angle + step_size
+                }
+            } else {
+                if (current_angle as i32 - step_size as i32) <= start_angle as i32 {
+                    *direction = 1;
+                    start_angle
+                } else {
+                    current_angle.wrapping_sub(step_size)
+                }
+            }
+        }
     }
 }
