@@ -12,6 +12,7 @@ use std::{
     hash::{Hash, Hasher},
     net::{Ipv4Addr, SocketAddrV4, UdpSocket},
     ops::Deref,
+    sync::{Arc, RwLock},
     time::Duration,
 };
 use tokio::{
@@ -35,6 +36,45 @@ pub struct Device {
     pub broadcast: Option<tokio::task::JoinHandle<()>>,
     pub status: DeviceStatus,
     pub device_type: DeviceSelection,
+    pub properties: Option<DeviceProperties>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum DeviceProperties {
+    Common(CommonProperties),
+    Ping1D(Ping1DProperties),
+    Ping360(Ping360Properties),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Apiv2Schema)]
+pub struct Ping360Config {
+    pub mode: u8,
+    pub gain_setting: u8,
+    pub transmit_duration: u16,
+    pub sample_period: u16,
+    pub transmit_frequency: u16,
+    pub number_of_samples: u16,
+    pub start_angle: u16,
+    pub stop_angle: u16,
+    pub num_steps: u8,
+    pub delay: u8,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CommonProperties {
+    pub device_information: DeviceInformationStruct,
+    pub protocol_version: ProtocolVersionStruct,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Ping1DProperties {
+    pub common: CommonProperties,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Ping360Properties {
+    pub common: CommonProperties,
+    pub continuous_mode_settings: Arc<RwLock<Ping360Config>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -43,6 +83,7 @@ pub struct DeviceInfo {
     pub source: SourceSelection,
     pub status: DeviceStatus,
     pub device_type: DeviceSelection,
+    pub properties: Option<DeviceProperties>,
 }
 impl Device {
     pub fn info(&self) -> DeviceInfo {
@@ -51,6 +92,7 @@ impl Device {
             source: self.source.clone(),
             status: self.status.clone(),
             device_type: self.device_type.clone(),
+            properties: self.properties.clone(),
         }
     }
 }
@@ -435,9 +477,13 @@ impl DeviceManager {
             status: DeviceStatus::Running,
             broadcast: None,
             device_type: device_selection,
+            properties: None,
         };
 
         self.device.insert(hash, device);
+
+        trace!("Updating device properties for: {:?}", hash);
+        let _ = self.update_device_properties(hash).await?;
 
         trace!("Device broadcast enable by default for: {hash:?}");
         let device_info = self.continuous_mode(hash).await?;
@@ -565,6 +611,124 @@ impl DeviceManager {
             .await?;
 
         Ok(Answer::DeviceInfo(vec![updated_device_info]))
+    }
+
+    async fn update_device_properties(&mut self, device_id: Uuid) -> Result<(), ManagerError> {
+        self.check_device_status(
+            device_id,
+            &[DeviceStatus::Running, DeviceStatus::ContinuousMode],
+        )?;
+
+        let handler = self.extract_handler(self.get_device_handler(device_id).await?)?;
+
+        let device = self.get_mut_device(device_id)?;
+
+        let device_information = handler
+            .send(super::devices::PingRequest::Common(
+                super::devices::PingCommonRequest::DeviceInformation,
+            ))
+            .await
+            .map_err(|err| {
+                error!("Something went wrong while executing properties, details: {err:?}");
+                ManagerError::DeviceError(err)
+            })?;
+        let protocol_version = handler
+            .send(super::devices::PingRequest::Common(
+                super::devices::PingCommonRequest::ProtocolVersion,
+            ))
+            .await
+            .map_err(|err| {
+                error!("Something went wrong while executing properties, details: {err:?}");
+                ManagerError::DeviceError(err)
+            })?;
+        let device_information = match device_information {
+            PingAnswer::PingMessage(bluerobotics_ping::Messages::Common(
+                bluerobotics_ping::common::Messages::DeviceInformation(msg),
+            )) => msg,
+            unexpected => {
+                return Err(ManagerError::Other(format!(
+                    "Something went wrong while executing properties, received : {unexpected:?}"
+                )))
+            }
+        };
+        let protocol_version = match protocol_version {
+            PingAnswer::PingMessage(bluerobotics_ping::Messages::Common(
+                bluerobotics_ping::common::Messages::ProtocolVersion(msg),
+            )) => msg,
+            unexpected => {
+                return Err(ManagerError::Other(format!(
+                    "Something went wrong while executing properties, received : {unexpected:?}"
+                )))
+            }
+        };
+        let common_properties = CommonProperties {
+            device_information,
+            protocol_version,
+        };
+
+        match &device.device_type {
+            DeviceSelection::Common => {
+                device.properties = Some(DeviceProperties::Common(common_properties))
+            }
+            DeviceSelection::Ping1D => {
+                let ping_1d_properties = Ping1DProperties {
+                    common: common_properties,
+                };
+
+                device.properties = Some(DeviceProperties::Ping1D(ping_1d_properties))
+            }
+            DeviceSelection::Ping360 => {
+                let device_data = handler
+                    .send(super::devices::PingRequest::Ping360(
+                        super::devices::Ping360Request::DeviceData,
+                    ))
+                    .await
+                    .map_err(|err| {
+                        trace!("Something went wrong while executing properties, details: {err:?}");
+                        ManagerError::DeviceError(err)
+                    })?;
+
+                let device_data = match device_data {
+                    PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping360(
+                        bluerobotics_ping::ping360::Messages::DeviceData(msg),
+                    )) => msg,
+                    err =>  return Err(ManagerError::Other(format!(
+                        "properties : Unexpected answer from Ping360 device: {device_id:?}, details: {err:?}"
+                    )))
+                };
+
+                let auto_transmit = Ping360Config {
+                    mode: device_data.mode,
+                    gain_setting: device_data.gain_setting,
+                    transmit_duration: device_data.transmit_duration,
+                    sample_period: device_data.sample_period,
+                    transmit_frequency: device_data.transmit_frequency,
+                    number_of_samples: 1200,
+                    start_angle: 0,
+                    stop_angle: 399,
+                    num_steps: 1,
+                    delay: 0,
+                };
+
+                let ping_360_properties = Ping360Properties {
+                    common: common_properties,
+                    continuous_mode_settings: Arc::new(RwLock::new(auto_transmit)),
+                };
+
+                device.properties = Some(DeviceProperties::Ping360(ping_360_properties))
+            }
+            DeviceSelection::Auto => device.properties = None,
+        };
+
+        Ok(())
+    }
+
+    async fn get_device_properties(
+        &self,
+        device_id: Uuid,
+    ) -> Result<Option<DeviceProperties>, ManagerError> {
+        let device = self.get_device(device_id)?;
+        Ok(device.properties.clone())
     }
 
     pub async fn modify_device(&mut self, request: ModifyDevice) -> Result<Answer, ManagerError> {
