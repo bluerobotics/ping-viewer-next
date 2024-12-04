@@ -42,6 +42,13 @@ async fn index_files(file_path: web::Path<String>) -> impl Responder {
     handle_embedded_file(&file_path)
 }
 
+#[api_v2_operation(skip)]
+#[get("/addons/{tail:.*}")]
+async fn addons_handler() -> impl Responder {
+    // Vue router handle /addons routes
+    handle_embedded_file("index.html")
+}
+
 /// The "register_service" route is used by BlueOS extensions manager
 #[api_v2_operation]
 #[get("register_service")]
@@ -60,6 +67,7 @@ pub fn register_services(cfg: &mut web::ServiceConfig) {
         .service(device_manager_device_ping1d_get)
         .service(device_manager_device_ping360_get)
         .service(device_manager_device_common_get)
+        .service(addons_handler)
         .service(index_files);
 }
 
