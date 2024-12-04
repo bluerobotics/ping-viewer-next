@@ -1,154 +1,164 @@
 <template>
-  <v-app class="h-screen w-screen" :theme="theme">
-    <ServerConnection v-if="!serverUrl" @serverConnected="onServerConnected" />
+  <template v-if="isWidgetRoute">
+    <v-app class="h-screen w-screen">
+      <router-view />
+    </v-app>
+  </template>
 
-    <template v-else>
-      <v-app-bar class="flex-none">
-        <v-menu location="bottom">
-          <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" icon>
-              <v-icon>mdi-menu</v-icon>
-            </v-btn>
-          </template>
+  <template v-else>
+    <v-app class="h-screen w-screen" :theme="theme">
+      <ServerConnection v-if="!serverUrl" @serverConnected="onServerConnected" />
 
-          <v-list>
-            <v-list-item v-for="(item, index) in menuItems" :key="index" @click="selectView(item.value)">
-              <template v-slot:prepend>
-                <v-icon>{{ item.icon }}</v-icon>
-              </template>
-              <v-list-item-title>{{ item.text }}</v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-menu>
-
-        <v-app-bar-title>Ping Viewer Next</v-app-bar-title>
-
-        <v-tooltip location="bottom">
-          <template v-slot:activator="{ props }">
-            <v-icon v-bind="props" :color="yawConnectionStatus === 'Connected' ? 'success' : 'error'" class="mr-2">
-              mdi-compass
-            </v-icon>
-          </template>
-          MAVLink: {{ yawConnectionStatus }}
-        </v-tooltip>
-
-        <v-menu location="bottom end">
-          <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" icon class="mr-2">
-              <v-badge :content="undownloadedRecordings.length.toString()"
-                :model-value="undownloadedRecordings.length > 0" color="error">
-                <v-icon>mdi-movie</v-icon>
-              </v-badge>
-            </v-btn>
-          </template>
-
-          <v-card min-width="300" class="recordings-menu">
-            <v-card-title class="d-flex align-center py-2">
-              <span class="text-h6">Recordings</span>
-              <v-spacer></v-spacer>
-              <v-btn v-if="recordings.length" density="comfortable" variant="text" @click="selectView('Replay')">
-                Open Replay View
-              </v-btn>
-            </v-card-title>
-
-            <v-divider></v-divider>
-
-            <v-list v-if="recordings.length" class="recordings-list">
-              <v-list-item v-for="recording in recordings" :key="recording.id"
-                :class="{ 'new-recording': !recording.downloaded }">
-                <template v-slot:prepend>
-                  <v-icon :icon="recording.deviceType === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'"></v-icon>
-                </template>
-
-                <v-list-item-title class="text-truncate">
-                  {{ recording.fileName }}
-                </v-list-item-title>
-                <v-list-item-subtitle>
-                  {{ new Date(recording.timestamp).toLocaleString() }}
-                </v-list-item-subtitle>
-
-                <template v-slot:append>
-                  <div class="d-flex gap-2">
-                    <v-btn icon="mdi-play" variant="text" size="small" @click="playRecording(recording)"
-                      v-if="recording.downloaded"></v-btn>
-                    <v-btn icon="mdi-download" variant="text" size="small" @click="downloadRecording(recording)"
-                      v-if="!recording.downloaded"></v-btn>
-                  </div>
-                </template>
-              </v-list-item>
-            </v-list>
-
-            <v-card-text v-else class="text-center py-4">
-              No recordings available
-            </v-card-text>
-          </v-card>
-        </v-menu>
-
-        <template v-slot:append>
-          <v-menu location="bottom end">
+      <template v-else>
+        <v-app-bar class="flex-none">
+          <v-menu location="bottom">
             <template v-slot:activator="{ props }">
               <v-btn v-bind="props" icon>
-                <v-icon>mdi-dots-vertical</v-icon>
+                <v-icon>mdi-menu</v-icon>
               </v-btn>
             </template>
 
             <v-list>
-
-              <v-list-item @click="showSettings = true">
+              <v-list-item v-for="(item, index) in menuItems" :key="index" @click="selectView(item.value)">
                 <template v-slot:prepend>
-                  <v-icon>mdi-cog</v-icon>
+                  <v-icon>{{ item.icon }}</v-icon>
                 </template>
-                <v-list-item-title>Visual Settings</v-list-item-title>
-              </v-list-item>
-
-              <v-list-item @click="toggleFullscreen">
-                <template v-slot:prepend>
-                  <v-icon>{{ isFullscreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen' }}</v-icon>
-                </template>
-                <v-list-item-title>{{ isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}</v-list-item-title>
+                <v-list-item-title>{{ item.text }}</v-list-item-title>
               </v-list-item>
             </v-list>
           </v-menu>
-        </template>
-      </v-app-bar>
 
-      <v-main class="flex-1">
-        <div class="h-full overflow-auto">
-          <component :is="views[selectedView]" :serverUrl="serverUrl" :websocket="websocket"
-            :websocketStatus="websocketStatus" :deviceData="deviceData" @send-message="sendWebSocketMessage"
-            class="h-full w-full" />
-        </div>
-      </v-main>
+          <v-app-bar-title>Ping Viewer Next</v-app-bar-title>
 
-      <v-dialog v-model="showSettings" max-width="600px">
-        <v-card>
-          <v-card-title class="text-h5 pb-2">VisualSettings</v-card-title>
+          <v-tooltip location="bottom">
+            <template v-slot:activator="{ props }">
+              <v-icon v-bind="props" :color="yawConnectionStatus === 'Connected' ? 'success' : 'error'" class="mr-2">
+                mdi-compass
+              </v-icon>
+            </template>
+            MAVLink: {{ yawConnectionStatus }}
+          </v-tooltip>
 
-          <v-card-text>
-            <VisualSettings :common-settings="commonSettings" :ping1DSettings="ping1DSettings"
-              :ping360Settings="ping360Settings" :is-dark-mode="isDarkMode"
-              @update:common-settings="updateCommonSettings" @update:ping1D-settings="updatePing1DSettings"
-              @update:ping360-settings="updatePing360Settings" @update:is-dark-mode="updateDarkMode"
-              @save="saveSettings" @reset="resetSettings" @close="showSettings = false" />
-          </v-card-text>
+          <v-menu location="bottom end">
+            <template v-slot:activator="{ props }">
+              <v-btn v-bind="props" icon class="mr-2">
+                <v-badge :content="undownloadedRecordings.length.toString()"
+                  :model-value="undownloadedRecordings.length > 0" color="error">
+                  <v-icon>mdi-movie</v-icon>
+                </v-badge>
+              </v-btn>
+            </template>
 
-        </v-card>
-      </v-dialog>
-    </template>
+            <v-card min-width="300" class="recordings-menu">
+              <v-card-title class="d-flex align-center py-2">
+                <span class="text-h6">Recordings</span>
+                <v-spacer></v-spacer>
+                <v-btn v-if="recordings.length" density="comfortable" variant="text" @click="selectView('Replay')">
+                  Open Replay View
+                </v-btn>
+              </v-card-title>
 
-    <v-snackbar v-model="showNotification" :timeout="3000" location="top right">
-      New recording is ready to download
-      <template v-slot:actions>
-        <v-btn color="primary" variant="text" @click="showNotification = false">
-          Close
-        </v-btn>
+              <v-divider></v-divider>
+
+              <v-list v-if="recordings.length" class="recordings-list">
+                <v-list-item v-for="recording in recordings" :key="recording.id"
+                  :class="{ 'new-recording': !recording.downloaded }">
+                  <template v-slot:prepend>
+                    <v-icon :icon="recording.deviceType === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'"></v-icon>
+                  </template>
+
+                  <v-list-item-title class="text-truncate">
+                    {{ recording.fileName }}
+                  </v-list-item-title>
+                  <v-list-item-subtitle>
+                    {{ new Date(recording.timestamp).toLocaleString() }}
+                  </v-list-item-subtitle>
+
+                  <template v-slot:append>
+                    <div class="d-flex gap-2">
+                      <v-btn icon="mdi-play" variant="text" size="small" @click="playRecording(recording)"
+                        v-if="recording.downloaded"></v-btn>
+                      <v-btn icon="mdi-download" variant="text" size="small" @click="downloadRecording(recording)"
+                        v-if="!recording.downloaded"></v-btn>
+                    </div>
+                  </template>
+                </v-list-item>
+              </v-list>
+
+              <v-card-text v-else class="text-center py-4">
+                No recordings available
+              </v-card-text>
+            </v-card>
+          </v-menu>
+
+          <template v-slot:append>
+            <v-menu location="bottom end">
+              <template v-slot:activator="{ props }">
+                <v-btn v-bind="props" icon>
+                  <v-icon>mdi-dots-vertical</v-icon>
+                </v-btn>
+              </template>
+
+              <v-list>
+
+                <v-list-item @click="showSettings = true">
+                  <template v-slot:prepend>
+                    <v-icon>mdi-cog</v-icon>
+                  </template>
+                  <v-list-item-title>Visual Settings</v-list-item-title>
+                </v-list-item>
+
+                <v-list-item @click="toggleFullscreen">
+                  <template v-slot:prepend>
+                    <v-icon>{{ isFullscreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen' }}</v-icon>
+                  </template>
+                  <v-list-item-title>{{ isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}</v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-menu>
+          </template>
+        </v-app-bar>
+
+        <v-main class="flex-1">
+          <div class="h-full overflow-auto">
+            <component :is="views[selectedView]" :serverUrl="serverUrl" :websocket="websocket"
+              :websocketStatus="websocketStatus" :deviceData="deviceData" @send-message="sendWebSocketMessage"
+              class="h-full w-full" />
+          </div>
+        </v-main>
+
+        <v-dialog v-model="showSettings" max-width="600px">
+          <v-card>
+            <v-card-title class="text-h5 pb-2">VisualSettings</v-card-title>
+
+            <v-card-text>
+              <VisualSettings :common-settings="commonSettings" :ping1DSettings="ping1DSettings"
+                :ping360Settings="ping360Settings" :is-dark-mode="isDarkMode"
+                @update:common-settings="updateCommonSettings" @update:ping1D-settings="updatePing1DSettings"
+                @update:ping360-settings="updatePing360Settings" @update:is-dark-mode="updateDarkMode"
+                @save="saveSettings" @reset="resetSettings" @close="showSettings = false" />
+            </v-card-text>
+
+          </v-card>
+        </v-dialog>
       </template>
-    </v-snackbar>
-  </v-app>
-</template>
 
+      <v-snackbar v-model="showNotification" :timeout="3000" location="top right">
+        New recording is ready to download
+        <template v-slot:actions>
+          <v-btn color="primary" variant="text" @click="showNotification = false">
+            Close
+          </v-btn>
+        </template>
+      </v-snackbar>
+    </v-app>
+  </template>
+
+
+</template>
 <script setup>
 import { computed, onMounted, onUnmounted, provide, reactive, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import ServerConnection from './components/utils/ServerConnection.vue';
 import VisualSettings from './components/utils/VisualSettings.vue';
 import DevicesView from './components/views/DevicesView.vue';
@@ -168,11 +178,16 @@ const isDarkMode = ref(true);
 const theme = ref('dark');
 const recordings = ref([]);
 const showNotification = ref(false);
+const route = useRoute();
 
 const yawAngle = ref(0);
 const yawConnectionStatus = ref('Disconnected');
 let yawWebSocket = null;
 let reconnectTimeout = null;
+
+const isWidgetRoute = computed(() => {
+  return route.path.startsWith('/addons/widget/');
+});
 
 const undownloadedRecordings = computed(() => {
   return recordings.value.filter((recording) => !recording.downloaded);
