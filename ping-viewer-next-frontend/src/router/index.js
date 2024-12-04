@@ -12,6 +12,20 @@ import { routes } from 'vue-router/auto-routes';
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: setupLayouts(routes),
+  strict: false,
+});
+
+router.beforeEach((to, from, next) => {
+  if (!to.path.endsWith('/') && to.path.length > 1) {
+    const { hash, params, query } = to;
+    return next({
+      path: `${to.path}/`,
+      hash,
+      params,
+      query,
+    });
+  }
+  next();
 });
 
 // Workaround for https://github.com/vitejs/vite/issues/11804
