@@ -260,7 +260,12 @@ export default defineComponent({
 });
 </script>
 
-<style scoped>
+<style>
+
+html, body {
+    overflow: hidden !important;
+}
+
 .h-full {
     height: 100%;
 }
