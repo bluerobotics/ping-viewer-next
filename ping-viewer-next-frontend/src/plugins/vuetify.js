@@ -19,7 +19,7 @@ export default createVuetify({
     VNumberInput,
   },
   theme: {
-    defaultTheme: 'dark',
+    defaultTheme: 'light',
     themes: {
       light: {
         dark: false,
