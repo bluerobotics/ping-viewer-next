@@ -1,6 +1,6 @@
 <template>
   <template v-if="isWidgetRoute">
-    <v-app class="h-screen w-screen">
+    <v-app class="h-screen w-screen bg-transparent " :theme="theme">
       <router-view />
     </v-app>
   </template>

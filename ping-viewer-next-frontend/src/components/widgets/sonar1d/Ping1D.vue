@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full bg-gray-900 p-4" ref="containerRef">
+  <div class="flex flex-col h-full bg-transparent p-4" ref="containerRef">
     <WaterfallDisplay
       :width="width"
       :height="height"
