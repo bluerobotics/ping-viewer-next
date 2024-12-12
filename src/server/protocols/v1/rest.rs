@@ -68,6 +68,7 @@ pub fn register_services(cfg: &mut web::ServiceConfig) {
         .service(device_manager_device_ping360_get)
         .service(device_manager_device_common_get)
         .service(addons_handler)
+        .service(cockpit_extras)
         .service(index_files);
 }
 
@@ -264,6 +265,27 @@ pub struct ServerMetadata {
     pub new_page: bool,
     pub webpage: &'static str,
     pub api: &'static str,
+    pub extras: Extras,
+}
+
+#[derive(Debug, Serialize, Deserialize, Apiv2Schema)]
+pub struct Extras {
+    pub cockpit: &'static str,
+}
+
+#[derive(Debug, Serialize, Deserialize, Apiv2Schema)]
+pub struct CockpitExtras {
+    pub target_system: String,
+    pub target_cockpit_api_version: String,
+    pub widgets: Vec<CockpitWidget>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Apiv2Schema)]
+pub struct CockpitWidget {
+    name: String,
+    config_iframe_url: Option<String>,
+    iframe_url: String,
+    version: String,
 }
 
 impl Default for ServerMetadata {
@@ -277,6 +299,55 @@ impl Default for ServerMetadata {
             new_page: false,
             webpage: "https://github.com/RaulTrombin/navigator-assistant",
             api: "/docs",
+            extras: Extras {
+                cockpit: "/cockpit_extras.json",
+            },
         }
     }
+}
+
+#[api_v2_operation]
+#[get("/cockpit_extras.json")]
+async fn cockpit_extras(
+    manager_handler: web::Data<ManagerActorHandler>,
+) -> Result<Json<CockpitExtras>, Error> {
+    let devices = match manager_handler.send(Request::List).await {
+        Ok(crate::device::manager::Answer::DeviceInfo(devices)) => devices,
+        Ok(unexpected) => {
+            return Err(Error::Internal(format!(
+                "Unexpected response from device manager: {:?}",
+                unexpected
+            )))
+        }
+        Err(err) => {
+            return Err(Error::Internal(format!(
+                "Unexpected error from device manager: {:?}",
+                err
+            )))
+        }
+    };
+
+    let widgets = devices
+        .into_iter()
+        .filter_map(|device| {
+            let name = match device.device_type {
+                crate::device::manager::DeviceSelection::Ping1D => Some("ping1d"),
+                crate::device::manager::DeviceSelection::Ping360 => Some("ping360"),
+                _ => None,
+            }?;
+
+            Some(CockpitWidget {
+                name: name.to_string(),
+                config_iframe_url: None,
+                iframe_url: format!("/addons/widget/{}/?uuid={}", name, device.id),
+                version: "1.0.0".to_string(),
+            })
+        })
+        .collect();
+
+    Ok(Json(CockpitExtras {
+        target_system: "Cockpit".to_string(),
+        target_cockpit_api_version: "1.0.0".to_string(),
+        widgets,
+    }))
 }
