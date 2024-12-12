@@ -285,6 +285,7 @@ pub struct CockpitWidget {
     name: String,
     config_iframe_url: Option<String>,
     iframe_url: String,
+    iframe_icon: String,
     version: String,
 }
 
@@ -340,6 +341,7 @@ async fn cockpit_extras(
                 name: name.to_string(),
                 config_iframe_url: None,
                 iframe_url: format!("/addons/widget/{}/?uuid={}", name, device.id),
+                iframe_icon: format!("/images/{}.png", name),
                 version: "1.0.0".to_string(),
             })
         })
