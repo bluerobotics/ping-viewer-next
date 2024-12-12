@@ -1,6 +1,7 @@
 use crate::device::manager::ManagerActorHandler;
 
 use super::protocols;
+use actix_cors::Cors;
 use actix_web::{middleware, web::Data, App, HttpServer};
 use tracing::info;
 
@@ -18,11 +19,14 @@ pub async fn run(server_address: &str, handler: ManagerActorHandler) -> std::io:
     info!("ServerManager: Service starting");
 
     let server = HttpServer::new(move || {
+        let cors = Cors::permissive();
+
         let v1 = add_v1_paths(web::scope("/v1"));
         let default = add_v1_paths(web::scope(""));
 
         App::new()
             .app_data(Data::new(handler.clone()))
+            .wrap(cors)
             .wrap(middleware::Logger::default())
             .wrap_api()
             .with_json_spec_at("/api/spec")
