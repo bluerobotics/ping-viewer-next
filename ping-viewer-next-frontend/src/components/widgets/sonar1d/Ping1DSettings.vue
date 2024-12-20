@@ -1,13 +1,6 @@
 <template>
-  <div>
-    <v-btn icon color="primary" @click="isOpen = !isOpen" class="elevation-4" size="large">
-      <v-icon>mdi-cog</v-icon>
-    </v-btn>
-
-    <v-dialog v-model="isOpen" max-width="300px">
       <v-card>
         <v-card-title class="text-h5 pb-2">Ping1D Settings</v-card-title>
-
         <v-card-text>
           <div class="mb-4">
             <div class="d-flex align-center justify-space-between mb-4">
@@ -79,8 +72,6 @@
           </div>
         </v-card-text>
       </v-card>
-    </v-dialog>
-  </div>
 </template>
 
 <script setup>
@@ -95,9 +86,13 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  isOpen: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const isOpen = ref(false);
+const emit = defineEmits(['update:isOpen']);
 const isSaving = ref(false);
 const rawAutoMode = ref(1);
 
@@ -178,6 +173,7 @@ const fetchCurrentSettings = async () => {
     }
   } catch (error) {
     console.error('Error fetching settings:', error);
+  } finally {
   }
 };
 
@@ -223,7 +219,7 @@ const saveSettings = async () => {
       await handleGainChange();
     }
     await handleSpeedOfSoundChange();
-    isOpen.value = false;
+    emit('update:isOpen', false);
   } catch (error) {
     console.error('Error saving settings:', error);
   } finally {
@@ -231,10 +227,17 @@ const saveSettings = async () => {
   }
 };
 
-watch(isOpen, (newValue, oldValue) => {
-  if (newValue && !oldValue) {
-    fetchCurrentSettings();
+watch(
+  () => props.isOpen,
+  async (newValue) => {
+    if (newValue) {
+      await fetchCurrentSettings();
+    }
   }
+);
+
+onMounted(async () => {
+  await fetchCurrentSettings();
 });
 </script>
 

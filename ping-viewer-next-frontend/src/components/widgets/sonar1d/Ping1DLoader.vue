@@ -17,10 +17,16 @@
       >
         <v-icon>{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
       </v-btn>
+      <v-btn icon color="primary" @click="openSettings" class="elevation-4" size="large">
+			    <v-icon>mdi-cog</v-icon>
+		    </v-btn>
+        <v-dialog v-model="isSettingsOpen" max-width="300px">
       <Ping1DSettings
+        :isOpen="isSettingsOpen"
         :server-url="getServerUrl(websocketUrl)"
         :device-id="device.id"
       />
+        </v-dialog>
     </FloatingControls>
 
     <Ping1D
@@ -106,6 +112,7 @@ const socket = ref(null);
 const dataRecorder = ref(null);
 const isRecording = ref(false);
 const isFreeze = ref(false);
+const isSettingsOpen = ref(false);
 
 const liveData = ref({
   sensorData: [],
@@ -221,6 +228,10 @@ const disconnectWebSocket = () => {
     socket.value.close();
     socket.value = null;
   }
+};
+
+const openSettings = async () => {
+  isSettingsOpen.value = true;
 };
 
 onMounted(() => {

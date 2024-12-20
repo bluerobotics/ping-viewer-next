@@ -18,14 +18,21 @@
         >
           <v-icon>{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
         </v-btn>
+        <v-btn icon color="primary" @click="openSettings" class="elevation-4" size="large">
+			    <v-icon>mdi-cog</v-icon>
+		    </v-btn>
+        <v-dialog v-model="isSettingsOpen" max-width="300px">
+
         <Ping360Settings
           ref="settingsRef"
           :server-url="getServerUrl(websocketUrl)"
           :device-id="device.id"
           :initial-angles="{ startAngle, endAngle }"
+          :isOpen="isSettingsOpen"
           @update:angles="handleAngleUpdate"
           @rangeChange="handleRangeChange"
         />
+      </v-dialog>
       </FloatingControls>
 
       <Ping360
@@ -136,6 +143,7 @@ const socket = ref(null);
 const settingsRef = ref(null);
 const isFreeze = ref(false);
 const isRecording = ref(false);
+const isSettingsOpen = ref(false);
 
 const yawAngle = inject('yawAngle', ref(0));
 
@@ -191,6 +199,27 @@ function gradiansToDegrees(gradians) {
   return Math.round((gradians * 360) / 400);
 }
 
+const sendGetConfigRequest = () => {
+  if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
+    console.error('WebSocket is not connected');
+    return;
+  }
+
+  const configRequest = {
+    command: 'ModifyDevice',
+    module: 'DeviceManager',
+    payload: {
+      uuid: props.device.id, // Using the device id from props
+      modify: 'GetPing360Config',
+    },
+  };
+
+  socket.value.send(JSON.stringify(configRequest));
+  if (props.debug) {
+    console.debug('Sent GetPing360Config request:', configRequest);
+  }
+};
+
 const connectWebSocket = () => {
   if (socket.value) return;
 
@@ -198,6 +227,7 @@ const connectWebSocket = () => {
 
   socket.value.onopen = () => {
     connectionStatus.value = 'Connected';
+    sendGetConfigRequest();
   };
 
   socket.value.onmessage = (event) => {
@@ -207,9 +237,11 @@ const connectWebSocket = () => {
         console.debug('Ping360 data:', parsedData);
       }
 
-      if (parsedData.DeviceConfig?.ConfigAcknowledge?.modify?.SetPing360Config) {
-        const config = parsedData.DeviceConfig.ConfigAcknowledge.modify.SetPing360Config;
+      const config =
+        parsedData.DeviceConfig?.ConfigAcknowledge?.modify?.SetPing360Config ||
+        parsedData.DeviceConfig?.Ping360Config;
 
+      if (config) {
         const SAMPLE_PERIOD_TICK_DURATION = 25e-9;
         currentRange.value = Math.round(
           (config.sample_period * SAMPLE_PERIOD_TICK_DURATION * config.number_of_samples * 1500) / 2
@@ -284,6 +316,10 @@ const handleRangeChange = (newRange) => {
   currentRange.value = newRange;
 };
 
+const openSettings = async () => {
+  isSettingsOpen.value = true;
+};
+
 watch(
   () => props.websocketUrl,
   (newUrl, oldUrl) => {
@@ -301,9 +337,6 @@ watch(yawAngle, (newYaw) => {
 });
 
 onMounted(async () => {
-  if (props.showControls && settingsRef.value?.fetchCurrentSettings) {
-    await settingsRef.value.fetchCurrentSettings();
-  }
   connectWebSocket();
 });
 

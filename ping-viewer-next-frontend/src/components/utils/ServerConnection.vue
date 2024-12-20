@@ -1,93 +1,87 @@
 <template>
-	<div class="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
-	  <div class="p-8 rounded-xl shadow-xl w-[450px] relative overflow-hidden">
-		<div class="mb-6">
-		  <h2 class="text-2xl font-bold">Ping Viewer Next</h2>
-		  <p class="mt-1">Establishing connection to server...</p>
-		</div>
+  <v-dialog v-model="dialog" persistent width="500" class="server-connection">
+    <v-card>
+      <v-card-title class="text-h5 pb-2">
+        <v-icon start icon="mdi-connection" class="mr-2" />
+        Ping Viewer Next
+      </v-card-title>
 
-		<div v-if="!serverInfo" class="space-y-4">
-		  <div v-for="step in 4" :key="step"
-			:class="['transition-all duration-300 py-3 px-4 rounded-lg',
-			  currentStep === step ? 'bg-surface' : '']">
-			<div class="flex items-center">
-			  <div class="w-6 h-6 rounded-full flex items-center justify-center mr-3">
-				<svg v-if="currentStep > step" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-				</svg>
-				<span v-else class="text-sm">{{ step }}</span>
-			  </div>
-			  <span>{{ getStepText(step) }}</span>
-			  <div v-if="currentStep === step && loading" class="ml-auto">
-				<div class="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"></div>
-			  </div>
-			</div>
-			<div v-if="currentStep === step && error" class="mt-2 ml-9 text-sm">
-			  {{ error }}
-			</div>
+      <v-card-text>
+        <div v-if="!serverInfo">
+          <v-stepper v-model="currentStep" class="">
+            <v-stepper-items>
+              <v-stepper-item v-for="step in 4" :key="step" :value="step">
+                <div class="d-flex align-center py-2">
+                  <div class="mr-4">
+                    <v-icon v-if="currentStep > step" color="success">mdi-check-circle</v-icon>
+                    <v-progress-circular v-else-if="currentStep === step && loading" indeterminate size="24" />
+                    <span v-else>{{ step }}</span>
+                  </div>
+                  <div class="flex-grow-1">
+                    <div>{{ getStepText(step) }}</div>
+                    <div v-if="currentStep === step && error" class="text-error text-body-2 mt-1">
+                      {{ error }}
+                    </div>
+                  </div>
+                </div>
 
-			<div v-if="step === 4 && currentStep === 4" class="mt-3 ml-9">
-			  <input v-model="remoteAddress" type="text"
-				class="w-full px-3 py-2 rounded border"
-				placeholder="e.g. pingviewernext:8080"
-				@keyup.enter="connectToRemote" />
-			  <v-btn block class="mt-2" @click="connectToRemote">
-				Connect to Remote Server
-			  </v-btn>
-			</div>
-		  </div>
-		</div>
+                <div v-if="step === 4 && currentStep === 4" class="mt-4">
+                  <v-text-field v-model="remoteAddress" label="Server Address" placeholder="e.g. pingviewernext:8080"
+                    hint="Enter the server address to connect" persistent-hint @keyup.enter="connectToRemote" />
+                  <v-btn block color="primary" class="mt-4" @click="connectToRemote" :loading="loading">
+                    Connect to Remote Server
+                  </v-btn>
+                </div>
+              </v-stepper-item>
+            </v-stepper-items>
+          </v-stepper>
+        </div>
 
-		<div v-if="serverInfo" class="relative">
-		  <div class="flex justify-center mb-6">
-			<div class="relative">
-			  <div class="w-16 h-16 rounded-full border-4 flex items-center justify-center">
-				<svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-				</svg>
-			  </div>
-			  <div class="absolute inset-0 rounded-full border-4 border-t-transparent animate-spin"
-				:style="{ animationDuration: '3s' }">
-			  </div>
-			</div>
-		  </div>
+        <div v-else>
+          <v-row justify="center" class="mb-6">
+            <v-col cols="auto">
+              <v-progress-circular :model-value="autoConfirmCountdown * 20" color="primary" size="92">
+                <v-icon size="40" color="primary">mdi-check</v-icon>
+              </v-progress-circular>
+            </v-col>
+          </v-row>
 
-		  <div class="text-center mb-6">
-			<p class="font-bold text-lg mb-1">Connected Successfully</p>
-			<p>
-			  {{ serverInfo.name }} (v{{ serverInfo.version }})
-			</p>
-			<p v-if="autoConfirmCountdown > 0" class="text-sm mt-2">
-			  Auto-continuing in {{ autoConfirmCountdown }}s...
-			</p>
-		  </div>
+          <div class="text-center mb-6">
+            <div class="text-h6 mb-2">Connected Successfully</div>
+            <div class="text-body-1">{{ serverInfo.name }} (v{{ serverInfo.version }})</div>
+            <div v-if="autoConfirmCountdown > 0" class="text-body-2 mt-2">
+              Auto-continuing in {{ autoConfirmCountdown }}s...
+            </div>
+          </div>
 
-		  <div class="flex justify-between items-center">
-			<v-btn variant="text" @click="editServer">
-			  Change Server
-			</v-btn>
-			<v-btn color="primary" @click="confirmConnection">
-			  Continue
-			</v-btn>
-		  </div>
-		</div>
-	  </div>
-	</div>
-  </template>
+          <v-card-actions class="px-0">
+            <v-spacer />
+            <v-btn variant="text" @click="editServer">
+              Change Server
+            </v-btn>
+            <v-btn color="primary" @click="confirmConnection">
+              Continue
+            </v-btn>
+          </v-card-actions>
+        </div>
+      </v-card-text>
+    </v-card>
+  </v-dialog>
+</template>
 
-  <script setup>
+<script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
+const emit = defineEmits(['serverConnected']);
+
+const dialog = ref(true);
 const currentStep = ref(1);
 const loading = ref(false);
 const error = ref(null);
 const serverInfo = ref(null);
 const remoteAddress = ref('');
-const lastUsedServer = ref(null);
 const autoConfirmCountdown = ref(0);
 let countdownTimer = null;
-
-const emit = defineEmits(['serverConnected']);
 
 const CACHE_KEY = 'pingviewer-server';
 
@@ -167,7 +161,6 @@ const tryConnect = async (url) => {
         const data = await response.json();
         serverInfo.value = data;
         loading.value = false;
-
         startAutoConfirmCountdown();
         return true;
       }
@@ -190,6 +183,30 @@ const getServerUrl = (host) => {
   const isSecure = window.location.protocol === 'https:';
   const protocol = isSecure ? 'https:' : 'http:';
   return `${protocol}//${host}/register_service`;
+};
+
+const connectToRemote = async () => {
+  if (!remoteAddress.value) {
+    error.value = 'Please enter a remote server address.';
+    return;
+  }
+
+  const success = await tryConnect(`http://${remoteAddress.value}/register_service`);
+
+  if (!success) {
+    error.value = 'Could not connect to the specified remote server.';
+    return;
+  }
+
+  saveLastUsedServer(remoteAddress.value);
+};
+
+const confirmConnection = () => {
+  stopAutoConfirmCountdown();
+  const url = `http://${remoteAddress.value}`;
+  saveLastUsedServer(remoteAddress.value);
+  dialog.value = false;
+  emit('serverConnected', url);
 };
 
 onMounted(async () => {
@@ -220,30 +237,6 @@ onMounted(async () => {
   error.value = 'Could not connect to any known servers. Please enter a custom address.';
 });
 
-const connectToRemote = async () => {
-  if (!remoteAddress.value) {
-    error.value = 'Please enter a remote server address.';
-    return;
-  }
-
-  const success = await tryConnect(`http://${remoteAddress.value}/register_service`);
-
-  if (!success) {
-    error.value = 'Could not connect to the specified remote server.';
-    return;
-  }
-
-  saveLastUsedServer(remoteAddress.value);
-};
-
-const confirmConnection = () => {
-  stopAutoConfirmCountdown();
-  const url = `http://${remoteAddress.value}`;
-  saveLastUsedServer(remoteAddress.value);
-  emit('serverConnected', url);
-};
-
-// Watch for changes to serverInfo to handle cleanup
 watch(serverInfo, (newValue, oldValue) => {
   if (!newValue && oldValue) {
     stopAutoConfirmCountdown();
@@ -254,3 +247,13 @@ onUnmounted(() => {
   stopAutoConfirmCountdown();
 });
 </script>
+
+<style scoped>
+.server-connection :deep(.v-stepper) {
+  box-shadow: none;
+}
+
+.server-connection :deep(.v-stepper-item) {
+  margin-bottom: 16px;
+}
+</style>

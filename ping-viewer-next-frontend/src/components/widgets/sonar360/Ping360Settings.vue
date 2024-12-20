@@ -1,10 +1,4 @@
 <template>
-	<div>
-		<v-btn icon color="primary" @click="openSettings" class="elevation-4" size="large">
-			<v-icon>mdi-cog</v-icon>
-		</v-btn>
-
-		<v-dialog v-model="isOpen" max-width="300px">
 			<v-card>
 				<v-card-title class="text-h5 pb-2">Sonar Settings</v-card-title>
 
@@ -210,8 +204,6 @@
 					</div>
 				</v-card-text>
 			</v-card>
-		</v-dialog>
-	</div>
 </template>
 
 <script setup>
@@ -230,9 +222,13 @@ const props = defineProps({
     type: Object,
     default: () => ({ startAngle: 0, endAngle: 360 }),
   },
+  isOpen: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const emit = defineEmits(['update:range', 'rangeChange', 'update:angles']);
+const emit = defineEmits(['update:range', 'rangeChange', 'update:angles', 'update:isOpen']);
 
 // Constants from Ping360 specs
 const SAMPLE_PERIOD_TICK_DURATION = 25e-9;
@@ -243,10 +239,8 @@ const MAX_NUMBER_OF_POINTS = 1200;
 const MIN_TRANSMIT_DURATION = 1;
 const MAX_TRANSMIT_DURATION = 1000;
 
-const isOpen = ref(false);
 const isSaving = ref(false);
 const isLoading = ref(false);
-const isInitialized = ref(false);
 const showAdvanced = ref(false);
 const autoMode = ref(true);
 const range = ref(10);
@@ -278,13 +272,6 @@ const transmitDurationMax = computed(() => {
     Math.floor(settings.value.sample_period * SAMPLE_PERIOD_TICK_DURATION * 64e6)
   );
 });
-
-const openSettings = async () => {
-  isOpen.value = true;
-  if (!isInitialized.value) {
-    await fetchCurrentSettings();
-  }
-};
 
 function degreesToGradians(degrees) {
   if (degrees === 360) {
@@ -349,7 +336,6 @@ const fetchCurrentSettings = async () => {
     console.error('Error fetching settings:', error);
   } finally {
     isLoading.value = false;
-    isInitialized.value = true;
   }
 };
 
@@ -553,7 +539,7 @@ const saveSettings = async () => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    isOpen.value = false;
+    emit('update:isOpen', false);
   } catch (error) {
     console.error('Error saving settings:', error);
   } finally {
@@ -619,14 +605,19 @@ watch(
   { deep: true, immediate: true }
 );
 
-watch(isOpen, (newValue, oldValue) => {
-  if (newValue && !oldValue) {
-    fetchCurrentSettings();
+watch(
+  () => props.isOpen,
+  async (newValue) => {
+    if (newValue) {
+      await fetchCurrentSettings();
+    }
   }
-});
+);
 
-onMounted(() => {
-  angleRange.value = [props.initialAngles.startAngle, props.initialAngles.endAngle];
+onMounted(async () => {
+  if (props.isOpen) {
+    await fetchCurrentSettings();
+  }
 });
 </script>
 
