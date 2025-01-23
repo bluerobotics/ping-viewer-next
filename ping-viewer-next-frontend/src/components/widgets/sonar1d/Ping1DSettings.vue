@@ -1,86 +1,77 @@
 <template>
-  <div>
-    <v-btn icon color="primary" @click="isOpen = !isOpen" class="elevation-4" size="large">
-      <v-icon>mdi-cog</v-icon>
-    </v-btn>
+  <v-card>
+    <v-card-title class="text-h5 pb-2">Ping1D Settings</v-card-title>
+    <v-card-text>
+      <div class="mb-4">
+        <div class="d-flex align-center justify-space-between mb-4">
+          <v-tooltip text="Enable automatic parameter adjustment" location="left">
+            <template v-slot:activator="{ props }">
+              <span v-bind="props" class="text-body-2 text-medium-emphasis">
+                Auto Mode
+              </span>
+            </template>
+          </v-tooltip>
+          <v-switch class="gap-2" v-model="isAutoMode" hide-details density="compact"
+            @change="handleAutoModeChange"></v-switch>
+        </div>
 
-    <v-dialog v-model="isOpen" max-width="300px">
-      <v-card>
-        <v-card-title class="text-h5 pb-2">Ping1D Settings</v-card-title>
+        <div class="d-flex align-center justify-space-between mb-1">
+          <v-tooltip text="Scanning range in meters" location="left">
+            <template v-slot:activator="{ props }">
+              <span v-bind="props" class="text-body-2 text-medium-emphasis">
+                Range
+              </span>
+            </template>
+          </v-tooltip>
+          <span class="text-caption text-medium-emphasis mr-1">meters</span>
+        </div>
+        <div class="d-flex align-center gap-2 mb-4">
+          <v-text-field v-model.number="settings.scan_start" type="number" label="Start" :disabled="isAutoMode"
+            density="compact" hide-details style="width: 80px" @update:modelValue="handleRangeChange" />
+          <v-text-field v-model.number="settings.scan_length" type="number" label="Length" :disabled="isAutoMode"
+            density="compact" hide-details style="width: 80px" @update:modelValue="handleRangeChange" />
+        </div>
 
-        <v-card-text>
-          <div class="mb-4">
-            <div class="d-flex align-center justify-space-between mb-4">
-              <v-tooltip text="Enable automatic parameter adjustment" location="left">
-                <template v-slot:activator="{ props }">
-                  <span v-bind="props" class="text-body-2 text-medium-emphasis">
-                    Auto Mode
-                  </span>
-                </template>
-              </v-tooltip>
-              <v-switch class="gap-2" v-model="isAutoMode" hide-details density="compact"
-                @change="handleAutoModeChange"></v-switch>
-            </div>
+        <div class="d-flex align-center justify-space-between mb-1">
+          <v-tooltip text="Signal amplification level" location="left">
+            <template v-slot:activator="{ props }">
+              <span v-bind="props" class="text-body-2 text-medium-emphasis">
+                Gain Setting
+              </span>
+            </template>
+          </v-tooltip>
+        </div>
+        <v-select v-model="settings.gain_setting" :items="gainOptions" label="Gain" :disabled="isAutoMode"
+          density="compact" hide-details class="mb-4" @update:modelValue="handleGainChange"></v-select>
 
-            <div class="d-flex align-center justify-space-between mb-1">
-              <v-tooltip text="Scanning range in meters" location="left">
-                <template v-slot:activator="{ props }">
-                  <span v-bind="props" class="text-body-2 text-medium-emphasis">
-                    Range
-                  </span>
-                </template>
-              </v-tooltip>
-              <span class="text-caption text-medium-emphasis mr-1">meters</span>
-            </div>
-            <div class="d-flex align-center gap-2 mb-4">
-              <v-text-field v-model.number="settings.scan_start" type="number" label="Start" :disabled="isAutoMode"
-                density="compact" hide-details style="width: 80px" @update:modelValue="handleRangeChange" />
-              <v-text-field v-model.number="settings.scan_length" type="number" label="Length" :disabled="isAutoMode"
-                density="compact" hide-details style="width: 80px" @update:modelValue="handleRangeChange" />
-            </div>
+        <div class="d-flex align-center justify-space-between mb-1">
+          <v-tooltip text="Speed of sound in water" location="left">
+            <template v-slot:activator="{ props }">
+              <span v-bind="props" class="text-body-2 text-medium-emphasis">
+                Speed of Sound
+              </span>
+            </template>
+          </v-tooltip>
+          <span class="text-caption text-medium-emphasis mr-1">m/s</span>
+        </div>
+        <div class="d-flex align-center gap-2">
+          <v-slider v-model="settings.speed_of_sound" :min="1400" :max="1600" :step="1" density="compact" hide-details
+            class="flex-grow-1" @update:modelValue="handleSpeedOfSoundChange"></v-slider>
+          <v-text-field v-model.number="settings.speed_of_sound" type="number" :min="1400" :max="1600" :step="1"
+            density="compact" hide-details style="width: 80px"
+            @update:modelValue="handleSpeedOfSoundChange"></v-text-field>
+        </div>
+      </div>
 
-            <div class="d-flex align-center justify-space-between mb-1">
-              <v-tooltip text="Signal amplification level" location="left">
-                <template v-slot:activator="{ props }">
-                  <span v-bind="props" class="text-body-2 text-medium-emphasis">
-                    Gain Setting
-                  </span>
-                </template>
-              </v-tooltip>
-            </div>
-            <v-select v-model="settings.gain_setting" :items="gainOptions" label="Gain" :disabled="isAutoMode"
-              density="compact" hide-details class="mb-4" @update:modelValue="handleGainChange"></v-select>
+      <v-divider class="my-4"></v-divider>
 
-            <div class="d-flex align-center justify-space-between mb-1">
-              <v-tooltip text="Speed of sound in water" location="left">
-                <template v-slot:activator="{ props }">
-                  <span v-bind="props" class="text-body-2 text-medium-emphasis">
-                    Speed of Sound
-                  </span>
-                </template>
-              </v-tooltip>
-              <span class="text-caption text-medium-emphasis mr-1">m/s</span>
-            </div>
-            <div class="d-flex align-center gap-2">
-              <v-slider v-model="settings.speed_of_sound" :min="1400" :max="1600" :step="1" density="compact"
-                hide-details class="flex-grow-1" @update:modelValue="handleSpeedOfSoundChange"></v-slider>
-              <v-text-field v-model.number="settings.speed_of_sound" type="number" :min="1400" :max="1600" :step="1"
-                density="compact" hide-details style="width: 80px"
-                @update:modelValue="handleSpeedOfSoundChange"></v-text-field>
-            </div>
-          </div>
-
-          <v-divider class="my-4"></v-divider>
-
-          <div class="d-flex justify-end">
-            <v-btn color="primary" @click="saveSettings" :loading="isSaving">
-              {{ isSaving ? 'Applying...' : 'Apply Settings' }}
-            </v-btn>
-          </div>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
-  </div>
+      <div class="d-flex justify-end">
+        <v-btn color="primary" @click="saveSettings" :loading="isSaving">
+          {{ isSaving ? 'Applying...' : 'Apply Settings' }}
+        </v-btn>
+      </div>
+    </v-card-text>
+  </v-card>
 </template>
 
 <script setup>
@@ -95,9 +86,13 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  isOpen: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const isOpen = ref(false);
+const emit = defineEmits(['update:isOpen']);
 const isSaving = ref(false);
 const rawAutoMode = ref(1);
 
@@ -178,6 +173,7 @@ const fetchCurrentSettings = async () => {
     }
   } catch (error) {
     console.error('Error fetching settings:', error);
+  } finally {
   }
 };
 
@@ -223,7 +219,7 @@ const saveSettings = async () => {
       await handleGainChange();
     }
     await handleSpeedOfSoundChange();
-    isOpen.value = false;
+    emit('update:isOpen', false);
   } catch (error) {
     console.error('Error saving settings:', error);
   } finally {
@@ -231,10 +227,17 @@ const saveSettings = async () => {
   }
 };
 
-watch(isOpen, (newValue, oldValue) => {
-  if (newValue && !oldValue) {
-    fetchCurrentSettings();
+watch(
+  () => props.isOpen,
+  async (newValue) => {
+    if (newValue) {
+      await fetchCurrentSettings();
+    }
   }
+);
+
+onMounted(async () => {
+  await fetchCurrentSettings();
 });
 </script>
 

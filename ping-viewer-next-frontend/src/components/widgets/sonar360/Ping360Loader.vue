@@ -2,53 +2,28 @@
   <div class="flex flex-col h-full">
     <div class="flex-1 mx-10 my-10 min-h-0">
       <FloatingControls :is-recording="isRecording">
-        <DataRecorder
-          ref="dataRecorder"
-          :device="device"
-          @recording-complete="handleRecordingComplete"
-          @recording-started="handleRecordingStarted"
-          @recording-stopped="handleRecordingStopped"
-        />
-        <v-btn
-          icon
-          :color="isFreeze ? 'error' : 'primary'"
-          @click="toggleFreeze"
-          class="elevation-4"
-          size="large"
-        >
+        <DataRecorder ref="dataRecorder" :device="device" @recording-complete="handleRecordingComplete"
+          @recording-started="handleRecordingStarted" @recording-stopped="handleRecordingStopped" />
+        <v-btn icon :color="isFreeze ? 'error' : 'primary'" @click="toggleFreeze" class="elevation-4" size="large">
           <v-icon>{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
         </v-btn>
-        <Ping360Settings
-          ref="settingsRef"
-          :server-url="getServerUrl(websocketUrl)"
-          :device-id="device.id"
-          :initial-angles="{ startAngle, endAngle }"
-          @update:angles="handleAngleUpdate"
-          @rangeChange="handleRangeChange"
-        />
+        <v-btn icon color="primary" @click="openSettings" class="elevation-4" size="large">
+          <v-icon>mdi-cog</v-icon>
+        </v-btn>
+        <v-dialog v-model="isSettingsOpen" max-width="300px">
+
+          <Ping360Settings ref="settingsRef" :server-url="getServerUrl(websocketUrl)" :device-id="device.id"
+            :initial-angles="{ startAngle, endAngle }" :isOpen="isSettingsOpen" @update:angles="handleAngleUpdate"
+            @rangeChange="handleRangeChange" />
+        </v-dialog>
       </FloatingControls>
 
-      <Ping360
-        :measurement="displayMeasurement"
-        :angle="displayAngle"
-        :colorPalette="colorPalette"
-        :lineColor="lineColor"
-        :lineWidth="lineWidth"
-        :maxDistance="currentRange"
-        :numMarkers="numMarkers"
-        :showRadiusLines="showRadiusLines"
-        :showMarkers="showMarkers"
-        :radiusLineColor="radiusLineColor"
-        :markerColor="markerColor"
-        :textBackgroundColor="markerBackgroundColor"
-        :radiusLineWidth="radiusLineWidth"
-        :debug="debug"
-        :startAngle="startAngle"
-        :endAngle="endAngle"
-        :yaw_angle="yawAngle"
-        v-bind="$attrs"
-        class="h-full w-full"
-      />
+      <Ping360 :measurement="displayMeasurement" :angle="displayAngle" :colorPalette="colorPalette"
+        :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="currentRange" :numMarkers="numMarkers"
+        :showRadiusLines="showRadiusLines" :showMarkers="showMarkers" :radiusLineColor="radiusLineColor"
+        :markerColor="markerColor" :textBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"
+        :debug="debug" :startAngle="startAngle" :endAngle="endAngle" :yaw_angle="yawAngle" v-bind="$attrs"
+        class="h-full w-full" />
     </div>
   </div>
 </template>
@@ -136,6 +111,7 @@ const socket = ref(null);
 const settingsRef = ref(null);
 const isFreeze = ref(false);
 const isRecording = ref(false);
+const isSettingsOpen = ref(false);
 
 const yawAngle = inject('yawAngle', ref(0));
 
@@ -191,6 +167,27 @@ function gradiansToDegrees(gradians) {
   return Math.round((gradians * 360) / 400);
 }
 
+const sendGetConfigRequest = () => {
+  if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
+    console.error('WebSocket is not connected');
+    return;
+  }
+
+  const configRequest = {
+    command: 'ModifyDevice',
+    module: 'DeviceManager',
+    payload: {
+      uuid: props.device.id,
+      modify: 'GetPing360Config',
+    },
+  };
+
+  socket.value.send(JSON.stringify(configRequest));
+  if (props.debug) {
+    console.debug('Sent GetPing360Config request:', configRequest);
+  }
+};
+
 const connectWebSocket = () => {
   if (socket.value) return;
 
@@ -198,6 +195,7 @@ const connectWebSocket = () => {
 
   socket.value.onopen = () => {
     connectionStatus.value = 'Connected';
+    sendGetConfigRequest();
   };
 
   socket.value.onmessage = (event) => {
@@ -207,9 +205,11 @@ const connectWebSocket = () => {
         console.debug('Ping360 data:', parsedData);
       }
 
-      if (parsedData.DeviceConfig?.ConfigAcknowledge?.modify?.SetPing360Config) {
-        const config = parsedData.DeviceConfig.ConfigAcknowledge.modify.SetPing360Config;
+      const config =
+        parsedData.DeviceConfig?.ConfigAcknowledge?.modify?.SetPing360Config ||
+        parsedData.DeviceConfig?.Ping360Config;
 
+      if (config) {
         const SAMPLE_PERIOD_TICK_DURATION = 25e-9;
         currentRange.value = Math.round(
           (config.sample_period * SAMPLE_PERIOD_TICK_DURATION * config.number_of_samples * 1500) / 2
@@ -284,6 +284,10 @@ const handleRangeChange = (newRange) => {
   currentRange.value = newRange;
 };
 
+const openSettings = async () => {
+  isSettingsOpen.value = true;
+};
+
 watch(
   () => props.websocketUrl,
   (newUrl, oldUrl) => {
@@ -301,9 +305,6 @@ watch(yawAngle, (newYaw) => {
 });
 
 onMounted(async () => {
-  if (props.showControls && settingsRef.value?.fetchCurrentSettings) {
-    await settingsRef.value.fetchCurrentSettings();
-  }
   connectWebSocket();
 });
 
@@ -314,11 +315,11 @@ onUnmounted(() => {
 
 <style scoped>
 .h-full {
-	height: 100%;
+  height: 100%;
 }
 
 .w-full {
-	width: 100%;
+  width: 100%;
 }
 
 * {
@@ -326,5 +327,4 @@ onUnmounted(() => {
   padding: 0;
   box-sizing: border-box;
 }
-
 </style>

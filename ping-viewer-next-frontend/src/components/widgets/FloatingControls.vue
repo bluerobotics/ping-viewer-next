@@ -1,46 +1,21 @@
 <template>
-    <div
-      class="absolute bottom-5 left-1/2 -translate-x-1/2 z-10"
-      @mouseenter="handleShowControls"
-      @mouseleave="handleHideControls"
-    >
-      <div
-        class="rounded-full backdrop-blur-sm bg-white/5 border border-white/10 p-1.5 cursor-pointer transition-all duration-500 flex items-center justify-center group hover:bg-white/10 relative"
-        :class="{
-          'w-auto h-auto': isExpanded,
-          'w-8 h-8': !isExpanded,
-          'opacity-40 hover:opacity-100': !isExpanded && !isRecording
-        }"
-      >
-        <div
-          class="flex items-center gap-2 transition-all duration-500 overflow-hidden text-white/70"
-          :class="{
-            'opacity-100 w-auto': isExpanded,
-            'opacity-0 w-0': !isExpanded
-          }"
-        >
-          <slot></slot>
-        </div>
-
-        <div
-          class="absolute transition-all duration-500 text-white/70"
-          :class="{
-            'opacity-0 scale-0': isExpanded,
-            'opacity-100 scale-100': !isExpanded
-          }"
-        >
-          <v-icon size="small">mdi-chevron-up</v-icon>
-        </div>
-
-        <div
-          v-if="isRecording"
-          class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-400/60 rounded-full animate-pulse shadow-sm"
-        ></div>
+  <div class="absolute bottom-5 left-1/2 -translate-x-1/2 z-10">
+    <div class="square-button-container" :class="{ 'expanded': isExpanded, 'glass': true }"
+      @mouseenter="handleShowControls" @mouseleave="handleHideControls">
+      <div class="button-content" :class="{ 'expanded': isExpanded }">
+        <slot></slot>
       </div>
-    </div>
-  </template>
 
-  <script setup>
+      <div class="expand-icon" :class="{ 'hidden': isExpanded }">
+        <v-icon size="small">mdi-chevron-up</v-icon>
+      </div>
+
+      <div v-if="isRecording" class="recording-indicator"></div>
+    </div>
+  </div>
+</template>
+
+<script setup>
 import { ref } from 'vue';
 
 defineProps({
@@ -65,24 +40,81 @@ const handleHideControls = () => {
 };
 </script>
 
-  <style scoped>
-  @keyframes pulse {
-    0% {
-      opacity: 0.6;
-    }
-    50% {
-      opacity: 0.3;
-    }
-    100% {
-      opacity: 0.6;
-    }
-  }
+<style scoped>
+.square-button-container {
+  --button-size: 3.25rem;
+  --button-gap: 0.5rem;
+  --border-radius: 0.5rem;
 
-  .animate-pulse {
-    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
+  width: var(--button-size);
+  height: var(--button-size);
+  border-radius: var(--border-radius);
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(var(--v-theme-background), 0.1) !important;
+  backdrop-filter: blur(1px) !important;
+  border: 1px solid rgba(203, 203, 203, 0.25);
+  box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.3), 0px 8px 12px 6px rgba(0, 0, 0, 0.15);
+}
 
-  .transition-all {
-    transition: all 0.5s ease-in-out;
+.square-button-container:hover {
+  background-color: rgba(var(--v-theme-background), 0.3) !important;
+}
+
+.square-button-container.expanded {
+  width: auto;
+  height: auto;
+  padding: 0.375rem;
+}
+
+.button-content {
+  display: flex;
+  align-items: center;
+  gap: var(--button-gap);
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.button-content.expanded {
+  opacity: 1;
+  width: auto;
+  overflow: visible;
+}
+
+.expand-icon {
+  position: absolute;
+  transition: all 0.3s ease;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.expand-icon.hidden {
+  opacity: 0;
+  transform: scale(0);
+}
+
+.recording-indicator {
+  position: absolute;
+  top: -0.125rem;
+  right: -0.125rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  background-color: rgba(239, 68, 68, 0.6);
+  border-radius: 9999px;
+  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.6;
   }
-  </style>
+  50% {
+    opacity: 0.3;
+  }
+}
+</style>

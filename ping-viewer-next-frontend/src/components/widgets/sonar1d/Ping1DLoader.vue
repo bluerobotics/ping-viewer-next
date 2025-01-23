@@ -1,38 +1,22 @@
 <template>
   <div class="flex flex-col h-full relative">
     <FloatingControls :is-recording="isRecording">
-      <DataRecorder
-        ref="dataRecorder"
-        :device="device"
-        @recording-complete="handleRecordingComplete"
-        @recording-started="handleRecordingStarted"
-        @recording-stopped="handleRecordingStopped"
-      />
-      <v-btn
-        icon
-        :color="isFreeze ? 'error' : 'primary'"
-        @click="toggleFreeze"
-        class="elevation-4"
-        size="large"
-      >
+      <DataRecorder ref="dataRecorder" :device="device" @recording-complete="handleRecordingComplete"
+        @recording-started="handleRecordingStarted" @recording-stopped="handleRecordingStopped" />
+      <v-btn icon :color="isFreeze ? 'error' : 'primary'" @click="toggleFreeze" class="elevation-4" size="large">
         <v-icon>{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
       </v-btn>
-      <Ping1DSettings
-        :server-url="getServerUrl(websocketUrl)"
-        :device-id="device.id"
-      />
+      <v-btn icon color="primary" @click="openSettings" class="elevation-4" size="large">
+        <v-icon>mdi-cog</v-icon>
+      </v-btn>
+      <v-dialog v-model="isSettingsOpen" max-width="300px">
+        <Ping1DSettings :isOpen="isSettingsOpen" :server-url="getServerUrl(websocketUrl)" :device-id="device.id" />
+      </v-dialog>
     </FloatingControls>
 
-    <Ping1D
-      v-bind="$props"
-      :sensorData="displayData.sensorData"
-      :currentDepth="displayData.currentDepth"
-      :minDepth="displayData.minDepth"
-      :maxDepth="displayData.maxDepth"
-      :confidence="displayData.confidence"
-      :accuracy="displayData.accuracy"
-      class="flex-grow"
-    />
+    <Ping1D v-bind="$props" :sensorData="displayData.sensorData" :currentDepth="displayData.currentDepth"
+      :minDepth="displayData.minDepth" :maxDepth="displayData.maxDepth" :confidence="displayData.confidence"
+      :accuracy="displayData.accuracy" class="flex-grow" />
   </div>
 </template>
 
@@ -106,6 +90,7 @@ const socket = ref(null);
 const dataRecorder = ref(null);
 const isRecording = ref(false);
 const isFreeze = ref(false);
+const isSettingsOpen = ref(false);
 
 const liveData = ref({
   sensorData: [],
@@ -221,6 +206,10 @@ const disconnectWebSocket = () => {
     socket.value.close();
     socket.value = null;
   }
+};
+
+const openSettings = async () => {
+  isSettingsOpen.value = true;
 };
 
 onMounted(() => {

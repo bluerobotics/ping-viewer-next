@@ -1,183 +1,226 @@
 <template>
-  <div class="settings-container p-2">
-    <v-tabs v-model="activeSettingsTab" class="border-b mb-2">
-      <v-tab value="general">
-        <v-icon start>mdi-cog</v-icon>
-        General
-      </v-tab>
-      <v-tab value="ping1d">
-        <v-icon start>mdi-altimeter</v-icon>
-        Ping1D
-      </v-tab>
-      <v-tab value="ping360">
-        <v-icon start>mdi-radar</v-icon>
-        Ping360
-      </v-tab>
-      <v-tab value="presets">
-        <v-icon start>mdi-palette-swatch</v-icon>
-        Presets
-      </v-tab>
-    </v-tabs>
+  <div class="settings-menu" :class="{ 'glass-inner disable-hover': glass }">
+    <div :class="['menu-content', { 'glass-inner disable-hover': glass }]">
+      <v-tabs v-model="activeSettingsTab" class="mb-2">
+        <v-tab value="general">
+          <v-icon start>mdi-cog</v-icon>
+          General
+        </v-tab>
+        <v-tab value="ping1d">
+          <v-icon start>mdi-altimeter</v-icon>
+          Ping1D
+        </v-tab>
+        <v-tab value="ping360">
+          <v-icon start>mdi-radar</v-icon>
+          Ping360
+        </v-tab>
+        <v-tab value="presets">
+          <v-icon start>mdi-palette-swatch</v-icon>
+          Presets
+        </v-tab>
+        <v-tab value="server">
+          <v-icon start>mdi-server</v-icon>
+          Server
+        </v-tab>
+      </v-tabs>
 
-    <v-window v-model="activeSettingsTab">
-      <v-window-item value="general">
-        <div class="px-4">
-          <v-list-subheader class="px-0 ">Palette</v-list-subheader>
-          <div>
-            <SonarColorOptions :initial-palette="localCommonSettings.colorPalette"
-              @update:colorPalette="updateColorPalette" />
+      <v-window v-model="activeSettingsTab">
+        <!-- General Settings -->
+        <v-window-item value="general">
+          <div class="px-4">
+            <v-list-subheader class="px-0">Palette</v-list-subheader>
+            <div>
+              <SonarColorOptions :initial-palette="localCommonSettings.colorPalette"
+                @update:colorPalette="updateColorPalette" />
+            </div>
+            <section>
+              <v-list-subheader class="px-0">Display Options</v-list-subheader>
+              <div class="d-flex align-center justify-space-between">
+                <span class="text-body-2 px-3">Dark Mode</span>
+                <v-switch class="px-3" :model-value="isDarkMode"
+                  @update:model-value="$emit('update:isDarkMode', $event)" hide-details></v-switch>
+              </div>
+              <div class="d-flex align-center justify-space-between">
+                <span class="text-body-2 px-3">Glass Effect</span>
+                <v-switch class="px-3" :model-value="isGlassMode"
+                  @update:model-value="$emit('update:isGlassMode', $event)" hide-details></v-switch>
+              </div>
+            </section>
           </div>
-          <section>
-            <v-list-subheader class="px-0 ">Display Options</v-list-subheader>
-            <div class="d-flex align-center justify-space-between">
-              <span class="text-body-2 px-3">Dark Mode</span>
-              <v-switch class="px-3" :model-value="isDarkMode" @update:model-value="$emit('update:isDarkMode', $event)"
-                hide-details></v-switch>
-            </div>
-          </section>
-        </div>
-      </v-window-item>
+        </v-window-item>
 
-      <v-window-item value="ping1d">
-        <div class="px-4">
-          <section>
-            <v-list-subheader class="px-0 ">Display Settings</v-list-subheader>
-            <div class="d-flex flex-column gap-4 px-3">
-              <v-text-field v-model.number="localPing1DSettings.columnCount" type="number" label="Column Count"
-                hide-details density="compact"></v-text-field>
-              <v-text-field v-model.number="localPing1DSettings.tickCount" type="number" label="Tick Count" hide-details
-                density="compact"></v-text-field>
-            </div>
-          </section>
+        <!-- Ping1D Settings -->
+        <v-window-item value="ping1d">
+          <div class="px-4">
+            <section>
+              <v-list-subheader class="px-0">Display Settings</v-list-subheader>
+              <div class="d-flex flex-column gap-4 px-3">
+                <v-text-field v-model.number="localPing1DSettings.columnCount" type="number" label="Column Count"
+                  hide-details density="compact"></v-text-field>
+                <v-text-field v-model.number="localPing1DSettings.tickCount" type="number" label="Tick Count"
+                  hide-details density="compact"></v-text-field>
+              </div>
+            </section>
 
-          <section>
-            <v-list-subheader class="px-0 ">Display Options</v-list-subheader>
-            <div class="d-flex align-center justify-space-between pe-3">
-              <span class="text-body-2 px-3">Debug Mode</span>
-              <v-switch v-model="localPing1DSettings.debug" hide-details></v-switch>
-            </div>
-          </section>
+            <section>
+              <v-list-subheader class="px-0">Display Options</v-list-subheader>
+              <div class="d-flex align-center justify-space-between pe-3">
+                <span class="text-body-2 px-3">Debug Mode</span>
+                <v-switch v-model="localPing1DSettings.debug" hide-details></v-switch>
+              </div>
+            </section>
 
-          <section>
-            <v-list-subheader class="px-0 ">Colors</v-list-subheader>
-            <div class="d-flex flex-column">
-              <div class="d-flex align-center justify-space-between">
-                <span class="text-body-2 px-3">Depth Line Color</span>
-                <ColorPickerField v-model="localPing1DSettings.depthLineColor" :defaultValue="'#ffeb3b'" />
+            <section>
+              <v-list-subheader class="px-0">Colors</v-list-subheader>
+              <div class="d-flex flex-column">
+                <div class="d-flex align-center justify-space-between">
+                  <span class="text-body-2 px-3">Depth Line Color</span>
+                  <ColorPickerField v-model="localPing1DSettings.depthLineColor" :defaultValue="'#ffeb3b'" />
+                </div>
+                <div class="d-flex align-center justify-space-between">
+                  <span class="text-body-2 px-3">Depth Text Color</span>
+                  <ColorPickerField v-model="localPing1DSettings.depthTextColor" :defaultValue="'#ffeb3b'" />
+                </div>
+                <div class="d-flex align-center justify-space-between">
+                  <span class="text-body-2 px-3">Current Depth Color</span>
+                  <ColorPickerField v-model="localPing1DSettings.currentDepthColor" :defaultValue="'#ffeb3b'" />
+                </div>
+                <div class="d-flex align-center justify-space-between">
+                  <span class="text-body-2 px-3">Confidence Color</span>
+                  <ColorPickerField v-model="localPing1DSettings.confidenceColor" :defaultValue="'#4caf50'" />
+                </div>
+                <div class="d-flex align-center justify-space-between">
+                  <span class="text-body-2 px-3">Depth Arrow Color</span>
+                  <ColorPickerField v-model="localPing1DSettings.depthArrowColor" :defaultValue="'#f44336'" />
+                </div>
+                <div class="d-flex align-center justify-space-between">
+                  <span class="text-body-2 px-3">Text Background Color</span>
+                  <ColorPickerField v-model="localPing1DSettings.textBackground" :defaultValue="'rgba(0, 0, 0, 0.5)'" />
+                </div>
               </div>
-              <div class="d-flex align-center justify-space-between">
-                <span class="text-body-2 px-3">Depth Line Color</span>
-                <ColorPickerField v-model="localPing1DSettings.depthLineColor" :defaultValue="'#ffeb3b'" />
-              </div>
-              <div class="d-flex align-center justify-space-between">
-                <span class="text-body-2 px-3">Depth Text Color</span>
-                <ColorPickerField v-model="localPing1DSettings.depthTextColor" :defaultValue="'#ffeb3b'" />
-              </div>
-              <div class="d-flex align-center justify-space-between">
-                <span class="text-body-2 px-3">Current Depth Color</span>
-                <ColorPickerField v-model="localPing1DSettings.currentDepthColor" :defaultValue="'#ffeb3b'" />
-              </div>
-              <div class="d-flex align-center justify-space-between">
-                <span class="text-body-2 px-3">Confidence Color</span>
-                <ColorPickerField v-model="localPing1DSettings.confidenceColor" :defaultValue="'#4caf50'" />
-              </div>
-              <div class="d-flex align-center justify-space-between">
-                <span class="text-body-2 px-3">Depth Arrow Color</span>
-                <ColorPickerField v-model="localPing1DSettings.depthArrowColor" :defaultValue="'#f44336'" />
-              </div>
-              <div class="d-flex align-center justify-space-between">
-                <span class="text-body-2 px-3">Text Background Color</span>
-                <ColorPickerField v-model="localPing1DSettings.textBackground" :defaultValue="'rgba(0, 0, 0, 0.5)'" />
-              </div>
-            </div>
-          </section>
-        </div>
-      </v-window-item>
+            </section>
+          </div>
+        </v-window-item>
 
-      <v-window-item value="ping360">
-        <div class="px-4">
-
-          <section class="mb-2">
-            <v-list-subheader class="px-0 ">Display Settings</v-list-subheader>
-            <div class="d-flex flex-column gap-4 px-3">
-              <v-text-field v-model.number="localPing360Settings.numMarkers" type="number" label="Number of Markers"
-                hide-details density="compact"></v-text-field>
-              <v-text-field v-model.number="localPing360Settings.lineWidth" type="number" step="0.1" label="Line Width"
-                hide-details density="compact"></v-text-field>
-              <v-text-field v-model.number="localPing360Settings.radiusLineWidth" type="number" step="0.1"
-                label="Radius Line Width" hide-details density="compact"></v-text-field>
-            </div>
-          </section>
-
-          <section class="mb-2">
-            <v-list-subheader>Display Options</v-list-subheader>
-            <div class="d-flex flex-column px-3">
-              <div class="d-flex align-center justify-space-between -mb-5 ">
-                <span class="text-body-2">Show Radius Lines</span>
-                <v-switch v-model="localPing360Settings.showRadiusLines" hide-details></v-switch>
+        <!-- Ping360 Settings -->
+        <v-window-item value="ping360">
+          <div class="px-4">
+            <section class="mb-2">
+              <v-list-subheader class="px-0">Display Settings</v-list-subheader>
+              <div class="d-flex flex-column gap-4 px-3">
+                <v-text-field v-model.number="localPing360Settings.numMarkers" type="number" label="Number of Markers"
+                  hide-details density="compact"></v-text-field>
+                <v-text-field v-model.number="localPing360Settings.lineWidth" type="number" step="0.1"
+                  label="Line Width" hide-details density="compact"></v-text-field>
+                <v-text-field v-model.number="localPing360Settings.radiusLineWidth" type="number" step="0.1"
+                  label="Radius Line Width" hide-details density="compact"></v-text-field>
               </div>
-              <div class="d-flex align-center justify-space-between -mb-5 ">
-                <span class="text-body-2">Show Markers</span>
-                <v-switch v-model="localPing360Settings.showMarkers" hide-details></v-switch>
-              </div>
-              <div class="d-flex align-center justify-space-between -mb-5">
-                <span class="text-body-2">Debug Mode</span>
-                <v-switch v-model="localPing360Settings.debug" hide-details></v-switch>
-              </div>
-            </div>
-          </section>
+            </section>
 
-          <section>
-            <v-list-subheader class="px-0 ">Colors</v-list-subheader>
-            <div class="d-flex flex-column">
-              <div class="d-flex align-center justify-space-between">
-                <span class="text-body-2 px-3">Line Color</span>
-                <ColorPickerField v-model="localPing360Settings.lineColor" :defaultValue="'#f44336'" />
+            <section class="mb-2">
+              <v-list-subheader>Display Options</v-list-subheader>
+              <div class="d-flex flex-column px-3">
+                <div class="d-flex align-center justify-space-between -mb-5">
+                  <span class="text-body-2">Show Radius Lines</span>
+                  <v-switch v-model="localPing360Settings.showRadiusLines" hide-details></v-switch>
+                </div>
+                <div class="d-flex align-center justify-space-between -mb-5">
+                  <span class="text-body-2">Show Markers</span>
+                  <v-switch v-model="localPing360Settings.showMarkers" hide-details></v-switch>
+                </div>
+                <div class="d-flex align-center justify-space-between -mb-5">
+                  <span class="text-body-2">Debug Mode</span>
+                  <v-switch v-model="localPing360Settings.debug" hide-details></v-switch>
+                </div>
               </div>
-              <div class="d-flex align-center justify-space-between">
-                <span class="text-body-2 px-3">Marker Color</span>
-                <ColorPickerField v-model="localPing360Settings.markerColor" :defaultValue="'#4caf50'" />
+            </section>
+
+            <section>
+              <v-list-subheader class="px-0">Colors</v-list-subheader>
+              <div class="d-flex flex-column">
+                <div class="d-flex align-center justify-space-between">
+                  <span class="text-body-2 px-3">Line Color</span>
+                  <ColorPickerField v-model="localPing360Settings.lineColor" :defaultValue="'#f44336'" />
+                </div>
+                <div class="d-flex align-center justify-space-between">
+                  <span class="text-body-2 px-3">Marker Color</span>
+                  <ColorPickerField v-model="localPing360Settings.markerColor" :defaultValue="'#4caf50'" />
+                </div>
+                <div class="d-flex align-center justify-space-between">
+                  <span class="text-body-2 px-3">Radius Line Color</span>
+                  <ColorPickerField v-model="localPing360Settings.radiusLineColor" :defaultValue="'#4caf50'" />
+                </div>
               </div>
-              <div class="d-flex align-center justify-space-between">
-                <span class="text-body-2 px-3">Radius Line Color</span>
-                <ColorPickerField v-model="localPing360Settings.radiusLineColor" :defaultValue="'#4caf50'" />
+            </section>
+          </div>
+        </v-window-item>
+
+        <!-- Presets -->
+        <v-window-item value="presets">
+          <div class="px-4">
+            <section class="mb-2">
+              <div class="mb-4">Accessibility Presets</div>
+              <v-select v-model="selectedPreset" :items="accessibilityPresets" label="Color Vision Mode"
+                @update:model-value="handlePresetChange" variant="outlined" density="comfortable" />
+            </section>
+
+            <v-alert v-if="selectedPreset !== 'default'" color="info" variant="tonal">
+              {{ getPresetDescription(selectedPreset) }}
+              <div class="text-caption mt-2">
+                You can still adjust individual settings in other tabs.
               </div>
-            </div>
-          </section>
-        </div>
-      </v-window-item>
+            </v-alert>
+          </div>
+        </v-window-item>
 
-      <v-window-item value="presets">
-        <div class="px-4">
-          <section class="mb-2">
-            <div class=" mb-4">Accessibility Presets</div>
-            <v-select v-model="selectedPreset" :items="accessibilityPresets" label="Color Vision Mode"
-              @update:model-value="handlePresetChange" variant="outlined" density="comfortable" />
-          </section>
+        <!-- Server Settings -->
+        <v-window-item value="server">
+          <div class="px-4">
+            <!-- Server Configuration -->
+            <section class="mb-6">
+              <v-list-subheader class="px-0">Server Configuration</v-list-subheader>
+              <v-text-field v-model="serverSettings.url" label="Server URL" placeholder="http://localhost:8080"
+                hint="Enter the server URL" persistent-hint class="mb-4" />
+            </section>
 
-          <v-alert v-if="selectedPreset !== 'default'" color="info" variant="tonal">
-            {{ getPresetDescription(selectedPreset) }}
-            <div class="text-caption mt-2">
-              You can still adjust individual settings in other tabs.
-            </div>
-          </v-alert>
-        </div>
-      </v-window-item>
-    </v-window>
+            <!-- MAVLink Configuration -->
+            <section class="mb-6">
+              <v-list-subheader class="px-0">MAVLink Connection</v-list-subheader>
+              <v-text-field v-model="serverSettings.mavlinkUrl" label="MAVLink WebSocket URL"
+                placeholder="ws://localhost:6040/ws/mavlink" hint="WebSocket URL for MAVLink connection" persistent-hint
+                class="mb-4" />
 
-    <v-divider class="my-2"></v-divider>
+              <div class="d-flex align-center mb-4">
+                <v-switch v-model="serverSettings.autoConnectMavlink" hide-details class="mr-2" />
+                <span class="text-body-2">Auto-connect to MAVLink on startup</span>
+              </div>
 
-    <div class="d-flex -mb-6 justify-space-between">
-      <div class="d-flex gap-4">
-        <v-btn variant="text" @click="$emit('close')">
-          Close
-        </v-btn>
-      </div>
-      <div class="d-flex gap-4">
-        <v-btn color="error" variant="text" @click="handleReset">
+              <div class="d-flex align-center mb-4">
+                <div class="mr-4 d-flex align-center">
+                  <div class="mr-2">Status:</div>
+                  <v-chip variant="elevated" :color="mavlinkStatusColor" size="small">
+                    {{ mavlinkStatus }}
+                  </v-chip>
+                </div>
+
+                <v-btn variant="elevated" :color="mavlinkStatus === 'Connected' ? 'error' : 'success'" size="small"
+                  @click="toggleMavlinkConnection" :loading="mavlinkStatus === 'Connecting'">
+                  {{ mavlinkStatus === 'Connected' ? 'Disconnect' : 'Connect' }}
+                </v-btn>
+              </div>
+            </section>
+          </div>
+        </v-window-item>
+
+      </v-window>
+
+      <v-divider class="my-2"></v-divider>
+
+      <div class="d-flex justify-end pa-2">
+        <v-btn variant="tonal" @click="handleReset" class="mr-2">
           Reset
         </v-btn>
-        <v-btn color="primary" variant="text" @click="saveSettings">
+        <v-btn variant="tonal" @click="saveSettings">
           Save
         </v-btn>
       </div>
@@ -186,12 +229,20 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import SonarColorOptions from '../widgets/SonarColorOptions.vue';
 import { colorPalettes } from '../widgets/SonarColorOptions.vue';
 import ColorPickerField from './ColorPickerField.vue';
 
 const props = defineProps({
+  isOpen: {
+    type: Boolean,
+    required: true,
+  },
+  glass: {
+    type: Boolean,
+    default: false,
+  },
   commonSettings: {
     type: Object,
     required: true,
@@ -208,16 +259,31 @@ const props = defineProps({
     type: Boolean,
     required: true,
   },
+  isGlassMode: {
+    type: Boolean,
+    required: true,
+  },
+  serverUrl: {
+    type: String,
+    required: true,
+  },
+  yawConnectionStatus: {
+    type: String,
+    required: true,
+  },
 });
 
 const emit = defineEmits([
+  'update:isOpen',
   'update:commonSettings',
   'update:ping1DSettings',
   'update:ping360Settings',
   'update:isDarkMode',
+  'update:isGlassMode',
+  'update:serverUrl',
+  'updateMavlink',
   'save',
   'reset',
-  'close',
 ]);
 
 const activeSettingsTab = ref('general');
@@ -225,6 +291,12 @@ const selectedPreset = ref('default');
 const localCommonSettings = reactive({ ...props.commonSettings });
 const localPing1DSettings = reactive({ ...props.ping1DSettings });
 const localPing360Settings = reactive({ ...props.ping360Settings });
+const mavlinkStatus = ref('Disconnected');
+const serverSettings = reactive({
+  url: props.serverUrl,
+  mavlinkUrl: localStorage.getItem('mavlinkUrl') || 'ws://localhost:6040/ws/mavlink',
+  autoConnectMavlink: localStorage.getItem('autoConnectMavlink') === 'true',
+});
 
 const accessibilityPresets = [
   { title: 'Default', value: 'default' },
@@ -234,6 +306,19 @@ const accessibilityPresets = [
   { title: 'Monochromacy', value: 'monochromacy' },
   { title: 'High Contrast', value: 'highContrast' },
 ];
+
+const mavlinkStatusColor = computed(() => {
+  switch (mavlinkStatus.value) {
+    case 'Connected':
+      return 'success';
+    case 'Connecting':
+      return 'warning';
+    case 'Error':
+      return 'error';
+    default:
+      return 'grey';
+  }
+});
 
 const presetConfigs = {
   default: {
@@ -382,7 +467,31 @@ const getPresetDescription = (preset) => {
 const handleReset = () => {
   selectedPreset.value = 'default';
   emit('reset');
+
+  // Reset server settings
+  serverSettings.url = props.serverUrl;
+  serverSettings.mavlinkUrl = 'ws://localhost:6040/ws/mavlink';
+  serverSettings.autoConnectMavlink = false;
+  localStorage.removeItem('mavlinkUrl');
+  localStorage.removeItem('autoConnectMavlink');
+
   localStorage.removeItem('selectedAccessibilityPreset');
+};
+
+const toggleMavlinkConnection = async () => {
+  if (mavlinkStatus.value === 'Connected') {
+    emit('updateMavlink', {
+      action: 'disconnect',
+      url: serverSettings.mavlinkUrl,
+    });
+  } else {
+    mavlinkStatus.value = 'Connecting';
+    emit('updateMavlink', {
+      action: 'connect',
+      url: serverSettings.mavlinkUrl,
+      autoConnect: serverSettings.autoConnectMavlink,
+    });
+  }
 };
 
 const handlePresetChange = (preset) => {
@@ -415,15 +524,8 @@ const handlePresetChange = (preset) => {
   localStorage.setItem('selectedAccessibilityPreset', preset);
 };
 
-const updateColorPalette = (newPalette) => {
-  localCommonSettings.colorPalette = newPalette;
-  if (newPalette === 'Custom') {
-    localCommonSettings.customPalette = colorPalettes.Custom;
-  }
-  emit('update:commonSettings', { ...localCommonSettings });
-};
-
 const saveSettings = () => {
+  // Save visual settings
   localStorage.setItem('common-settings', JSON.stringify(localCommonSettings));
   localStorage.setItem('ping1d-settings', JSON.stringify(localPing1DSettings));
   localStorage.setItem('ping360-settings', JSON.stringify(localPing360Settings));
@@ -432,7 +534,44 @@ const saveSettings = () => {
     localStorage.setItem('customColorPalette', JSON.stringify(localCommonSettings.customPalette));
   }
 
+  if (serverSettings.url !== props.serverUrl) {
+    emit('update:serverUrl', serverSettings.url);
+  }
+
+  // Save server settings
+  localStorage.setItem('serverUrl', serverSettings.url);
+  localStorage.setItem('mavlinkUrl', serverSettings.mavlinkUrl);
+  localStorage.setItem('autoConnectMavlink', serverSettings.autoConnectMavlink.toString());
+
+  localStorage.setItem('mavlinkUrl', serverSettings.mavlinkUrl);
+  localStorage.setItem('autoConnectMavlink', serverSettings.autoConnectMavlink.toString());
+
+  if (mavlinkStatus.value === 'Connected') {
+    // Reconnect with new settings if already connected
+    emit('updateMavlink', {
+      action: 'reconnect',
+      url: serverSettings.mavlinkUrl,
+      autoConnect: serverSettings.autoConnectMavlink,
+    });
+  } else if (serverSettings.autoConnectMavlink) {
+    // Connect if auto-connect is enabled
+    emit('updateMavlink', {
+      action: 'connect',
+      url: serverSettings.mavlinkUrl,
+      autoConnect: true,
+    });
+  }
+
   emit('save');
+  emit('update:isOpen', false);
+};
+
+const updateColorPalette = (newPalette) => {
+  localCommonSettings.colorPalette = newPalette;
+  if (newPalette === 'Custom') {
+    localCommonSettings.customPalette = colorPalettes.Custom;
+  }
+  emit('update:commonSettings', { ...localCommonSettings });
 };
 
 watch(
@@ -482,29 +621,52 @@ watch(
   },
   { deep: true }
 );
+
+watch(
+  () => props.yawConnectionStatus,
+  (newStatus) => {
+    mavlinkStatus.value = newStatus;
+  },
+  { immediate: true }
+);
+
+onMounted(() => {
+  // Load saved settings
+  if (serverSettings.autoConnectMavlink && mavlinkStatus.value === 'Disconnected') {
+    toggleMavlinkConnection();
+  }
+});
 </script>
-<style>
-.settings-scroll {
-  overflow-y: auto;
-  max-height: calc(80vh - 64px);
-  padding: 16px;
+
+<style scoped>
+.settings-menu {
+  transition: all 0.3s ease;
 }
 
-.settings-scroll::-webkit-scrollbar {
-  width: 8px;
+.menu-content {
+  padding: 1rem;
 }
 
-.settings-scroll::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
+:deep(.v-tabs) {
+  background-color: transparent !important;
 }
 
-.settings-scroll::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
+:deep(.v-tab) {
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
-.settings-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
+:deep(.v-tab--selected) {
+  color: rgb(var(--v-theme-on-surface));
+}
+
+:deep(.v-window) {
+  background-color: transparent !important;
+}
+
+@media (max-width: 600px) {
+  .settings-menu {
+    width: calc(100vw - var(--button-size) - var(--button-gap) * 2);
+    max-width: 400px;
+  }
 }
 </style>

@@ -1,58 +1,42 @@
 <template>
-  <div class="mb-4">
-    <input type="file" @change="loadFile" accept=".json" class="mb-2" />
-    <div v-if="loadedData.length > 0" class="mt-4">
-      <div class="flex items-center space-x-2">
-        <button
-          @click="play"
-          :disabled="isPlaying"
-          class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50"
-        >
-          Play
-        </button>
-        <button
-          @click="pause"
-          :disabled="!isPlaying"
-          class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 disabled:opacity-50"
-        >
-          Pause
-        </button>
-        <button
-          @click="stop"
-          class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-        >
-          Stop
-        </button>
-        <input
-          type="range"
-          v-model.number="playbackSpeed"
-          min="0.1"
-          max="10"
-          step="0.1"
-          class="w-32"
-        />
-        <span>Speed: {{ playbackSpeed }}x</span>
-      </div>
-      <div class="mt-2">
-        <input
-          type="range"
-          v-model.number="currentFrame"
-          :min="0"
-          :max="loadedData.length - 1"
-          class="w-full"
-          @input="handleFrameChange"
-        />
-        <div class="flex justify-between">
-          <span>Frame: {{ displayedFrame }} / {{ loadedData.length }}</span>
-          <span
-            >Time: {{ formatTime(loadedData[currentFrame]?.timestamp) }}</span
-          >
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
+  <v-container class="pa-0">
+    <v-row>
+      <v-col class="mr-2">
+        <input type="file" @change="loadFile" accept=".json" />
+      </v-col>
 
+      <template v-if="loadedData.length > 0">
+        <v-col cols="auto" class="d-flex align-center">
+          <v-btn color="success" @click="play" :disabled="isPlaying" density="compact" class="mr-1">
+            <v-icon left>mdi-play</v-icon>
+          </v-btn>
+
+          <v-btn color="warning" @click="pause" :disabled="!isPlaying" density="compact" class="mr-1">
+            <v-icon left>mdi-pause</v-icon>
+          </v-btn>
+
+          <v-btn color="error" @click="stop" density="compact" class="mr-1">
+            <v-icon left>mdi-stop</v-icon>
+          </v-btn>
+        </v-col>
+
+        <v-col cols="2" class="d-flex flex-column justify-center mr-4">
+          <input type="range" v-model.number="playbackSpeed" min="0.1" max="10" step="0.1" class="w-100" />
+          <div class="text-caption">Speed: {{ playbackSpeed }}x</div>
+        </v-col>
+
+        <v-col class="d-flex flex-column justify-center">
+          <input type="range" v-model.number="currentFrame" :min="0" :max="loadedData.length - 1" class="w-100"
+            @input="handleFrameChange" />
+          <div class="d-flex justify-space-between">
+            <span class="text-caption">Frame: {{ displayedFrame }} / {{ loadedData.length }}</span>
+            <span class="text-caption">Time: {{ formatTime(loadedData[currentFrame]?.timestamp) }}</span>
+          </div>
+        </v-col>
+      </template>
+    </v-row>
+  </v-container>
+</template>
 <script setup>
 import { computed, ref, watch } from 'vue';
 

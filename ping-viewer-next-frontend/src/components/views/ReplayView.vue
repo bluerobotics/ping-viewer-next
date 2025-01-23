@@ -1,33 +1,19 @@
 <template>
-	<div class="bg-black text-white h-full flex flex-col">
-	  <div class="container mx-auto p-4 flex flex-col h-full">
-		<h1 class="text-2xl font-bold mb-4">Recorded Data Viewer</h1>
+  <div class="py-10 relative">
+    <component v-if="isComponentReady" :is="deviceComponent" :device="currentDeviceData.device"
+      v-bind="deviceSpecificProps" class="z-10"></component>
+  </div>
+</template>
 
-		<DataPlayer ref="dataPlayer" @update:currentFrame="updateCurrentDeviceData" @loadedData="onDataLoaded"
-		  class="mb-4" />
-
-		<div v-if="currentDeviceData" class="flex-grow overflow-hidden flex items-center justify-center" ref="deviceView">
-		  <div ref="componentContainer" class="relative" :style="containerStyle">
-			<component v-if="isComponentReady" :is="deviceComponent" :device="currentDeviceData.device" v-bind="deviceSpecificProps"
-			  class="w-full h-full" />
-		  </div>
-		</div>
-	  </div>
-	</div>
-  </template>
-
-  <script setup>
+<script setup>
 import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import DataPlayer from '../widgets/DataPlayer.vue';
 import Ping1D from '../widgets/sonar1d/Ping1D.vue';
 import Ping360 from '../widgets/sonar360/Ping360.vue';
 
 const { commonSettings, ping1DSettings, ping360Settings } = inject('deviceSettings');
 
-const dataPlayer = ref(null);
 const currentDeviceData = ref(null);
 const deviceView = ref(null);
-const componentContainer = ref(null);
 const isComponentReady = ref(false);
 const loadedDeviceType = ref(null);
 
@@ -35,13 +21,6 @@ const componentDimensions = ref({
   width: 800,
   height: 600,
 });
-
-const containerStyle = computed(() => ({
-  width: `${componentDimensions.value.width}px`,
-  height: `${componentDimensions.value.height}px`,
-  maxWidth: '100%',
-  maxHeight: '100%',
-}));
 
 const deviceComponent = computed(() => {
   if (!currentDeviceData.value) return null;
@@ -164,5 +143,10 @@ onUnmounted(() => {
   isComponentReady.value = false;
   currentDeviceData.value = null;
   loadedDeviceType.value = null;
+});
+
+defineExpose({
+  updateCurrentDeviceData,
+  onDataLoaded,
 });
 </script>
