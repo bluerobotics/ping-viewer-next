@@ -27,6 +27,7 @@
 </template>
 
 <script>
+import { listenToDatalakeVariable } from '@bluerobotics/cockpit-api';
 import Ping1DLoader from '@components/widgets/sonar1d/Ping1DLoader.vue';
 import Ping360Loader from '@components/widgets/sonar360/Ping360Loader.vue';
 import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref } from 'vue';
@@ -43,6 +44,7 @@ export default defineComponent({
     const isLoading = ref(true);
     const deviceData = ref(null);
     const dimensions = ref({ width: 0, height: 0 });
+    const yawAngle = ref(0);
 
     let resizeObserver = null;
 
@@ -123,6 +125,7 @@ export default defineComponent({
           ...ping360Props,
           width: dimensions.value.width,
           height: dimensions.value.height,
+          yaw_angle: yawAngle.value,
         };
       }
       return {
@@ -234,6 +237,16 @@ export default defineComponent({
         console.error('Widget initialization error:', err);
         error.value = err.message;
         isLoading.value = false;
+      }
+
+      if (widgetType.value === 'ping360') {
+        datalakeUnsubscribe = listenToDatalakeVariable(
+          'ATTITUDE/yaw',
+          (data) => {
+            yawAngle.value = -(data * 180) / Math.PI;
+          },
+          10
+        );
       }
     });
 

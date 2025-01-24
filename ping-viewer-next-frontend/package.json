@@ -8,6 +8,7 @@
     "lint": "eslint . --fix --ignore-path .gitignore"
   },
   "dependencies": {
+    "@bluerobotics/cockpit-api": "^1.0.0-alpha-2",
     "@mdi/font": "^7.4.47",
     "core-js": "^3.39.0",
     "roboto-fontface": "^0.10.0",

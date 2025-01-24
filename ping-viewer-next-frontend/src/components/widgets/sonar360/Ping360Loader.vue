@@ -112,6 +112,7 @@ const settingsRef = ref(null);
 const isFreeze = ref(false);
 const isRecording = ref(false);
 const isSettingsOpen = ref(false);
+const offset = ref(0);
 
 const yawAngle = inject('yawAngle', ref(0));
 
@@ -232,11 +233,13 @@ const connectWebSocket = () => {
       const messageData = ping360Data.DeviceData || ping360Data.AutoDeviceData;
       if (!messageData || messageData.angle === undefined || !messageData.data) return;
 
+      const angleWithOffset = (messageData.angle + 400 + offset.value) % 400;
+
       liveMeasurement.value = {
-        angle: messageData.angle,
+        angle: angleWithOffset,
         data: new Uint8Array(messageData.data),
       };
-      liveAngle.value = messageData.angle;
+      liveAngle.value = angleWithOffset;
 
       if (!isFreeze.value) {
         displayMeasurement.value = liveMeasurement.value;
