@@ -2,6 +2,8 @@
 
 ## Instructions
 
+### Manual Instalation
+
 Access the extensions manager and install with the following parameters:
 
 Extensions Manager:
@@ -13,7 +15,7 @@ blueos.local/tools/extensions-manager
 Parameters:
 
 ```shell
-raulelektron.ping-viewer-next
+bluerobotics.ping-viewer-next
 
 Ping Viewer Next
 
