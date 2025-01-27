@@ -74,7 +74,7 @@ jobs:
         run: bun run build
 
       - name: Upload dist folder
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v4
         with:
           name: dist
           path: ping-viewer-next-frontend/dist
@@ -112,7 +112,7 @@ jobs:
           - uses: actions/checkout@master
 
           - name: Download frontend build
-            uses: actions/download-artifact@v4.1.8
+            uses: actions/download-artifact@v4
             with:
               name: dist
               path: ./ping-viewer-next-frontend/dist
@@ -126,7 +126,7 @@ jobs:
           - name: Rename
             run: cp target/${{ matrix.TARGET }}/release/${{ github.event.repository.name }}${{ matrix.EXTENSION }} ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
 
-          - uses: actions/upload-artifact@master
+          - uses: actions/upload-artifact@v4
             with:
               name: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
               path: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
@@ -167,7 +167,7 @@ jobs:
               prefix-key: "rust-cache"
               shared-key: "build-cross-${{ matrix.TARGET }}"
           - name: Download frontend build
-            uses: actions/download-artifact@v4.1.8
+            uses: actions/download-artifact@v4
             with:
               name: dist
               path: ./ping-viewer-next-frontend/dist
@@ -179,7 +179,7 @@ jobs:
               args: --verbose --release --features embed-frontend --target=${{ matrix.TARGET }}
           - name: Rename
             run: cp target/${{ matrix.TARGET }}/release/${{ github.event.repository.name }}${{ matrix.EXTENSION }} ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
-          - uses: actions/upload-artifact@master
+          - uses: actions/upload-artifact@v4
             with:
               name: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
               path: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
@@ -203,17 +203,17 @@ jobs:
             - name: Create files directory
               run: mkdir -p ./blueos-ping-viewer-next/files/
             - name: Download armv7 binary
-              uses: actions/download-artifact@v4.1.8
+              uses: actions/download-artifact@v4
               with:
                 name: ${{ github.event.repository.name }}-armv7-unknown-linux-musleabihf
                 path: ./blueos-ping-viewer-next/files/
             - name: Download aarch64 binary
-              uses: actions/download-artifact@v4.1.8
+              uses: actions/download-artifact@v4
               with:
                 name: ${{ github.event.repository.name }}-aarch64-unknown-linux-musl
                 path: ./blueos-ping-viewer-next/files/
             - name: Download x86_64 binary
-              uses: actions/download-artifact@v4.1.8
+              uses: actions/download-artifact@v4
               with:
                 name: ${{ github.event.repository.name }}-x86_64-unknown-linux-musl
                 path: ./blueos-ping-viewer-next/files/
@@ -307,7 +307,7 @@ jobs:
                 args: ${{ matrix.args }}
 
             - name: Upload artifacts
-              uses: actions/upload-artifact@v4.4.0
+              uses: actions/upload-artifact@v4
               with:
                 name: 'ping-viewer_${{steps.tauri-build.outputs.appVersion}}_${{ matrix.label }}'
                 path: "${{ join(fromJSON(steps.tauri-build.outputs.artifactPaths), '\n') }}"
