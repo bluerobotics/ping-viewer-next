@@ -7,7 +7,11 @@ use tracing::{debug, error, info, trace, warn};
 use crate::device::manager::ManagerError;
 
 use super::{SourceSelection, SourceSerialStruct, SourceUdpStruct};
+use regex::Regex;
 use std::collections::HashMap;
+
+#[cfg(feature = "blueos-extension")]
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq)]
 pub struct DiscoveryResponse {
@@ -17,7 +21,33 @@ pub struct DiscoveryResponse {
     pub ip_address: Ipv4Addr,
 }
 
-use regex::Regex;
+#[cfg(feature = "blueos-extension")]
+#[derive(Debug, Deserialize, Serialize)]
+struct DriverStatus {
+    udp_port: Option<u16>,
+    mavlink_driver_enabled: bool,
+}
+
+#[cfg(feature = "blueos-extension")]
+#[derive(Debug, Deserialize, Serialize)]
+struct PingDevice {
+    ping_type: String,
+    device_id: u8,
+    device_model: u8,
+    device_revision: u8,
+    firmware_version_major: u8,
+    firmware_version_minor: u8,
+    firmware_version_patch: u8,
+    port: String,
+    ethernet_discovery_info: Option<String>,
+    driver_status: DriverStatus,
+}
+
+#[cfg(feature = "blueos-extension")]
+pub struct BluePingDiscoveryResult {
+    pub sources: Vec<SourceSelection>,
+    pub used_ports: Vec<String>,
+}
 
 impl DiscoveryResponse {
     /// Decode Ping360 ASCII NetworkDiscovery message using regex
@@ -146,14 +176,72 @@ pub fn network_discovery() -> Option<Vec<SourceSelection>> {
     Some(available_sources)
 }
 
-pub async fn serial_discovery() -> Option<Vec<SourceSelection>> {
+// Discovery function that uses BlueOS's ping service to find current bridged devices
+#[cfg(feature = "blueos-extension")]
+pub async fn blueos_ping_discovery() -> Option<BluePingDiscoveryResult> {
+    let client = reqwest::Client::new();
+    let response = match client
+        .get("http://localhost:9110/v1.0/sensors")
+        .header("accept", "application/json")
+        .timeout(Duration::from_millis(500))
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(err) => {
+            warn!("blue_ping_discovery: Failed to connect to Ping service: {err}");
+            return None;
+        }
+    };
+
+    let devices: Vec<PingDevice> = match response.json().await {
+        Ok(devices) => devices,
+        Err(err) => {
+            warn!("blue_ping_discovery: Failed to parse response: {err}");
+            return None;
+        }
+    };
+
+    debug!("blue_ping_discovery: Found devices: {devices:?}");
+
+    let mut available_sources = Vec::new();
+    let mut used_ports = Vec::new();
+
+    for device in devices {
+        if !device.port.is_empty() {
+            used_ports.push(device.port);
+        }
+
+        if let Some(udp_port) = device.driver_status.udp_port {
+            available_sources.push(SourceSelection::UdpStream(SourceUdpStruct {
+                ip: Ipv4Addr::new(127, 0, 0, 1),
+                port: udp_port,
+            }));
+        }
+    }
+
+    Some(BluePingDiscoveryResult {
+        sources: available_sources,
+        used_ports,
+    })
+}
+
+pub async fn serial_discovery(skip_ports: Option<&[String]>) -> Option<Vec<SourceSelection>> {
     match available_ports() {
         Ok(serial_ports) => {
             debug!("serial_discovery: Found {serial_ports:?}");
 
             let mut set: JoinSet<Result<SourceSelection, ManagerError>> = JoinSet::new();
 
-            serial_ports.into_iter().for_each(|port_info| {
+            // Filter ports if skip_ports is provided
+            let filtered_ports = serial_ports
+                .into_iter()
+                .filter(|port_info| match skip_ports {
+                    Some(skip_list) => !skip_list.contains(&port_info.port_name),
+                    None => true,
+                });
+
+            filtered_ports.for_each(|port_info| {
                 let path = port_info.port_name.clone();
                 set.spawn(async move {
                     let baud_rate = auto_detect_baudrate(path.clone()).await?;
