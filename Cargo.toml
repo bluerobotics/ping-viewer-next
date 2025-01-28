@@ -36,7 +36,8 @@ thiserror = "1.0.63"
 shellexpand = "3.1"
 
 tauri = { version = "1.7.2", optional = true, features = ["shell-open"] }
-
+reqwest = {version = "0.12.12", optional = true, features = ["json"] }
+openssl = { version = "0.10.69", optional = true, features = ["vendored"] }
 
 
 [build-dependencies]
@@ -55,3 +56,4 @@ default = []
 desktop-app = ["tauri", "build-frontend"]
 build-frontend = ["embed-frontend"]
 embed-frontend =[]
+blueos-extension = ["dep:reqwest", "dep:openssl"]
