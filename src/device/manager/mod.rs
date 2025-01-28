@@ -506,10 +506,28 @@ impl DeviceManager {
 
     pub async fn auto_create(&mut self) -> Result<Answer, ManagerError> {
         let mut results = Vec::new();
-
         let mut available_source = Vec::new();
 
-        match device_discovery::serial_discovery().await {
+        #[cfg(feature = "blueos-extension")]
+        let used_ports = match device_discovery::blueos_ping_discovery().await {
+            Some(discovery_result) => {
+                available_source.extend(discovery_result.sources);
+                Some(discovery_result.used_ports)
+            }
+            None => {
+                warn!(
+                    "Auto create: Unable to find available devices via Blue Robotics Ping service"
+                );
+                None
+            }
+        };
+
+        #[cfg(feature = "blueos-extension")]
+        let skip_ports = used_ports.as_deref();
+        #[cfg(not(feature = "blueos-extension"))]
+        let skip_ports = None;
+
+        match device_discovery::serial_discovery(skip_ports).await {
             Some(result) => available_source.extend(result),
             None => warn!("Auto create: Unable to find available devices on serial ports"),
         }
