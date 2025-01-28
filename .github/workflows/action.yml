@@ -121,7 +121,7 @@ jobs:
             uses: houseabsolute/actions-rust-cross@v0.0.14
             with:
               target: ${{ matrix.TARGET }}
-              args: "--release --features embed-frontend"
+              args: "--release --features 'embed-frontend blueos-extension'"
 
           - name: Rename
             run: cp target/${{ matrix.TARGET }}/release/${{ github.event.repository.name }}${{ matrix.EXTENSION }} ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
@@ -176,7 +176,7 @@ jobs:
             with:
               use-cross: true
               command: build
-              args: --verbose --release --features embed-frontend --target=${{ matrix.TARGET }}
+              args: --verbose --release --features 'embed-frontend blueos-extension' --target=${{ matrix.TARGET }}
           - name: Rename
             run: cp target/${{ matrix.TARGET }}/release/${{ github.event.repository.name }}${{ matrix.EXTENSION }} ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
           - uses: actions/upload-artifact@v4
