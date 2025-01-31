@@ -4,6 +4,8 @@ pub mod continuous_mode;
 pub mod device_discovery;
 /// Specially for continuous_mode methods, startup, shutdown, handle and errors routines for each device type
 pub mod device_handle;
+/// Specially for DeviceManager, allow discovery service to run on background
+pub mod discovery_service;
 
 use paperclip::actix::Apiv2Schema;
 use serde::{Deserialize, Serialize};
@@ -25,11 +27,12 @@ use tracing::{error, info, trace, warn};
 use udp_stream::UdpStream;
 use uuid::Uuid;
 
-use super::devices::{DeviceActor, DeviceActorHandler, PingAnswer};
+use super::devices::{DeviceActor, DeviceActorHandler, DeviceType, PingAnswer};
 use bluerobotics_ping::{
     common::{DeviceInformationStruct, ProtocolVersionStruct},
     device::{Ping1D, Ping360},
 };
+use discovery_service::DiscoveryComponent;
 #[derive(Debug)]
 pub struct Device {
     pub id: Uuid,
@@ -149,6 +152,7 @@ pub struct SourceSerialStruct {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum DeviceStatus {
+    Available,
     Running,
     Stopped,
     ContinuousMode,
@@ -157,6 +161,7 @@ pub enum DeviceStatus {
 pub struct DeviceManager {
     receiver: mpsc::Receiver<ManagerActorRequest>,
     pub device: HashMap<Uuid, Device>,
+    discovery_service: DiscoveryComponent,
 }
 
 #[derive(Debug)]
@@ -331,6 +336,7 @@ impl DeviceManager {
         let actor = DeviceManager {
             receiver,
             device: HashMap::new(),
+            discovery_service: DiscoveryComponent::new(),
         };
         let actor_handler = ManagerActorHandler { sender };
 
@@ -340,10 +346,37 @@ impl DeviceManager {
 
     pub async fn run(mut self) {
         info!("DeviceManager is running");
-        while let Some(msg) = self.receiver.recv().await {
-            self.update_devices_status().await; // Todo: move to an outer process
-            self.handle_message(msg).await;
+
+        self.discovery_service.start_discovery();
+
+        if let Ok(Answer::DeviceInfo(inner)) = self.list().await {
+            self.discovery_service.broadcast_known_devices(&inner);
         }
+
+        let mut discovery_rx = self.discovery_service.get_discovery_rx();
+
+        loop {
+            tokio::select! {
+                Some(msg) = self.receiver.recv() => {
+                    self.update_devices_status().await; // Todo: move to an outer process
+                    self.handle_message(msg).await;
+                }
+                Ok(device_info) = discovery_rx.recv() => {
+                    match self.register_device(device_info).await {
+                        Ok(_) => {
+                            if let Ok(Answer::DeviceInfo(inner) )= self.list().await {
+                                self.discovery_service.broadcast_known_devices(&inner);
+                            }
+                        }
+                        Err(err) => {
+                            error!("Failed to register discovered device: {err:?}");
+                        }
+                    }
+                }
+                else => break,
+            }
+        }
+
         error!("DeviceManager has stopped please check your application");
     }
 
@@ -354,9 +387,11 @@ impl DeviceManager {
                     if device_entry.status == DeviceStatus::Stopped {
                         break;
                     }
-                    if device_entry.actor.is_finished() {
-                        info!("Device stopped, device id: {device:?}");
-                        device_entry.status = DeviceStatus::Stopped;
+                    if let Some(handle) = &device_entry.actor {
+                        if handle.is_finished() {
+                            info!("Device stopped, device id: {device:?}");
+                            device_entry.status = DeviceStatus::Stopped;
+                        }
                     }
                 }
             }
@@ -508,54 +543,146 @@ impl DeviceManager {
 
     pub async fn auto_create(&mut self) -> Result<Answer, ManagerError> {
         let mut results = Vec::new();
-        let mut available_source = Vec::new();
+        let mut has_errors = false;
 
-        #[cfg(feature = "blueos-extension")]
-        let used_ports = match device_discovery::blueos_ping_discovery().await {
-            Some(discovery_result) => {
-                available_source.extend(discovery_result.sources);
-                Some(discovery_result.used_ports)
-            }
-            None => {
-                warn!(
-                    "Auto create: Unable to find available devices via Blue Robotics Ping service"
-                );
-                None
-            }
-        };
+        let available_device_info: Vec<(Uuid, SourceSelection, DeviceSelection)> = self
+            .device
+            .iter()
+            .filter(|(_, device)| device.status == DeviceStatus::Available)
+            .map(|(id, device)| (*id, device.source.clone(), device.device_type.clone()))
+            .collect();
 
-        #[cfg(feature = "blueos-extension")]
-        let skip_ports = used_ports.as_deref();
-        #[cfg(not(feature = "blueos-extension"))]
-        let skip_ports = None;
-
-        match device_discovery::serial_discovery(skip_ports).await {
-            Some(result) => available_source.extend(result),
-            None => warn!("Auto create: Unable to find available devices on serial ports"),
+        if available_device_info.is_empty() {
+            warn!("Auto create: No available devices found");
+            return Ok(Answer::DeviceInfo(vec![]));
         }
 
-        match device_discovery::network_discovery() {
-            Some(result) => available_source.extend(result),
-            None => warn!("Auto create: Unable to find available devices on network"),
-        }
-
-        for source in available_source {
-            match self.create(source.clone(), DeviceSelection::Auto).await {
-                Ok(answer) => match answer {
-                    Answer::DeviceInfo(device_info) => {
-                        results.extend(device_info);
-                    }
-                    msg => {
-                        warn!("Some unexpected message during auto_create, details: {msg:?}")
-                    }
-                },
+        for (device_id, source, device_type) in available_device_info {
+            match self
+                .create_device_helper(device_id, source, device_type)
+                .await
+            {
+                Ok(device_info) => {
+                    trace!("Successfully created device: {device_info:?}");
+                    results.push(device_info);
+                }
                 Err(err) => {
-                    error!("Failed to create device for source {source:?}: {err:?}");
+                    error!("Failed to create device {device_id}: {err:?}");
+                    has_errors = true;
+                    continue;
                 }
             }
         }
 
-        Ok(Answer::DeviceInfo(results))
+        if !results.is_empty() {
+            Ok(Answer::DeviceInfo(results))
+        } else if has_errors {
+            Err(ManagerError::Other(
+                "Failed to create any devices".to_string(),
+            ))
+        } else {
+            Ok(Answer::DeviceInfo(vec![]))
+        }
+    }
+
+    pub async fn auto_create_device(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
+        self.check_device_uuid(device_id)?;
+        self.check_device_status(device_id, &[DeviceStatus::Available])?;
+
+        let source = self.get_device_source(device_id)?;
+        let device_type = self.get_device_type(device_id)?;
+
+        let device_info =
+            Box::pin(self.create_device_helper(device_id, source, device_type)).await?;
+
+        Ok(Answer::DeviceInfo(vec![device_info]))
+    }
+
+    async fn create_device_helper(
+        &mut self,
+        device_id: Uuid,
+        source: SourceSelection,
+        device_type: DeviceSelection,
+    ) -> Result<DeviceInfo, ManagerError> {
+        let port = match &source {
+            SourceSelection::UdpStream(source_udp_struct) => {
+                let socket_addr = SocketAddrV4::new(source_udp_struct.ip, source_udp_struct.port);
+
+                let udp_stream = UdpStream::connect(socket_addr.into())
+                    .await
+                    .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
+                SourceType::Udp(udp_stream)
+            }
+            SourceSelection::SerialStream(source_serial_struct) => {
+                let mut serial_stream: SerialStream =
+                    tokio_serial::new(&source_serial_struct.path, source_serial_struct.baudrate)
+                        .open_native_async()
+                        .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
+
+                device_discovery::set_baudrate_pre_routine(
+                    &mut serial_stream,
+                    source_serial_struct.baudrate,
+                )
+                .await?;
+
+                serial_stream
+                    .clear(tokio_serial::ClearBuffer::All)
+                    .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
+
+                SourceType::Serial(serial_stream)
+            }
+        };
+
+        let device_type_inner = match port {
+            SourceType::Udp(udp_port) => match device_type {
+                DeviceSelection::Common | DeviceSelection::Auto => {
+                    DeviceType::Common(bluerobotics_ping::common::Device::new(udp_port))
+                }
+                DeviceSelection::Ping1D => DeviceType::Ping1D(Ping1D::new(udp_port)),
+                DeviceSelection::Ping360 => DeviceType::Ping360(Ping360::new(udp_port)),
+            },
+            SourceType::Serial(serial_port) => match device_type {
+                DeviceSelection::Common | DeviceSelection::Auto => {
+                    DeviceType::Common(bluerobotics_ping::common::Device::new(serial_port))
+                }
+                DeviceSelection::Ping1D => DeviceType::Ping1D(Ping1D::new(serial_port)),
+                DeviceSelection::Ping360 => DeviceType::Ping360(Ping360::new(serial_port)),
+            },
+        };
+
+        let (device_actor, handler) = super::devices::DeviceActor::new(device_type_inner, 10);
+        let actor = tokio::spawn(async move { device_actor.run().await });
+
+        if let Some(device) = self.device.get_mut(&device_id) {
+            device.handler = Some(handler.clone());
+            device.actor = Some(actor);
+            device.status = DeviceStatus::Running;
+        } else {
+            return Err(ManagerError::DeviceNotExist(device_id));
+        }
+
+        match self.continuous_mode(device_id).await {
+            Ok(_) => {
+                trace!(
+                    "Successfully enabled continuous mode for device {}",
+                    device_id
+                );
+            }
+            Err(err) => {
+                error!(
+                    "Failed to enable continuous mode for device {}: {:?}",
+                    device_id, err
+                );
+            }
+        }
+
+        match self.get_device(device_id) {
+            Ok(device) => Ok(device.info()),
+            Err(err) => {
+                error!("Failed to get device info for {}: {:?}", device_id, err);
+                Err(err)
+            }
+        }
     }
 
     pub async fn list(&self) -> Result<Answer, ManagerError> {
@@ -575,55 +702,103 @@ impl DeviceManager {
         Ok(Answer::DeviceInfo(vec![self.get_device(device_id)?.info()]))
     }
 
-    pub async fn delete(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
-        match self.device.remove(&device_id) {
-            Some(device) => {
-                let device_info = device.info();
-                drop(device);
-                trace!("Device delete id {device_id:?}: Success",);
-                Ok(Answer::DeviceInfo(vec![device_info]))
-            }
-            None => {
-                error!("Device delete id {device_id:?} : Error, device doesn't exist");
-                Err(ManagerError::DeviceNotExist(device_id))
-            }
+    pub async fn register_device(
+        &mut self,
+        device_info: DeviceInfo,
+    ) -> Result<Answer, ManagerError> {
+        let id = device_info.id;
+        if self.device.contains_key(&id) {
+            error!("Device register id {id:?} : Error, device already exists");
+            return Err(ManagerError::DeviceAlreadyExist(id));
         }
+
+        let device = Device {
+            id: device_info.id,
+            source: device_info.source,
+            handler: None,
+            actor: None,
+            status: DeviceStatus::Available,
+            broadcast: None,
+            device_type: device_info.device_type,
+            properties: device_info.properties,
+        };
+
+        let info = device.info();
+
+        self.device.insert(id, device);
+
+        if let Ok(Answer::DeviceInfo(inner)) = self.list().await {
+            self.discovery_service.broadcast_known_devices(&inner);
+        }
+
+        Ok(Answer::DeviceInfo(vec![info]))
+    }
+
+    pub async fn delete(&mut self, id: Uuid) -> Result<Answer, ManagerError> {
+        let device = self
+            .device
+            .remove(&id)
+            .ok_or(ManagerError::DeviceNotExist(id))?;
+        let device_info = device.info();
+
+        if let Ok(Answer::DeviceInfo(inner)) = self.list().await {
+            self.discovery_service.broadcast_known_devices(&inner);
+        }
+
+        Ok(Answer::DeviceInfo(vec![device_info]))
     }
 
     pub async fn continuous_mode(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
-        self.check_device_status(device_id, &[DeviceStatus::Running])?;
-        let device_type = self.get_device_type(device_id)?;
+        match self.get_device_status(device_id) {
+            Ok(DeviceStatus::Available) => match self.auto_create_device(device_id).await {
+                Ok(Answer::DeviceInfo(info)) => {
+                    trace!("Successfully created device in continuous_mode for {device_id:?}");
+                    Ok(Answer::DeviceInfo(info))
+                }
+                unexpected => Err(ManagerError::Other(format!(
+                    "Unexpected response during auto create: {unexpected:?}, device: {device_id}"
+                ))),
+            },
+            Ok(DeviceStatus::Running) => {
+                let device_type = self.get_device_type(device_id)?;
 
-        // Get an inner subscriber for device's stream
-        let subscriber = self.get_subscriber(device_id).await?;
+                // Ensure device properties are initialized before starting continuous mode
+                self.update_device_properties(device_id).await?;
 
-        let broadcast_handle = self
-            .continuous_mode_start(subscriber, device_id, device_type.clone())
-            .await;
-        if let Some(handle) = &broadcast_handle {
-            if !handle.is_finished() {
-                trace!("Success start_continuous_mode for {device_id:?}");
-            } else {
-                return Err(ManagerError::Other(
-                    "Error while start_continuous_mode".to_string(),
-                ));
+                // Get an inner subscriber for device's stream
+                let subscriber = self.get_subscriber(device_id).await?;
+
+                let broadcast_handle = self
+                    .continuous_mode_start(subscriber, device_id, device_type.clone())
+                    .await;
+                if let Some(handle) = &broadcast_handle {
+                    if !handle.is_finished() {
+                        trace!("Success start_continuous_mode for {device_id:?}");
+                    } else {
+                        return Err(ManagerError::Other(
+                            "Error while start_continuous_mode".to_string(),
+                        ));
+                    }
+                } else {
+                    return Err(ManagerError::Other(
+                        "Error while start_continuous_mode".to_string(),
+                    ));
+                };
+
+                self.continuous_mode_startup_routine(device_id, device_type)
+                    .await?;
+
+                let device = self.get_mut_device(device_id)?;
+                device.broadcast = broadcast_handle;
+                device.status = DeviceStatus::ContinuousMode;
+
+                let updated_device_info = self.get_device(device_id)?.info();
+
+                Ok(Answer::DeviceInfo(vec![updated_device_info]))
             }
-        } else {
-            return Err(ManagerError::Other(
-                "Error while start_continuous_mode".to_string(),
-            ));
-        };
-
-        self.continuous_mode_startup_routine(device_id, device_type)
-            .await?;
-
-        let device = self.get_mut_device(device_id)?;
-        device.broadcast = broadcast_handle;
-        device.status = DeviceStatus::ContinuousMode;
-
-        let updated_device_info = self.get_device(device_id)?.info();
-
-        Ok(Answer::DeviceInfo(vec![updated_device_info]))
+            Ok(status) => Err(ManagerError::DeviceStatus(status, device_id)),
+            Err(e) => Err(e),
+        }
     }
 
     pub async fn continuous_mode_off(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
@@ -645,10 +820,14 @@ impl DeviceManager {
         Ok(Answer::DeviceInfo(vec![updated_device_info]))
     }
 
-    async fn update_device_properties(&mut self, device_id: Uuid) -> Result<(), ManagerError> {
+    pub async fn update_device_properties(&mut self, device_id: Uuid) -> Result<(), ManagerError> {
         self.check_device_status(
             device_id,
-            &[DeviceStatus::Running, DeviceStatus::ContinuousMode],
+            &[
+                DeviceStatus::Running,
+                DeviceStatus::ContinuousMode,
+                DeviceStatus::Available,
+            ],
         )?;
 
         let handler = self.extract_handler(self.get_device_handler(device_id).await?)?;
