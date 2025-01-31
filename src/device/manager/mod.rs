@@ -30,12 +30,12 @@ use bluerobotics_ping::{
     common::{DeviceInformationStruct, ProtocolVersionStruct},
     device::{Ping1D, Ping360},
 };
-
+#[derive(Debug)]
 pub struct Device {
     pub id: Uuid,
     pub source: SourceSelection,
-    pub handler: super::devices::DeviceActorHandler,
-    pub actor: tokio::task::JoinHandle<DeviceActor>,
+    pub handler: Option<super::devices::DeviceActorHandler>,
+    pub actor: Option<tokio::task::JoinHandle<DeviceActor>>,
     pub broadcast: Option<tokio::task::JoinHandle<()>>,
     pub status: DeviceStatus,
     pub device_type: DeviceSelection,
@@ -106,7 +106,9 @@ impl Drop for Device {
             "Removing Device from DeviceManager, details: {:?}",
             self.info()
         );
-        self.actor.abort();
+        if let Some(handle) = self.actor.take() {
+            handle.abort();
+        }
         if let Some(broadcast_handle) = &self.broadcast {
             trace!("Device broadcast handle closed for: {:?}", self.info().id);
             broadcast_handle.abort();
@@ -122,7 +124,7 @@ pub enum DeviceSelection {
     Auto,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Hash, Apiv2Schema)]
+#[derive(Debug, Clone, Deserialize, Serialize, Hash, Apiv2Schema, PartialEq)]
 pub enum SourceSelection {
     UdpStream(SourceUdpStruct),
     SerialStream(SourceSerialStruct),
@@ -133,13 +135,13 @@ enum SourceType {
     Serial(SerialStream),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema, PartialEq)]
 pub struct SourceUdpStruct {
     pub ip: Ipv4Addr,
     pub port: u16,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema, PartialEq)]
 pub struct SourceSerialStruct {
     pub path: String,
     pub baudrate: u32,
@@ -484,8 +486,8 @@ impl DeviceManager {
         let device = Device {
             id: hash,
             source,
-            handler,
-            actor,
+            handler: Some(handler),
+            actor: Some(actor),
             status: DeviceStatus::Running,
             broadcast: None,
             device_type: device_selection,

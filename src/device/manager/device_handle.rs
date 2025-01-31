@@ -34,7 +34,11 @@ impl DeviceManager {
             &[DeviceStatus::ContinuousMode, DeviceStatus::Running],
         )?;
 
-        let handler: DeviceActorHandler = self.get_device(device_id)?.handler.clone();
+        let handler: DeviceActorHandler = self
+            .get_device(device_id)?
+            .handler
+            .clone()
+            .ok_or(ManagerError::Other("Unexpected".to_string()))?;
 
         Ok(Answer::InnerDeviceHandler(handler))
     }
