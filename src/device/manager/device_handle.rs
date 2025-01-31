@@ -3,7 +3,9 @@ use uuid::Uuid;
 
 use crate::device::{
     devices::{self, DeviceActorHandler},
-    manager::{Answer, Device, DeviceManager, DeviceSelection, DeviceStatus, ManagerError},
+    manager::{
+        Answer, Device, DeviceManager, DeviceSelection, DeviceStatus, ManagerError, SourceSelection,
+    },
 };
 
 impl DeviceManager {
@@ -66,6 +68,16 @@ impl DeviceManager {
     pub fn get_device_type(&self, device_id: Uuid) -> Result<DeviceSelection, ManagerError> {
         let device_type = self.device.get(&device_id).unwrap().device_type.clone();
         Ok(device_type)
+    }
+
+    pub fn get_device_source(&self, device_id: Uuid) -> Result<SourceSelection, ManagerError> {
+        let source = self.device.get(&device_id).unwrap().source.clone();
+        Ok(source)
+    }
+
+    pub fn get_device_status(&self, device_id: Uuid) -> Result<DeviceStatus, ManagerError> {
+        let status = self.device.get(&device_id).unwrap().status.clone();
+        Ok(status)
     }
 
     pub fn extract_handler(

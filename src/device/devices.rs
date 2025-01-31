@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, trace, warn};
 
+#[derive(Debug)]
 pub struct DeviceActor {
     pub receiver: mpsc::Receiver<DeviceActorRequest>,
     pub device_type: DeviceType,

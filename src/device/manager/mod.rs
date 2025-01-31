@@ -679,20 +679,22 @@ impl DeviceManager {
             )) => msg,
             unexpected => {
                 return Err(ManagerError::Other(format!(
-                    "Something went wrong while executing properties, received : {unexpected:?}"
+                    "Unexpected response while getting device information: {unexpected:?}, device: {device_id}"
                 )))
             }
         };
+
         let protocol_version = match protocol_version {
             PingAnswer::PingMessage(bluerobotics_ping::Messages::Common(
                 bluerobotics_ping::common::Messages::ProtocolVersion(msg),
             )) => msg,
             unexpected => {
                 return Err(ManagerError::Other(format!(
-                    "Something went wrong while executing properties, received : {unexpected:?}"
+                    "Unexpected response while getting protocol version: {unexpected:?}, device: {device_id}"
                 )))
             }
         };
+
         let common_properties = CommonProperties {
             device_information,
             protocol_version,
@@ -760,6 +762,11 @@ impl DeviceManager {
         device_id: Uuid,
     ) -> Result<Option<DeviceProperties>, ManagerError> {
         let device = self.get_device(device_id)?;
+
+        if device.properties.is_none() {
+            warn!("No properties found for device: {device_id}");
+        }
+
         Ok(device.properties.clone())
     }
 
