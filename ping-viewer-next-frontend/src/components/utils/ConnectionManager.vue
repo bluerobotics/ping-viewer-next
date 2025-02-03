@@ -17,7 +17,8 @@
           </div>
 
           <v-list v-else :class="{ 'glass-inner': glass }" density="compact">
-            <v-list-item v-for="device in devices" :key="device.id" :value="device" class="mb-2">
+            <v-list-item v-for="device in devices" :key="device.id" :value="device" class="mb-2"
+              @click="selectDevice(device)">
               <template v-slot:prepend>
                 <v-icon :icon="device.device_type === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'" />
               </template>
@@ -450,9 +451,21 @@ const deleteDevice = async () => {
   }
 };
 
-const selectDevice = (device) => {
-  emit('select-device', device);
-  emit('update:isOpen', false);
+const selectDevice = async (device) => {
+  try {
+    if (device.status !== 'ContinuousMode') {
+      loadingStates.value[device.id] = true;
+      await enableContinuousMode(device.id);
+      await fetchDevices();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    emit('select-device', device);
+    emit('update:isOpen', false);
+  } catch (error) {
+    console.error('Error selecting device:', error);
+  } finally {
+    loadingStates.value[device.id] = false;
+  }
 };
 
 let refreshInterval;
