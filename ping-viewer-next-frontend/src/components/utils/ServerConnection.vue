@@ -209,7 +209,41 @@ const confirmConnection = () => {
   emit('serverConnected', url);
 };
 
+const checkBlueOSVersion = async () => {
+  try {
+    const versionUrl = `${location.protocol}//${location.hostname}:8081/v1.0/version/current`;
+    const response = await fetch(versionUrl, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (response.ok) {
+      const versionData = await response.json();
+      return {
+        success: true,
+        data: versionData,
+      };
+    }
+    return { success: false };
+  } catch (error) {
+    console.error('Version endpoint check failed:', error);
+    return { success: false };
+  }
+};
+
 onMounted(async () => {
+  // BlueOS extension should skip connection menu
+  const versionCheck = await checkBlueOSVersion();
+  if (versionCheck.success) {
+    serverInfo.value = versionCheck.data;
+    remoteAddress.value = `${location.host}`;
+    dialog.value = false;
+    confirmConnection();
+    return;
+  }
+
   // Step 1: Try last used server
   const lastServer = loadLastUsedServer();
   if (lastServer) {
