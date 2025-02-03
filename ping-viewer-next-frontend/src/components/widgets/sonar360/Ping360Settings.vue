@@ -36,7 +36,7 @@
           <v-slider v-model="range" :min="1.8" :max="60" :step="0.1" density="compact" hide-details class="flex-grow-1"
             @update:modelValue="handleRangeChange" />
           <v-text-field v-model.number="range" type="number" :min="1.8" :max="60" :step="0.1" density="compact"
-            hide-details style="width: 80px" @update:modelValue="handleRangeChange" />
+            hide-details style="width: 82px !important; flex: 0 0 auto" @update:modelValue="handleRangeChange" />
         </div>
       </div>
 
