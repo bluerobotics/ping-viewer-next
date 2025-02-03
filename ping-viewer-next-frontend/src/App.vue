@@ -187,6 +187,7 @@
 </template>
 
 <script setup>
+import { watchOnce } from '@vueuse/core';
 import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useDisplay, useTheme } from 'vuetify';
@@ -721,6 +722,44 @@ const cleanupYawConnection = () => {
 const toggleMenu = () => {
   isMenuOpen.value = !isMenuOpen.value;
 };
+
+watchOnce(serverUrl, (newUrl) => {
+  if (newUrl) {
+    const autoSelectSingleDevice = async () => {
+      try {
+        const response = await fetch(`${newUrl}/device_manager/request`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            command: 'List',
+            module: 'DeviceManager',
+          }),
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch devices');
+
+        const data = await response.json();
+        const availableDevices =
+          data.DeviceInfo?.filter((device) =>
+            ['ContinuousMode', 'Running', 'Available'].includes(device.status)
+          ) || [];
+
+        if (availableDevices.length === 1) {
+          selectDevice(availableDevices[0]);
+        } else {
+          isConnectionMenuOpen.value = true;
+        }
+      } catch (error) {
+        console.error('Error auto-selecting device:', error);
+        isConnectionMenuOpen.value = true;
+      }
+    };
+
+    autoSelectSingleDevice();
+  }
+});
 
 onMounted(() => {
   loadSettings();
