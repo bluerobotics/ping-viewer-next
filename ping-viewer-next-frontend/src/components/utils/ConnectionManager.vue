@@ -13,7 +13,7 @@
           <div v-else-if="devices.length === 0" class="text-center pa-4 text-medium-emphasis">
             <v-icon size="48" class="mb-2">mdi-devices</v-icon>
             <div>No devices found.</div>
-            <div class="text-caption">Try clicking 'Auto Create' to discover devices.</div>
+            <div class="text-caption">Device Scanner is running.</div>
           </div>
 
           <v-list v-else :class="{ 'glass-inner': glass }" density="compact">

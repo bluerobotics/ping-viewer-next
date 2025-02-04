@@ -743,7 +743,7 @@ watchOnce(serverUrl, (newUrl) => {
         const data = await response.json();
         const availableDevices =
           data.DeviceInfo?.filter((device) =>
-            ['ContinuousMode', 'Running', 'Available'].includes(device.status)
+            ['ContinuousMode', 'Running'].includes(device.status)
           ) || [];
 
         if (availableDevices.length === 1) {
