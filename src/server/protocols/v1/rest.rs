@@ -297,7 +297,7 @@ impl Default for ServerMetadata {
             icon: "mdi-compass-outline",
             company: "BlueRobotics",
             version: "0.0.0",
-            new_page: false,
+            new_page: true,
             webpage: "https://github.com/RaulTrombin/navigator-assistant",
             api: "/docs",
             extras: Extras {
