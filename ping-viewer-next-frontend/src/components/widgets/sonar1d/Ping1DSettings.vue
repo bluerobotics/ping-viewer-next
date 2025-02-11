@@ -2,7 +2,9 @@
   <v-card>
     <v-card-title class="text-h5 pb-2">Ping1D Settings</v-card-title>
     <v-card-text>
-      <div class="mb-4">
+      <div v-if="isLoading" class="d-flex justify-center my-4">
+        <v-progress-circular indeterminate />
+      </div>
         <div class="d-flex align-center justify-space-between mb-4">
           <v-tooltip text="Enable automatic parameter adjustment" location="left">
             <template v-slot:activator="{ props }">
@@ -92,8 +94,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:isOpen']);
-const isSaving = ref(false);
+const isLoading = ref(false);
 const rawAutoMode = ref(1);
 
 const isAutoMode = computed({
@@ -146,6 +147,7 @@ const handleSpeedOfSoundChange = async () => {
 };
 
 const fetchCurrentSettings = async () => {
+  isLoading.value = true;
   try {
     const settingsToFetch = ['ModeAuto', 'Range', 'GainSetting', 'SpeedOfSound'];
 
@@ -174,6 +176,7 @@ const fetchCurrentSettings = async () => {
   } catch (error) {
     console.error('Error fetching settings:', error);
   } finally {
+    isLoading.value = false;
   }
 };
 
