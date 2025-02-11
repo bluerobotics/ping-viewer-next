@@ -5,6 +5,7 @@
       <div v-if="isLoading" class="d-flex justify-center my-4">
         <v-progress-circular indeterminate />
       </div>
+      <div v-else class="mb-4">
         <div class="d-flex align-center justify-space-between mb-4">
           <v-tooltip text="Enable automatic parameter adjustment" location="left">
             <template v-slot:activator="{ props }">
@@ -14,7 +15,7 @@
             </template>
           </v-tooltip>
           <v-switch class="gap-2" v-model="isAutoMode" hide-details density="compact"
-            @change="handleAutoModeChange"></v-switch>
+            @update:model-value="handleAutoModeChange"></v-switch>
         </div>
 
         <div class="d-flex align-center justify-space-between mb-1">
@@ -29,9 +30,9 @@
         </div>
         <div class="d-flex align-center gap-2 mb-4">
           <v-text-field v-model.number="settings.scan_start" type="number" label="Start" :disabled="isAutoMode"
-            density="compact" hide-details style="width: 80px" @update:modelValue="handleRangeChange" />
+            density="compact" hide-details style="width: 80px" @update:model-value="debouncedSaveSettings" />
           <v-text-field v-model.number="settings.scan_length" type="number" label="Length" :disabled="isAutoMode"
-            density="compact" hide-details style="width: 80px" @update:modelValue="handleRangeChange" />
+            density="compact" hide-details style="width: 80px" @update:model-value="debouncedSaveSettings" />
         </div>
 
         <div class="d-flex align-center justify-space-between mb-1">
@@ -44,7 +45,7 @@
           </v-tooltip>
         </div>
         <v-select v-model="settings.gain_setting" :items="gainOptions" label="Gain" :disabled="isAutoMode"
-          density="compact" hide-details class="mb-4" @update:modelValue="handleGainChange"></v-select>
+          density="compact" hide-details class="mb-4" @update:model-value="debouncedSaveSettings"></v-select>
 
         <div class="d-flex align-center justify-space-between mb-1">
           <v-tooltip text="Speed of sound in water" location="left">
@@ -58,26 +59,18 @@
         </div>
         <div class="d-flex align-center gap-2">
           <v-slider v-model="settings.speed_of_sound" :min="1400" :max="1600" :step="1" density="compact" hide-details
-            class="flex-grow-1" @update:modelValue="handleSpeedOfSoundChange"></v-slider>
+            class="flex-grow-1" @update:model-value="debouncedSaveSettings"></v-slider>
           <v-text-field v-model.number="settings.speed_of_sound" type="number" :min="1400" :max="1600" :step="1"
-            density="compact" hide-details style="width: 80px"
-            @update:modelValue="handleSpeedOfSoundChange"></v-text-field>
+            density="compact" hide-details style="width: 80px" @update:model-value="debouncedSaveSettings"></v-text-field>
         </div>
-      </div>
-
-      <v-divider class="my-4"></v-divider>
-
-      <div class="d-flex justify-end">
-        <v-btn color="primary" @click="saveSettings" :loading="isSaving">
-          {{ isSaving ? 'Applying...' : 'Apply Settings' }}
-        </v-btn>
       </div>
     </v-card-text>
   </v-card>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { useDebounceFn } from '@vueuse/core';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
   serverUrl: {
@@ -94,7 +87,10 @@ const props = defineProps({
   },
 });
 
+const DEBOUNCE_VALUE_MS = 500;
+
 const isLoading = ref(false);
+const isInitializing = ref(true);
 const rawAutoMode = ref(1);
 
 const isAutoMode = computed({
@@ -121,33 +117,40 @@ const gainOptions = [
   { title: '144', value: 6 },
 ];
 
-const handleAutoModeChange = async () => {
-  await sendCommand('SetModeAuto', {
-    mode_auto: rawAutoMode.value,
-  });
-};
+const debouncedSaveSettings = useDebounceFn(async () => {
+  if (isInitializing.value) return;
 
-const handleRangeChange = async () => {
-  await sendCommand('SetRange', {
-    scan_start: Math.round(settings.value.scan_start * 1000),
-    scan_length: Math.round(settings.value.scan_length * 1000),
-  });
-};
+  try {
+    await sendCommand('SetModeAuto', {
+      mode_auto: rawAutoMode.value,
+    });
 
-const handleGainChange = async () => {
-  await sendCommand('SetGainSetting', {
-    gain_setting: settings.value.gain_setting,
-  });
-};
+    if (!isAutoMode.value) {
+      await sendCommand('SetRange', {
+        scan_start: Math.round(settings.value.scan_start * 1000),
+        scan_length: Math.round(settings.value.scan_length * 1000),
+      });
 
-const handleSpeedOfSoundChange = async () => {
-  await sendCommand('SetSpeedOfSound', {
-    speed_of_sound: Math.round(settings.value.speed_of_sound * 1000),
-  });
+      await sendCommand('SetGainSetting', {
+        gain_setting: settings.value.gain_setting,
+      });
+    }
+
+    await sendCommand('SetSpeedOfSound', {
+      speed_of_sound: Math.round(settings.value.speed_of_sound * 1000),
+    });
+  } catch (error) {
+    console.error('Error saving settings:', error);
+  }
+}, DEBOUNCE_VALUE_MS);
+
+const handleAutoModeChange = () => {
+  debouncedSaveSettings();
 };
 
 const fetchCurrentSettings = async () => {
   isLoading.value = true;
+  isInitializing.value = true;
   try {
     const settingsToFetch = ['ModeAuto', 'Range', 'GainSetting', 'SpeedOfSound'];
 
@@ -177,6 +180,9 @@ const fetchCurrentSettings = async () => {
     console.error('Error fetching settings:', error);
   } finally {
     isLoading.value = false;
+    setTimeout(() => {
+      isInitializing.value = false;
+    }, DEBOUNCE_VALUE_MS);
   }
 };
 
@@ -213,23 +219,6 @@ const sendCommand = async (command, payload = null) => {
   }
 };
 
-const saveSettings = async () => {
-  isSaving.value = true;
-  try {
-    await handleAutoModeChange();
-    if (!isAutoMode.value) {
-      await handleRangeChange();
-      await handleGainChange();
-    }
-    await handleSpeedOfSoundChange();
-    emit('update:isOpen', false);
-  } catch (error) {
-    console.error('Error saving settings:', error);
-  } finally {
-    isSaving.value = false;
-  }
-};
-
 watch(
   () => props.isOpen,
   async (newValue) => {
@@ -240,7 +229,9 @@ watch(
 );
 
 onMounted(async () => {
-  await fetchCurrentSettings();
+  if (props.isOpen) {
+    await fetchCurrentSettings();
+  }
 });
 </script>
 
