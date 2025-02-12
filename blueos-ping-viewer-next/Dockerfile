@@ -26,7 +26,10 @@ LABEL permissions='{\
   },\
   "HostConfig": {\
     "Privileged": true,\
-    "NetworkMode": "host"\
+    "NetworkMode": "host",\
+    "Binds": [\
+       "/usr/blueos/extensions/ping-viewer-next/logs:/app/logs"\
+    ]\
   }\
 }'
 LABEL authors='[\
