@@ -88,7 +88,10 @@
                 <div class="menu-content text-center pa-4 text-medium-emphasis">
                   <v-icon size="48" class="mb-2">mdi-devices</v-icon>
                   <div>No device selected.</div>
-                  <div class="text-caption">Try clicking 'Auto Create' to discover devices.</div>
+                    <v-btn variant="tonal" @click="isConnectionMenuOpen = true">
+                      <v-icon start>mdi-connection</v-icon>
+                      Device Management
+                    </v-btn>
                 </div>
               </template>
             </div>
@@ -200,6 +203,7 @@ import Ping1DLoader from './components/widgets/sonar1d/Ping1DLoader.vue';
 import Ping1DSettings from './components/widgets/sonar1d/Ping1DSettings.vue';
 import Ping360Loader from './components/widgets/sonar360/Ping360Loader.vue';
 import Ping360Settings from './components/widgets/sonar360/Ping360Settings.vue';
+import { useMenuCoordination } from './composables/useMenuCoordination';
 
 const { name: breakpoint } = useDisplay();
 const theme = useTheme();
@@ -224,6 +228,15 @@ const replayData = ref(null);
 const isReplayActive = ref(false);
 const replayViewRef = ref(null);
 const dataPlayer = ref(null);
+
+const menus = {
+  connection: isConnectionMenuOpen,
+  middle: isMenuOpen,
+  recordings: showRecordingsMenu,
+  settings: showSettings,
+};
+
+useMenuCoordination(menus);
 
 const yawAngle = ref(0);
 const yawConnectionStatus = ref('Disconnected');
@@ -808,26 +821,6 @@ watch(
   }
 );
 
-watch(isSpeedDialOpen, (newValue) => {
-  if (!newValue) {
-    isConnectionMenuOpen.value = false;
-  }
-});
-
-watch(isMenuOpen, (newValue) => {
-  if (newValue) {
-    showRecordingsMenu.value = false;
-  }
-});
-
-watch(showRecordingsMenu, (newValue) => {
-  if (newValue) {
-    isSpeedDialOpen.value = false;
-    isMenuOpen.value = false;
-  }
-});
-
-// 10. Provide/Inject
 provide('deviceSettings', {
   commonSettings,
   ping1DSettings,
