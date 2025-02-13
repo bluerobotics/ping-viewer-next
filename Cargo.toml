@@ -35,9 +35,9 @@ validator = "0.18.1"
 thiserror = "1.0.63"
 shellexpand = "3.1"
 
-tauri = { version = "1.7.2", optional = true, features = ["shell-open"] }
-reqwest = {version = "0.12.12", optional = true, features = ["json"] }
-openssl = { version = "0.10.69", optional = true, features = ["vendored"] }
+reqwest = {version = "0.12.12", features = ["json"], optional = true }
+openssl = { version = "0.10.69", features = ["vendored"], optional = true }
+dirs = "6.0.0"
 
 
 [build-dependencies]
@@ -52,8 +52,8 @@ name = "ping-viewer-next"
 path = "src/main.rs"
 
 [features]
-default = []
-desktop-app = ["tauri", "build-frontend"]
+default = ["blueos-extension"]
+desktop-app = ["build-frontend"]
 build-frontend = ["embed-frontend"]
 embed-frontend =[]
 blueos-extension = ["dep:reqwest", "dep:openssl"]
