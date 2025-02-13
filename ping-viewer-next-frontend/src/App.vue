@@ -81,7 +81,7 @@
                 <component :class="['menu-content', { 'glass-inner disable-hover': glass }]"
                   :is="getDeviceSettingsComponent" :server-url="serverUrl" :device-id="activeDevice.device.id"
                   :initial-angles="currentDeviceAngles" :is-open="isMenuOpen" @update:angles="handleAngleUpdate"
-                  @rangeChange="handleRangeChange" />
+                  @rangeChange="debouncedSaveSettings" />
               </template>
               <template v-else>
 
@@ -742,9 +742,7 @@ watchOnce(serverUrl, (newUrl) => {
 
         const data = await response.json();
         const availableDevices =
-          data.DeviceInfo?.filter((device) =>
-            ['ContinuousMode', 'Running'].includes(device.status)
-          ) || [];
+          data.DeviceInfo?.filter((device) => ['ContinuousMode'].includes(device.status)) || [];
 
         if (availableDevices.length === 1) {
           selectDevice(availableDevices[0]);

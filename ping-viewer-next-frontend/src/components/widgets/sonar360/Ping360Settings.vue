@@ -224,7 +224,7 @@ const MIN_TRANSMIT_DURATION = 1;
 const MAX_TRANSMIT_DURATION = 1000;
 
 // Constant for Ping360Settings
-DEBOUNCE_VALUE_MS = 500;
+const DEBOUNCE_VALUE_MS = 500;
 
 const isLoading = ref(false);
 const isInitializing = ref(true);
