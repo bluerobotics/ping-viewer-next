@@ -37,7 +37,8 @@ let gl: WebGLRenderingContext | null = null;
 let shaderProgram: WebGLProgram | null = null;
 let texture: WebGLTexture | null = null;
 
-const textureData = ref(new Uint8Array(props.numLines * props.lineLength * 4));
+const textureData = new Uint8Array(props.numLines * props.lineLength * 4);
+const tempBuffer = new Uint8Array(props.numLines * props.lineLength * 4);
 const currentAngle = ref(0);
 const previousYaw = ref(0);
 
@@ -82,10 +83,14 @@ const fsSource = `
 `;
 
 const initWebGL = () => {
-  const canvasElement = canvas.value;
-  if (!canvasElement) return;
+  if (!canvas.value) return;
 
-  gl = canvasElement.getContext('webgl');
+  gl = canvas.value.getContext('webgl', {
+    alpha: true,
+    premultipliedAlpha: false,
+    preserveDrawingBuffer: true,
+  });
+
   if (!gl) {
     console.error('Unable to initialize WebGL.');
     return;
@@ -159,48 +164,36 @@ const initShaderProgram = (
 const setupBuffers = () => {
   if (!gl || !shaderProgram) return;
 
+  const positions = new Float32Array([-1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 1.0, -1.0]);
+  const textureCoords = new Float32Array([0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+
   const positionBuffer = gl.createBuffer();
-  if (!positionBuffer) return;
+  const textureCoordBuffer = gl.createBuffer();
 
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  const positions = [-1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 1.0, -1.0];
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-
-  const textureCoordBuffer = gl.createBuffer();
-  if (!textureCoordBuffer) return;
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
-  const textureCoordinates = [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0];
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
 
   const vertexPosition = gl.getAttribLocation(shaderProgram, 'aVertexPosition');
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.vertexAttribPointer(vertexPosition, 2, gl.FLOAT, false, 0, 0);
   gl.enableVertexAttribArray(vertexPosition);
+  gl.vertexAttribPointer(vertexPosition, 2, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, textureCoords, gl.STATIC_DRAW);
 
   const textureCoord = gl.getAttribLocation(shaderProgram, 'aTextureCoord');
-  gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
-  gl.vertexAttribPointer(textureCoord, 2, gl.FLOAT, false, 0, 0);
   gl.enableVertexAttribArray(textureCoord);
+  gl.vertexAttribPointer(textureCoord, 2, gl.FLOAT, false, 0, 0);
 };
 
 const rotateTextureData = (lineOffset: number) => {
-  const tempData = new Uint8Array(textureData.value);
-
+  tempBuffer.set(textureData);
   const bytesPerLine = props.lineLength * 4;
 
   for (let i = 0; i < props.numLines; i++) {
-    let sourceLineIndex = i - lineOffset;
-
-    if (sourceLineIndex < 0) {
-      sourceLineIndex += props.numLines;
-    } else if (sourceLineIndex >= props.numLines) {
-      sourceLineIndex -= props.numLines;
-    }
-
+    const sourceLineIndex = (i - lineOffset + props.numLines) % props.numLines;
     const destStart = i * bytesPerLine;
     const sourceStart = sourceLineIndex * bytesPerLine;
-    textureData.value.set(tempData.slice(sourceStart, sourceStart + bytesPerLine), destStart);
+    textureData.set(tempBuffer.subarray(sourceStart, sourceStart + bytesPerLine), destStart);
   }
 };
 
@@ -225,32 +218,14 @@ const setupTexture = () => {
     0,
     gl.RGBA,
     gl.UNSIGNED_BYTE,
-    textureData.value
-  );
-};
-
-const updateTexture = () => {
-  if (!gl || !texture) return;
-
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texSubImage2D(
-    gl.TEXTURE_2D,
-    0,
-    0,
-    0,
-    props.lineLength,
-    props.numLines,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    textureData.value
+    textureData
   );
 };
 
 const render = () => {
-  if (!gl || !shaderProgram) return;
+  if (!gl || !shaderProgram || !texture) return;
 
   gl.clear(gl.COLOR_BUFFER_BIT);
-
   gl.useProgram(shaderProgram);
 
   gl.activeTexture(gl.TEXTURE0);
@@ -272,43 +247,48 @@ const updateSonarData = (angle: number, newData: Uint8Array) => {
   }
 
   const lineIndex = angle % props.numLines;
-  const start = lineIndex * props.lineLength * 4;
-  const maxDataLength = Math.floor((textureData.value.length - start) / 4);
+  const textureStart = lineIndex * props.lineLength * 4;
 
-  let processedData: Uint8Array;
-  if (start + newData.length * 4 > textureData.value.length) {
-    console.warn(
-      `Data exceeds texture bounds. Trimming data from ${newData.length} to ${maxDataLength} elements.`
-    );
-    processedData = newData.slice(0, maxDataLength);
-  } else {
-    processedData = newData;
+  for (let i = 0; i < newData.length; i++) {
+    const color = props.getColorFromPalette(newData[i], props.colorPalette);
+    const index = textureStart + i * 4;
+
+    textureData[index] = color[0]; // R
+    textureData[index + 1] = color[1]; // G
+    textureData[index + 2] = color[2]; // B
+    textureData[index + 3] = color[3]; // A
   }
 
-  for (let i = 0; i < processedData.length; i++) {
-    const color = props.getColorFromPalette(processedData[i], props.colorPalette);
-    const index = start + i * 4;
-    if (index + 3 < textureData.value.length) {
-      textureData.value.set(color, index);
-    } else {
-      console.warn(`Index out of bounds: ${index}. Skipping this pixel.`);
-      break;
-    }
-  }
+  if (!gl || !texture) return;
+
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texSubImage2D(
+    gl.TEXTURE_2D,
+    0,
+    0,
+    lineIndex,
+    props.lineLength,
+    1,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    textureData.subarray(textureStart, textureStart + props.lineLength * 4)
+  );
 
   currentAngle.value = angle;
-  updateTexture();
   render();
 };
 
 const resizeCanvas = () => {
-  if (canvas.value) {
-    canvas.value.width = canvas.value.clientWidth;
-    canvas.value.height = canvas.value.clientHeight;
-    if (gl) {
-      gl.viewport(0, 0, canvas.value.width, canvas.value.height);
-      render();
-    }
+  if (!canvas.value) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.value.getBoundingClientRect();
+  canvas.value.width = rect.width * dpr;
+  canvas.value.height = rect.height * dpr;
+
+  if (gl) {
+    gl.viewport(0, 0, canvas.value.width, canvas.value.height);
+    render();
   }
 };
 
@@ -333,7 +313,21 @@ watch(
       const lineOffset = Math.round(yawDiff * linesPerDegree);
       rotateTextureData(lineOffset);
       previousYaw.value = newYaw;
-      updateTexture();
+
+      if (gl && texture) {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          props.lineLength,
+          props.numLines,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          textureData
+        );
+      }
       render();
     }
   }
@@ -343,11 +337,7 @@ watch(
   () => props.measurement,
   (newMeasurement) => {
     if (newMeasurement) {
-      try {
-        updateSonarData(newMeasurement.angle, newMeasurement.data);
-      } catch (error) {
-        console.error('Error updating sonar data:', error);
-      }
+      updateSonarData(newMeasurement.angle, newMeasurement.data);
     }
   },
   { deep: true }
