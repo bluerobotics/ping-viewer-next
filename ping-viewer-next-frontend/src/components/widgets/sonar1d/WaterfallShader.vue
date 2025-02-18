@@ -18,6 +18,8 @@ export default {
     minDepth: { type: Number, required: true },
     colorPalette: { type: String, default: 'ocean' },
     getColorFromPalette: { type: Function, required: true },
+    antialiasing: { type: Boolean, default: true },
+    antialiasingInterpolationSteps: { type: Number, default: 10 },
   },
   emits: ['update:columnCount'],
   setup(props) {
@@ -33,6 +35,10 @@ export default {
     const virtualMaxDepth = ref(props.maxDepth);
 
     const effectiveWidth = computed(() => Math.min(props.width, props.columnCount));
+
+    const pendingUpdates = ref([]);
+    let yCoordCache = null;
+    let lastScaleRatio = 0;
 
     const vertexShaderSource = `
 		attribute vec2 a_position;
@@ -106,7 +112,25 @@ export default {
       const newWidth = effectiveWidth.value;
       const newHeight = props.height;
 
+      const oldTextureData = textureData ? new Uint8Array(textureData) : null;
+      const oldWidth = textureData ? Math.floor(textureData.length / (newHeight * 4)) : 0;
+
       textureData = new Uint8Array(newWidth * newHeight * 4);
+
+      if (oldTextureData) {
+        const copyWidth = Math.min(oldWidth, newWidth);
+        for (let y = 0; y < newHeight; y++) {
+          for (let x = 0; x < copyWidth; x++) {
+            const newIndex = (y * newWidth + x) * 4;
+            const oldIndex = (y * oldWidth + x) * 4;
+            textureData[newIndex] = oldTextureData[oldIndex];
+            textureData[newIndex + 1] = oldTextureData[oldIndex + 1];
+            textureData[newIndex + 2] = oldTextureData[oldIndex + 2];
+            textureData[newIndex + 3] = oldTextureData[oldIndex + 3];
+          }
+        }
+      }
+
       gl.bindTexture(gl.TEXTURE_2D, texture);
       gl.texImage2D(
         gl.TEXTURE_2D,
@@ -120,32 +144,92 @@ export default {
         textureData
       );
     }
-    function updateTexture() {
+
+    function createYCoordMapping(newHeight, dataLength, scaleRatio) {
+      if (!props.antialiasing) {
+        // Simple mapping without interpolation
+        const mapping = new Array(newHeight);
+        for (let y = 0; y < newHeight; y++) {
+          const normalizedY = y / newHeight;
+          const scaledY = normalizedY * scaleRatio * dataLength;
+          const index = Math.floor(scaledY);
+          mapping[y] = [index, index];
+        }
+        return { mapping, weights: new Array(newHeight).fill(0) };
+      }
+
+      // Enhanced antialiased mapping with improved interpolation
+      const mapping = new Array(newHeight);
+      const weights = new Array(newHeight);
+
+      for (let y = 0; y < newHeight; y++) {
+        const normalizedY = y / newHeight;
+        const scaledY = normalizedY * scaleRatio * dataLength;
+
+        const baseIndex = Math.floor(scaledY);
+        const nextIndex = Math.min(baseIndex + 1, dataLength - 1);
+
+        const fraction = scaledY - baseIndex;
+        const smoothFraction = fraction * fraction * (3 - 2 * fraction);
+
+        mapping[y] = [baseIndex, nextIndex];
+        weights[y] = smoothFraction;
+      }
+
+      return { mapping, weights };
+    }
+
+    function getInterpolatedValue(data, index1, index2, fraction) {
+      if (!props.antialiasing) {
+        return data[index1];
+      }
+
+      const value1 = data[index1];
+      const value2 = data[index2];
+
+      const t = fraction;
+      const t2 = t * t;
+      const t3 = t2 * t;
+
+      return value1 * (1 - 3 * t2 + 2 * t3) + value2 * (3 * t2 - 2 * t3);
+    }
+
+    function updateTexture(redrawAll = false) {
       if (!gl || !textureData) return;
 
       const newWidth = effectiveWidth.value;
       const newHeight = props.height;
 
-      textureData.fill(0);
+      if (redrawAll) {
+        textureData.fill(0);
 
-      measurementHistory.value.forEach((measurement, columnIndex) => {
-        if (columnIndex >= newWidth) return;
+        measurementHistory.value.forEach((measurement, columnIndex) => {
+          if (columnIndex >= newWidth) return;
 
-        const x = newWidth - 1 - columnIndex;
-        const dataLength = measurement.data.length;
-        const scaleRatio =
-          (measurement.maxDepth - props.minDepth) / (virtualMaxDepth.value - props.minDepth);
+          const x = newWidth - 1 - columnIndex;
+          const dataLength = measurement.data.length;
+          const scaleRatio =
+            (virtualMaxDepth.value - props.minDepth) /
+            (measurement.maxDepth - measurement.minDepth);
 
-        for (let y = 0; y < newHeight; y++) {
-          const normalizedY = y / newHeight;
+          if (scaleRatio !== lastScaleRatio) {
+            yCoordCache = createYCoordMapping(newHeight, dataLength, scaleRatio);
+            lastScaleRatio = scaleRatio;
+          }
 
-          if (normalizedY < scaleRatio) {
-            const scaledY = (normalizedY / scaleRatio) * dataLength;
-            const dataIndex = Math.floor(scaledY);
+          for (let y = 0; y < newHeight; y++) {
+            const [index1, index2] = yCoordCache.mapping[y];
+            const fraction = yCoordCache.weights[y];
 
-            if (dataIndex < dataLength) {
-              const value = measurement.data[dataIndex];
-              const color = props.getColorFromPalette(value, props.colorPalette);
+            if (index1 < dataLength) {
+              const interpolatedValue = getInterpolatedValue(
+                measurement.data,
+                index1,
+                index2,
+                fraction
+              );
+
+              const color = props.getColorFromPalette(interpolatedValue, props.colorPalette);
               const index = (y * newWidth + x) * 4;
 
               textureData[index] = color[0];
@@ -154,8 +238,55 @@ export default {
               textureData[index + 3] = color[3] !== undefined ? color[3] : 255;
             }
           }
+        });
+      } else {
+        // Just shift existing data
+        for (let y = 0; y < newHeight; y++) {
+          const rowOffset = y * newWidth * 4;
+          textureData.copyWithin(rowOffset, rowOffset + 4, rowOffset + newWidth * 4);
         }
-      });
+
+        // Clear last column
+        for (let y = 0; y < newHeight; y++) {
+          const index = (y * newWidth + newWidth - 1) * 4;
+          textureData.fill(0, index, index + 4);
+        }
+
+        while (pendingUpdates.value.length > 0) {
+          const measurement = pendingUpdates.value.shift();
+          const dataLength = measurement.data.length;
+          const scaleRatio =
+            (virtualMaxDepth.value - props.minDepth) /
+            (measurement.maxDepth - measurement.minDepth);
+
+          if (scaleRatio !== lastScaleRatio) {
+            yCoordCache = createYCoordMapping(newHeight, dataLength, scaleRatio);
+            lastScaleRatio = scaleRatio;
+          }
+
+          for (let y = 0; y < newHeight; y++) {
+            const [index1, index2] = yCoordCache.mapping[y];
+            const fraction = yCoordCache.weights[y];
+
+            if (index1 < dataLength) {
+              const interpolatedValue = getInterpolatedValue(
+                measurement.data,
+                index1,
+                index2,
+                fraction
+              );
+
+              const color = props.getColorFromPalette(interpolatedValue, props.colorPalette);
+              const index = (y * newWidth + newWidth - 1) * 4;
+
+              textureData[index] = color[0];
+              textureData[index + 1] = color[1];
+              textureData[index + 2] = color[2];
+              textureData[index + 3] = color[3] !== undefined ? color[3] : 255;
+            }
+          }
+        }
+      }
 
       gl.bindTexture(gl.TEXTURE_2D, texture);
       gl.texSubImage2D(
@@ -179,16 +310,26 @@ export default {
       const newData = props.sensorData;
 
       if (newData.length > 0) {
-        if (props.maxDepth > virtualMaxDepth.value) {
-          virtualMaxDepth.value = props.maxDepth;
-        }
+        const oldVirtualMaxDepth = virtualMaxDepth.value;
 
-        measurementHistory.value.unshift({
+        const measurement = {
           data: [...newData],
           maxDepth: props.maxDepth,
           minDepth: props.minDepth,
           timestamp: Date.now(),
-        });
+        };
+
+        if (props.maxDepth > virtualMaxDepth.value) {
+          virtualMaxDepth.value = props.maxDepth;
+
+          // Drop data to keep only 25% of maximum columns when rescaling
+          // This way observed a decent refresh rate, in sync with incoming data
+          const keepColumns = Math.floor(props.columnCount / 4);
+          measurementHistory.value = measurementHistory.value.slice(0, keepColumns);
+        }
+
+        measurementHistory.value.unshift(measurement);
+        pendingUpdates.value.push(measurement);
 
         while (measurementHistory.value.length > props.columnCount) {
           measurementHistory.value.pop();
@@ -199,7 +340,9 @@ export default {
           virtualMaxDepth.value = Math.max(props.maxDepth, maxHistoricalDepth);
         }
 
-        updateTexture();
+        // If virtualMaxDepth changed, redraw everything
+        const redrawAll = oldVirtualMaxDepth !== virtualMaxDepth.value;
+        updateTexture(redrawAll);
       }
     }
 
