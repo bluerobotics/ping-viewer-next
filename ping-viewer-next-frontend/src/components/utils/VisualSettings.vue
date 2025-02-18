@@ -328,7 +328,7 @@ const presetConfigs = {
         colorPalette: 'Ocean',
       },
       ping1DSettings: {
-        columnCount: 100,
+        columnCount: 500,
         tickCount: 5,
         depthLineColor: '#ffeb3b',
         depthTextColor: '#ffeb3b',
