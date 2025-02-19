@@ -1,6 +1,6 @@
 <template>
-	<div ref="containerRef" class="w-full h-full flex items-center justify-center bg-transparent p-4">
-		<div class="relative" :style="{ width: `${size}px`, height: `${size}px` }">
+  <div ref="containerRef" class="w-full h-full flex items-center justify-center bg-transparent p-4">
+    <div class="relative" :style="containerStyle">
 			<Sonar360Mask :angle="angle" :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="maxDistance"
 				:numMarkers="numMarkers" :showRadiusLines="showRadiusLines" :showMarkers="showMarkers"
 				:radiusLineColor="radiusLineColor" :markerColor="markerColor"
@@ -27,7 +27,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { getColorFromPalette } from '../SonarColorOptions.vue';
 import Sonar360Mask from './Sonar360Mask.vue';
 import Sonar360Shader from './Sonar360Shader.vue';
@@ -106,9 +106,34 @@ const props = defineProps({
 const containerRef = ref(null);
 const size = ref(300);
 
+const isHalfCircleView = computed(() => {
+  return props.startAngle >= 270 && props.endAngle <= 90;
+});
+
+const containerStyle = computed(() => {
+  if (isHalfCircleView.value) {
+    return {
+      width: `${size.value}px`,
+      height: `${size.value}px`,
+      transform: 'translate(-50%, 48%)',
+      position: 'fixed',
+      left: '50%',
+      bottom: '0',
+    };
+  }
+  return {
+    width: `${size.value}px`,
+    height: `${size.value}px`,
+  };
+});
+
 const updateSize = () => {
-  if (containerRef.value) {
-    const rect = containerRef.value.getBoundingClientRect();
+  if (!containerRef.value) return;
+  const rect = containerRef.value.getBoundingClientRect();
+  if (isHalfCircleView.value) {
+    // For half-circle view, use half the container height
+    size.value = Math.min(rect.width, rect.height * 2);
+  } else {
     size.value = Math.min(rect.width, rect.height);
   }
 };
@@ -120,5 +145,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateSize);
+});
+
+watch([() => props.startAngle, () => props.endAngle], () => {
+  updateSize();
 });
 </script>
