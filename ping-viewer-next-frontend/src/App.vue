@@ -255,7 +255,7 @@ const ping1DSettings = reactive({
   depthTextColor: '#ffeb3b',
   currentDepthColor: '#ffeb3b',
   confidenceColor: '#4caf50',
-  textBackground: 'rgba(0, 0, 0, 0.5)',
+  textBackground: 'rgba(0, 0, 0, 0.8)',
   debug: false,
   depthArrowColor: '#f44336',
 });

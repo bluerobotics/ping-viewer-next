@@ -334,7 +334,7 @@ const presetConfigs = {
         depthTextColor: '#ffeb3b',
         currentDepthColor: '#ffeb3b',
         confidenceColor: '#4caf50',
-        textBackground: 'rgba(0, 0, 0, 0.5)',
+        textBackground: 'rgba(0, 0, 0, 0.8)',
         depthArrowColor: '#f44336',
         debug: false,
       },
