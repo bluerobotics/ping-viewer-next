@@ -22,11 +22,26 @@
 			transform: 'translateY(-50%)',
 		}"></div>
 
-    <vue-draggable-resizable :x="10" :y="10" :w="260" :h="80" :min-width="130" :min-height="40" :parent="true"
-      :resizable="true" :lock-aspect-ratio="true" :disableUserSelect="true" class="measurements-box" :style="{
+    <vue-draggable-resizable
+      :x="boxPosition.x"
+      :y="boxPosition.y"
+      :w="boxPosition.w"
+      :h="boxPosition.h"
+      :min-width="130"
+      :min-height="40"
+      :parent="true"
+      :resizable="true"
+      :lock-aspect-ratio="true"
+      :disableUserSelect="true"
+      class="measurements-box"
+      :style="{
         backgroundColor: textBackground,
         zIndex: 40
-    }" @resizing="onResize">
+      }"
+      @resizing="onResize"
+      @dragging="onDrag"
+      @dblclick="resetPosition"
+    >
       <div class="measurements-content text-sm px-1 rounded" :style="{ fontSize: `${fontSize}px` }">
 
         <div class="text-left" :style="{ color: currentDepthColor }">
@@ -99,6 +114,56 @@ const historicalData = ref([]);
 const mousePosition = ref(null);
 const containerHeight = ref(80);
 
+const DEFAULT_POSITION = {
+  x: 10,
+  y: 10,
+  w: 260,
+  h: 80,
+};
+
+const boxPosition = ref(loadSavedPosition());
+
+function loadSavedPosition() {
+  const saved = localStorage.getItem('waterfall-measurements-position');
+  const savedPosition = saved ? JSON.parse(saved) : { ...DEFAULT_POSITION };
+  const container = document.querySelector('.waterfall-display');
+  if (!container) {
+    return { ...DEFAULT_POSITION };
+  }
+
+  const containerWidth = container.clientWidth;
+  const containerHeight = container.clientHeight;
+
+  const isOutOfBounds =
+    savedPosition.x + savedPosition.w > containerWidth ||
+    savedPosition.y + savedPosition.h > containerHeight ||
+    savedPosition.x < 0 ||
+    savedPosition.y < 0;
+
+  return isOutOfBounds ? { ...DEFAULT_POSITION } : savedPosition;
+}
+
+function savePosition(position) {
+  localStorage.setItem('waterfall-measurements-position', JSON.stringify(position));
+}
+
+function onDrag(x, y) {
+  boxPosition.value.x = x;
+  boxPosition.value.y = y;
+  savePosition(boxPosition.value);
+}
+
+function onResize(x, y, width, height) {
+  containerHeight.value = height;
+  boxPosition.value = { x, y, w: width, h: height };
+  savePosition(boxPosition.value);
+}
+
+function resetPosition() {
+  boxPosition.value = { ...DEFAULT_POSITION };
+  savePosition(boxPosition.value);
+}
+
 const fontSize = computed(() => {
   const scale = containerHeight.value / 40;
   return Math.floor(16 * scale);
@@ -113,10 +178,6 @@ const getHoveredBoxPosition = () => {
     left: `${left}px`,
     top: `${top}px`,
   };
-};
-
-const onResize = (x, y, width, height) => {
-  containerHeight.value = height;
 };
 
 const updateVirtualMaxDepth = () => {
@@ -239,6 +300,17 @@ onMounted(() => {
   ctx.value = overlayCanvas.value.getContext('2d');
   resizeOverlayCanvas();
   window.addEventListener('resize', resizeOverlayCanvas);
+
+  // Add resize observer to handle container size changes
+  const container = document.querySelector('.waterfall-display');
+  if (container) {
+    const observer = new ResizeObserver(() => {
+      const newPosition = loadSavedPosition();
+      boxPosition.value = newPosition;
+      savePosition(newPosition);
+    });
+    observer.observe(container);
+  }
 });
 
 onUnmounted(() => {
@@ -259,6 +331,7 @@ onUnmounted(() => {
 	position: absolute !important;
 	top: 0;
 	left: 0;
+  cursor: move;
 }
 
 .measurements-content {
