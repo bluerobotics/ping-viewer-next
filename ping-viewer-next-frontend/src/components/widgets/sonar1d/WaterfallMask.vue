@@ -21,46 +21,41 @@
 			borderLeftColor: depthArrowColor,
 			transform: 'translateY(-50%)',
 		}"></div>
-		<div class="current-depth absolute top-2 left-2 text-sm px-1 rounded"
-			:style="{ color: currentDepthColor, backgroundColor: textBackground }">
-			Depth: {{ currentDepth.toFixed(2) }}m ± {{ accuracy.toFixed(2) }}m
-		</div>
-		<div class="confidence absolute top-8 left-2 text-sm px-1 rounded"
-			:style="{ color: confidenceColor, backgroundColor: textBackground }">
-			Confidence: {{ confidence }}%
-		</div>
-		<div class="virtual-max-depth absolute top-14 left-2 text-sm px-1 rounded"
-			:style="{ color: virtualMaxDepthColor, backgroundColor: textBackground }">
-			Current Max Depth: {{ virtualMaxDepth.toFixed(2) }}m
-		</div>
-		<div v-if="hoveredColumn !== null"
-			class="hovered-column-info absolute bottom-2 left-2 text-sm px-2 py-1 rounded flex flex-col space-y-1"
-			:style="{ color: currentDepthColor, backgroundColor: textBackground }">
-			<div class="font-bold">Selected Measurements</div>
 
-			<div class="flex justify-between">
-				<span>Depth:</span>
-				<span>{{ historicalData[hoveredColumn]?.depth.toFixed(2) }}m</span>
-			</div>
+    <vue-draggable-resizable :x="10" :y="10" :w="260" :h="80" :min-width="130" :min-height="40" :parent="true"
+      :resizable="true" :lock-aspect-ratio="true" :disableUserSelect="true" class="measurements-box" :style="{
+        backgroundColor: textBackground,
+        zIndex: 40
+    }" @resizing="onResize">
+      <div class="measurements-content text-sm px-1 rounded" :style="{ fontSize: `${fontSize}px` }">
 
-			<div class="flex justify-between">
-				<span>Min Depth:</span>
-				<span>{{ historicalData[hoveredColumn]?.minDepth.toFixed(2) }}m</span>
-			</div>
+        <div class="text-left" :style="{ color: currentDepthColor }">
+          Depth: {{ currentDepth.toFixed(2) }}m
+        </div>
+        <div class="text-left" :style="{ color: confidenceColor }">
+          Confidence: {{ confidence }}%
+        </div>
+      </div>
+    </vue-draggable-resizable>
 
-			<div class="flex justify-between">
-				<span>Max Depth:</span>
-				<span>{{ historicalData[hoveredColumn]?.maxDepth.toFixed(2) }}m</span>
-			</div>
+    <div v-if="hoveredColumn !== null && mousePosition"
+      class="hovered-column-info px-2 py-1 rounded flex flex-col space-y-1 absolute" :style="{
+        backgroundColor: textBackground,
+        fontSize: `${fontSize}px`,
+        ...getHoveredBoxPosition()
+      }">
+      <div class="flex flex-col" :style="{
+        color: currentDepthColor
+      }">
+        <span :style="{ fontSize: `${fontSize * 0.4}px` }">Depth</span>
+        <span>{{ historicalData[hoveredColumn]?.depth.toFixed(2) }}m</span>
+      </div>
 
-			<div class="flex justify-between">
-				<span>Virtual Max Depth:</span>
-				<span>{{ historicalData[hoveredColumn]?.virtualMaxDepth.toFixed(2) }}m</span>
-			</div>
-
-			<div class="flex justify-between">
-				<span>Confidence:</span>
-				<span>{{ historicalData[hoveredColumn]?.confidence }}%</span>
+      <div class="flex flex-col" :style="{
+        color: confidenceColor
+      }">
+        <span :style="{ fontSize: `${fontSize * 0.4}px` }">Confidence</span>
+        <span>{{ historicalData[hoveredColumn]?.confidence }}%</span>
 			</div>
 		</div>
 	</div>
@@ -68,6 +63,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import VueDraggableResizable from 'vue-draggable-resizable';
 import WaterfallShader from './WaterfallShader.vue';
 
 const props = defineProps({
@@ -87,7 +83,7 @@ const props = defineProps({
   currentDepthColor: { type: String, default: 'yellow' },
   confidenceColor: { type: String, default: '#00FF00' },
   virtualMaxDepthColor: { type: String, default: '#FF8C00' },
-  textBackground: { type: String, default: 'rgba(0, 0, 0, 0.5)' },
+  textBackground: { type: String, default: 'rgba(0, 0, 0, 0.8)' },
   depthArrowColor: { type: String, default: 'yellow' },
   tickCount: { type: Number, default: 5 },
 });
@@ -100,6 +96,28 @@ const ctx = ref(null);
 const virtualMaxDepth = ref(props.maxDepth);
 const hoveredColumn = ref(null);
 const historicalData = ref([]);
+const mousePosition = ref(null);
+const containerHeight = ref(80);
+
+const fontSize = computed(() => {
+  const scale = containerHeight.value / 40;
+  return Math.floor(16 * scale);
+});
+
+const getHoveredBoxPosition = () => {
+  if (!mousePosition.value) return {};
+  const PADDING = 20;
+  const left = mousePosition.value.x + PADDING;
+  const top = mousePosition.value.y;
+  return {
+    left: `${left}px`,
+    top: `${top}px`,
+  };
+};
+
+const onResize = (x, y, width, height) => {
+  containerHeight.value = height;
+};
 
 const updateVirtualMaxDepth = () => {
   if (historicalData.value.length === 0) {
@@ -168,6 +186,9 @@ const tickPosition = (depth) => {
 const handleMouseMove = (event) => {
   const rect = event.target.getBoundingClientRect();
   const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  mousePosition.value = { x, y };
+
   const columnWidth = rect.width / props.columnCount;
   hoveredColumn.value = props.columnCount - 1 - Math.floor(x / columnWidth);
   drawOverlay();
@@ -175,6 +196,7 @@ const handleMouseMove = (event) => {
 
 const handleMouseLeave = () => {
   hoveredColumn.value = null;
+  mousePosition.value = null;
   drawOverlay();
 };
 
@@ -224,12 +246,36 @@ onUnmounted(() => {
 });
 </script>
 
+<style>
+@import "vue-draggable-resizable/style.css";
+</style>
+
 <style scoped>
 .waterfall-display {
 	position: relative;
 }
 
-.selected-object-info {
+.measurements-box {
+	position: absolute !important;
+	top: 0;
+	left: 0;
+}
+
+.measurements-content {
+	display: grid;
+	line-height: 1.2;
+}
+
+:deep(.vdr) {
+	border: 1px solid rgba(255, 255, 255, 0.2);
+	border-radius: 4px;
+}
+
+:deep(.vdr-handle) {
+	background-color: rgba(255, 255, 255, 0.8);
+}
+
+.shader-container {
 	z-index: 10;
 }
 </style>
