@@ -225,6 +225,35 @@ export default defineComponent({
           };
         }
 
+        if (device.status !== 'ContinuousMode') {
+          try {
+            const setContinuousModeResponse = await fetch(
+              `${serverUrl.value}/device_manager/request`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Accept: 'application/json',
+                  'Access-Control-Allow-Origin': '*',
+                },
+                body: JSON.stringify({
+                  command: 'EnableContinuousMode',
+                  module: 'DeviceManager',
+                  payload: { uuid: deviceId.value },
+                }),
+              }
+            );
+
+            if (!setContinuousModeResponse.ok) {
+              console.warn('Failed to set continuous mode:', setContinuousModeResponse.statusText);
+            } else {
+              device.status = 'ContinuousMode';
+            }
+          } catch (err) {
+            console.warn('Failed to set continuous mode:', err);
+          }
+        }
+
         if (device.device_type.toLowerCase() !== widgetType.value) {
           throw new Error(
             `Device type mismatch: expected ${widgetType.value} but got ${device.device_type}`
