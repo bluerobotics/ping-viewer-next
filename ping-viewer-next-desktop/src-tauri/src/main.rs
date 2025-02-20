@@ -20,7 +20,7 @@ async fn main() {
 async fn run_tauri_app(handler: device::manager::ManagerActorHandler) {
     tauri::Builder::default()
         .setup(|app: &mut tauri::App| {
-            let window = app.get_window("main").unwrap();
+            let window = app.get_webview_window("main").unwrap();
 
             std::thread::spawn(move || {
                 run_from_tauri(&cli::manager::server_address(), handler).unwrap();
@@ -28,7 +28,7 @@ async fn run_tauri_app(handler: device::manager::ManagerActorHandler) {
 
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(6));
-                window.eval("window.location.replace('http://0.0.0.0:8080')").unwrap();
+                window.eval("window.location.replace('http://127.0.0.1:8080')").unwrap();
             });
 
             Ok(())

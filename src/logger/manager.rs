@@ -145,24 +145,7 @@ static APP_DIR: &str = "Ping-Viewer-Next";
 
 #[cfg(feature = "desktop-app")]
 pub fn get_app_home_dir() -> PathBuf {
-    #[cfg(target_os = "windows")]
-    if let Err(e) = std::env::current_dir() {
-        error!("Failed to get app home dir. Errmsg: {}", e);
-        std::process::exit(-1);
-    } else {
-        return std::env::current_dir().unwrap();
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    match tauri::api::path::home_dir() {
-        None => {
-            error!("Failed to get app home dir");
-            std::process::exit(-1);
-        }
-        Some(path) => {
-            return path.join(APP_DIR);
-        }
-    }
+    dirs::home_dir().expect("failed to get homedir")
 }
 
 pub fn get_app_log_dir() -> PathBuf {

@@ -10,10 +10,10 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
-tauri-build = { version = "1.5.4", features = [] }
+tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
-tauri = { version = "1.7.2", features = ["shell-open"] }
+tauri = { version = "2.2.5", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ping-viewer-next = { path = "./../../", features = ["desktop-app"] }
