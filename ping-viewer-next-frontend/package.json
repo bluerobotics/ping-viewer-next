@@ -15,6 +15,7 @@
     "roboto-fontface": "^0.10.0",
     "vue": "3.5.8",
     "vue-draggable-resizable": "^3.0.0",
+    "pinia": "^3.0.1",
     "vuetify": "^3.7.6"
   },
   "devDependencies": {
@@ -29,7 +30,6 @@
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-promise": "^6.6.0",
     "eslint-plugin-vue": "^9.32.0",
-    "pinia": "^2.3.0",
     "postcss": "^8.4.49",
     "sass": "1.77.6",
     "tailwindcss": "^3.4.17",
