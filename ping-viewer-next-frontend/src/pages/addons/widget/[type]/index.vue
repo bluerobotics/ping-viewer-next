@@ -125,7 +125,7 @@ export default defineComponent({
         websocketUrl: websocketUrl.value,
         width: dimensions.value.width,
         height: dimensions.value.height,
-        showControls: true,
+        showControls: false,
       };
 
       if (widgetType.value === 'ping360') {

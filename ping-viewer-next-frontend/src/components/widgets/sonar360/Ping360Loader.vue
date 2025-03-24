@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col h-full">
     <div class="flex-1 mx-10 my-10 min-h-0">
-      <FloatingControls :is-recording="isRecording">
+      <FloatingControls v-if="showControls" :is-recording="isRecording">
         <DataRecorder ref="dataRecorder" :device="device" @recording-complete="handleRecordingComplete"
           @recording-started="handleRecordingStarted" @recording-stopped="handleRecordingStopped" />
         <v-btn icon :color="isFreeze ? 'error' : 'primary'" @click="toggleFreeze" class="elevation-4" size="large">
