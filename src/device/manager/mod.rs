@@ -154,7 +154,7 @@ pub struct SourceSerialStruct {
 pub enum DeviceStatus {
     Available,
     Running,
-    Stopped,
+    Error,
     ContinuousMode,
 }
 
