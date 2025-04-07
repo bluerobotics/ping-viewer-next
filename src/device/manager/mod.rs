@@ -18,12 +18,12 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    sync::{mpsc, oneshot},
+    sync::{broadcast::Receiver, mpsc, oneshot},
     time::sleep,
 };
 
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
-use tracing::{error, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use udp_stream::UdpStream;
 use uuid::Uuid;
 
@@ -31,6 +31,7 @@ use super::devices::{DeviceActor, DeviceActorHandler, DeviceType, PingAnswer};
 use bluerobotics_ping::{
     common::{DeviceInformationStruct, ProtocolVersionStruct},
     device::{Ping1D, Ping360},
+    message::ProtocolMessage,
 };
 use discovery_service::DiscoveryComponent;
 #[derive(Debug)]
@@ -381,19 +382,140 @@ impl DeviceManager {
     }
 
     pub async fn update_devices_status(&mut self) {
-        if let Ok(Answer::DeviceInfo(answer)) = self.list().await {
-            for device in answer {
-                if let Some(device_entry) = self.device.get_mut(&device.id) {
-                    if device_entry.status == DeviceStatus::Stopped {
-                        break;
+        let device_info = match self.list().await {
+            Ok(Answer::DeviceInfo(answer)) => answer,
+            _ => return,
+        };
+
+        for device in device_info {
+            if matches!(device.status, DeviceStatus::Error | DeviceStatus::Available) {
+                continue;
+            }
+
+            debug!("Device Manager is checking : Device id: {:?}", &device.id);
+
+            let receiver = match self.get_subscriber(device.id).await {
+                Ok(receiver) => receiver,
+                Err(err) => {
+                    error!("Device connection error, cant take subscriber. Device id: {:?}, Error: {err:?}", device.id);
+                    continue;
+                }
+            };
+
+            let device_entry = match self.device.get_mut(&device.id) {
+                Some(entry) => entry,
+                None => {
+                    error!("Device Manager cant get device. Device id: {:?}", device.id);
+                    continue;
+                }
+            };
+
+            if let Some(handle) = &device_entry.actor {
+                if handle.is_finished() {
+                    error!(
+                        "Device Actor main task finished, marking device with error. Device id: {:?}",
+                        device.id
+                    );
+                    device_entry.status = DeviceStatus::Error;
+                    continue;
+                }
+            }
+
+            match &device_entry.status {
+                DeviceStatus::ContinuousMode => {
+                    DeviceManager::check_continuous_mode_device(device_entry, receiver, device.id)
+                        .await;
+                }
+                DeviceStatus::Running => {
+                    DeviceManager::check_running_device(device_entry, device.id).await;
+                }
+                status => {
+                    error!("Device Manager found an unhandled device status, status: {status:?}. Device id: {:?}", device.id);
+                    continue;
+                }
+            }
+        }
+    }
+
+    async fn check_continuous_mode_device(
+        device_entry: &mut Device,
+        mut receiver: Receiver<ProtocolMessage>,
+        device_id: Uuid,
+    ) {
+        let Some(broadcast) = &device_entry.broadcast else {
+            error!("Device actor broadcast service finished, marking device with error. Device id: {:?}", device_id);
+            device_entry.status = DeviceStatus::Error;
+            return;
+        };
+
+        if broadcast.is_finished() {
+            error!("Device actor broadcast service finished, marking device with error. Device id: {:?}", device_id);
+            device_entry.status = DeviceStatus::Error;
+            return;
+        }
+
+        match &device_entry.device_type {
+            DeviceSelection::Common | DeviceSelection::Ping1D | DeviceSelection::Ping360 => {
+                match tokio::time::timeout(std::time::Duration::from_secs(15), receiver.recv())
+                    .await
+                {
+                    Err(_err) => {
+                        error!(
+                            "Device connection timeout, marking with error. Device id: {device_id:?}",
+                        );
+                        device_entry.status = DeviceStatus::Error;
                     }
-                    if let Some(handle) = &device_entry.actor {
-                        if handle.is_finished() {
-                            info!("Device stopped, device id: {device:?}");
-                            device_entry.status = DeviceStatus::Stopped;
+                    Ok(Err(err)) => match err {
+                        tokio::sync::broadcast::error::RecvError::Lagged(_) => error!(
+                            "Device connection error. Device id: {device_id:?}, Error: {err:?}"
+                        ),
+                        tokio::sync::broadcast::error::RecvError::Closed => {
+                            error!("Device connection error, marking with error. Device id: {device_id:?}, Error: {err:?}");
+                            device_entry.status = DeviceStatus::Error;
                         }
+                    },
+                    Ok(Ok(_ok)) => {
+                        debug!("Device still responsive. Device id: {device_id:?}");
                     }
                 }
+            }
+            device_selection => {
+                error!("Device connection error, Cannot check health of {device_selection:?}. Device id: {device_id:?}");
+            }
+        }
+    }
+
+    async fn check_running_device(device_entry: &mut Device, device_id: Uuid) {
+        let Some(handler) = &device_entry.handler else {
+            return;
+        };
+
+        let handler_clone = handler.clone();
+
+        match tokio::time::timeout(
+            std::time::Duration::from_millis(2000),
+            handler_clone.send(super::devices::PingRequest::Common(
+                super::devices::PingCommonRequest::DeviceInformation,
+            )),
+        )
+        .await
+        {
+            Err(_err) => {
+                error!(
+                    "Device connection timeout, marking with error. Device id: {:?}",
+                    device_id
+                );
+                device_entry.status = DeviceStatus::Error;
+            }
+            Ok(Err(err)) => {
+                error!(
+                    "Device connection error, marking with error. Device id: {:?}, Error: {:?}",
+                    device_id, err
+                );
+                device_entry.status = DeviceStatus::Error;
+            }
+            Ok(Ok(_answer)) => {
+                debug!("Device still responsive. Device id: {:?}", device_id);
             }
         }
     }
@@ -435,6 +557,11 @@ impl DeviceManager {
 
                 serial_stream
                     .clear(tokio_serial::ClearBuffer::All)
+                    .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
+
+                #[cfg(unix)]
+                serial_stream
+                    .set_exclusive(true)
                     .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
 
                 SourceType::Serial(serial_stream)
