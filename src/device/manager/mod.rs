@@ -356,23 +356,26 @@ impl DeviceManager {
 
         let mut discovery_rx = self.discovery_service.get_discovery_rx();
 
+        let mut status_check_interval = tokio::time::interval(std::time::Duration::from_secs(30));
+
         loop {
             tokio::select! {
                 Some(msg) = self.receiver.recv() => {
-                    self.update_devices_status().await; // Todo: move to an outer process
                     self.handle_message(msg).await;
                 }
                 Ok(device_info) = discovery_rx.recv() => {
-                    match self.register_device(device_info).await {
+                    match self.register_device(device_info.clone()).await {
                         Ok(_) => {
-                            if let Ok(Answer::DeviceInfo(inner) )= self.list().await {
-                                self.discovery_service.broadcast_known_devices(&inner);
-                            }
+                            info!("New device available, registered with id {:?} : device_type: {:?}", device_info.id, device_info.device_type);
                         }
                         Err(err) => {
                             error!("Failed to register discovered device: {err:?}");
                         }
                     }
+                }
+                _ = status_check_interval.tick() => {
+                    debug!("Running scheduled device status check");
+                    self.update_devices_status().await;
                 }
                 else => break,
             }
