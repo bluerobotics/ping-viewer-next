@@ -177,7 +177,7 @@ impl DeviceDiscoveryManager {
                     }
                     Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {}
                     Err(e) => {
-                        warn!("Error receiving known devices update: {e}");
+                        error!("Error receiving known devices update: {e}");
                         continue;
                     }
                 }

@@ -293,32 +293,25 @@ async fn auto_detect_baudrate(path: String) -> Result<u32, ManagerError> {
     let mut baudrate_results: HashMap<u32, BaudrateCheckResult> = HashMap::new();
 
     for &rate in &baud_rates {
-        debug!("auto_detect_baudrate: Testing baud rate: {}", rate);
+        debug!("auto_detect_baudrate: Testing baud rate: {rate} for {path}");
 
         let mut serial_stream = match tokio_serial::new(path.clone(), rate).open_native_async() {
             Ok(stream) => stream,
             Err(err) => {
-                warn!(
-                    "auto_detect_baudrate: Failed to open port at {}: {}",
-                    rate, err
-                );
+                warn!("auto_detect_baudrate: Failed to open port at {rate} for {path}: {err}");
                 continue;
             }
         };
 
         #[cfg(unix)]
-        if let Err(e) = serial_stream.set_exclusive(false) {
-            warn!(
-                "auto_detect_baudrate: Failed to set non-exclusive mode: {}",
-                e
-            );
+        if let Err(err) = serial_stream.set_exclusive(false) {
+            warn!("auto_detect_baudrate: Failed to set non-exclusive mode for {path}: {err}");
             continue;
         }
 
-        if let Err(e) = set_baudrate_pre_routine(&mut serial_stream, rate).await {
+        if let Err(err) = set_baudrate_pre_routine(&mut serial_stream, rate).await {
             warn!(
-                "auto_detect_baudrate: Failed baudrate initialization at {}: {:?}",
-                rate, e
+                "auto_detect_baudrate: Failed baudrate initialization at {rate} for {path}: {err:?}"
             );
             continue;
         }
@@ -334,24 +327,18 @@ async fn auto_detect_baudrate(path: String) -> Result<u32, ManagerError> {
             Ok(Ok(result)) => {
                 if result.parser_errors == 0 && result.messages_received == BAUDRATE_CHECK_MESSAGES
                 {
-                    info!("auto_detect_baudrate: Found optimal baudrate: {}", rate);
+                    info!("auto_detect_baudrate: Found optimal baudrate for {path}: {rate}");
                     return Ok(rate);
                 }
                 if result.messages_received > 0 {
                     baudrate_results.insert(rate, result);
                 }
             }
-            Ok(Err(e)) => {
-                debug!(
-                    "auto_detect_baudrate: Failed quality check at {}: {:?}",
-                    rate, e
-                );
+            Ok(Err(err)) => {
+                debug!("auto_detect_baudrate: Failed quality check at {rate} for {path}: {err:?}");
             }
             Err(_) => {
-                debug!(
-                    "auto_detect_baudrate: Timeout during baudrate check at {}",
-                    rate
-                );
+                debug!("auto_detect_baudrate: Timeout during baudrate check at {rate} for {path}");
             }
         }
     }

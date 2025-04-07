@@ -2,7 +2,7 @@ use bluerobotics_ping::device::PingDevice;
 use paperclip::actix::Apiv2Schema;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{error, trace, warn};
+use tracing::{debug, error, trace, warn};
 
 #[derive(Debug)]
 pub struct DeviceActor {
@@ -99,7 +99,21 @@ impl DeviceActor {
                     trace! {"Device received stop request, returning structure."}
                     return self;
                 }
-                _ => self.handle_message(msg).await,
+                _ => {
+                    match tokio::time::timeout(
+                        std::time::Duration::from_millis(15000),
+                        self.handle_message(msg),
+                    )
+                    .await
+                    {
+                        Ok(()) => {
+                            debug!("DeviceActor processed message successfully");
+                        }
+                        Err(_) => {
+                            error!("DeviceActor timed out while processing message.");
+                        }
+                    }
+                }
             }
         }
         error! {"Device closed it's channel, returning structure."}
@@ -219,16 +233,19 @@ impl DeviceActorHandler {
             return Err(DeviceError::TokioError(err.to_string()));
         }
 
-        match result_receiver
-            .await
-            .map_err(|err| DeviceError::TokioError(err.to_string()))
-        {
-            Ok(ans) => ans,
-            Err(err) => {
+        match tokio::time::timeout(std::time::Duration::from_millis(15000), result_receiver).await {
+            Ok(Ok(ans)) => ans,
+            Ok(Err(err)) => {
                 error!(
                     "DeviceManagerHandler: Failed to receive message from Device, details: {err:?}"
                 );
-                Err(err)
+                Err(DeviceError::TokioError(err.to_string()))
+            }
+            Err(_) => {
+                error!("DeviceManagerHandler: Timeout waiting for device response");
+                Err(DeviceError::TokioError(
+                    "Device response timeout".to_string(),
+                ))
             }
         }
     }

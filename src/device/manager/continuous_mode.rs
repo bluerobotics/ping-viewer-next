@@ -1,5 +1,5 @@
 use serde_json::json;
-use tracing::{error, trace};
+use tracing::{debug, error, trace};
 use uuid::Uuid;
 
 use crate::device::{
@@ -41,6 +41,10 @@ impl DeviceManager {
                     match subscriber.recv().await {
                         Ok(msg) => {
                             Self::ping1d_continuous_mode_helper(msg, device_id);
+                        }
+                        Err(err @ tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                            error!("Device subscriber channel issue {err:?}, device: {device_id}");
+                            Self::handle_error_continuous_mode(err, device_id);
                         }
                         Err(err) => {
                             Self::handle_error_continuous_mode(err, device_id);
@@ -215,7 +219,7 @@ impl DeviceManager {
         >,
     ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
-            loop {
+            'main: loop {
                 let config = properties.continuous_mode_settings.clone();
                 let initial_settings = match config.read() {
                     Ok(settings) => settings.clone(),
@@ -265,18 +269,24 @@ impl DeviceManager {
                         Ok(settings) => settings.clone(),
                         Err(err) => {
                             error!("Failed to read Ping360Config: {err:?}, device: {device_id}");
-                            break;
+                            break 'main;
                         }
                     };
                     if initial_settings != current_settings {
+                        debug!("Restarting firmware scanning routine for Ping360Config, device: {device_id}");
                         break;
                     }
 
                     match subscriber.recv().await {
                         Ok(msg) => Self::ping360_continuous_mode_helper_auto(msg, device_id),
-                        Err(err) => {
+                        Err(err @ tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                            error!("Device subscriber channel issue {err:?}, device: {device_id}");
                             Self::handle_error_continuous_mode(err, device_id);
-                            return;
+                        }
+                        Err(err) => {
+                            error!("Failed to receive from subscriber channel: {err:?}, device: {device_id}");
+                            Self::handle_error_continuous_mode(err, device_id);
+                            break 'main;
                         }
                     }
                 }
