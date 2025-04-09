@@ -15,7 +15,7 @@ RUN chmod +x /entrypoint.sh && \
     fi && \
     chmod +x  /app/ping-viewer-next && \
     rm /ping-viewer-next.*
-LABEL version="0.0.0"
+LABEL version="1.0.0-beta.6"
 
 RUN addgroup -g 1000 pingviewer && adduser -G pingviewer -u 1000 pingviewer -D
 
@@ -43,11 +43,11 @@ LABEL company='{\
   "name": "Blue Robotics",\
   "email": "support@bluerobotics.com"\
 }'
-LABEL readme="https://raw.githubusercontent.com/raultrombin/blueos-ping-viewer-next/master/README.md"
-LABEL type="education"
+LABEL readme="https://raw.githubusercontent.com/bluerobotics/ping-viewer-next/refs/heads/master/blueos-ping-viewer-next/README.md"
+LABEL type="device-integration"
 LABEL tags='[\
-  "rov",\
-  "robot"\
+  "sonar",\
+  "ping-protocol"\
 ]'
 
 ENTRYPOINT ["/entrypoint.sh"]
