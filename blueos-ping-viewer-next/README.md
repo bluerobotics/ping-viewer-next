@@ -19,7 +19,7 @@ bluerobotics.ping-viewer-next
 
 Ping Viewer Next
 
-0.0.0
+1.0.0-beta.6
 
 {
   "ExposedPorts": {
@@ -38,3 +38,10 @@ Ping Viewer Next
   }
 }
 ```
+
+### Cockpit Widgets
+
+For each connected ping device, provides a widget accessible through Cockpit as an
+[Automatic External Iframe](https://blueos.cloud/cockpit/docs/latest/usage/advanced/#automatic-external-iframes).
+
+Requires BlueOS >= 1.4.
