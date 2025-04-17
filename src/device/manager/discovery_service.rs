@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 use std::net::SocketAddrV4;
-use std::thread::sleep;
 use std::time::Duration;
 
 use bluerobotics_ping::ping1d::Device as Ping1D;
 use bluerobotics_ping::ping360::Device as Ping360;
 use tokio::sync::broadcast;
+use tokio::time::sleep;
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
 use tracing::{error, info, trace, warn};
 use udp_stream::UdpStream;
@@ -112,7 +112,7 @@ impl DeviceFactory {
                             retry_count, max_retries
                         );
 
-                        sleep(retry_delay);
+                        sleep(retry_delay).await;
                         continue;
                     }
                     e => warn!("Device creation error: Abnormal answer: {e:?}."),
