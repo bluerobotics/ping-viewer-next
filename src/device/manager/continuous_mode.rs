@@ -222,7 +222,7 @@ impl DeviceManager {
             'main: loop {
                 let config = properties.continuous_mode_settings.clone();
                 let initial_settings = match config.read() {
-                    Ok(settings) => settings.clone(),
+                    Ok(settings) => *settings,
                     Err(err) => {
                         error!("Failed to read Ping360Config: {err:?}, device: {device_id}");
                         break;
@@ -266,7 +266,7 @@ impl DeviceManager {
 
                 loop {
                     let current_settings = match config.read() {
-                        Ok(settings) => settings.clone(),
+                        Ok(settings) => *settings,
                         Err(err) => {
                             error!("Failed to read Ping360Config: {err:?}, device: {device_id}");
                             break 'main;
@@ -303,7 +303,7 @@ impl DeviceManager {
             loop {
                 let config = properties.continuous_mode_settings.clone();
                 let initial_settings = match config.read() {
-                    Ok(settings) => settings.clone(),
+                    Ok(settings) => *settings,
                     Err(err) => {
                         error!("Failed to read Ping360Config: {err:?}, device: {device_id}");
                         break;
@@ -318,7 +318,7 @@ impl DeviceManager {
 
                 loop {
                     let current_settings = match config.read() {
-                        Ok(settings) => settings.clone(),
+                        Ok(settings) => *settings,
                         Err(err) => {
                             error!("Failed to read Ping360Config: {err:?}, device: {device_id}");
                             break;
@@ -388,22 +388,18 @@ impl DeviceManager {
             } else {
                 current_angle + step_size
             }
-        } else {
-            if *direction > 0 {
-                if current_angle + step_size > stop_angle {
-                    *direction = -1;
-                    stop_angle
-                } else {
-                    current_angle + step_size
-                }
+        } else if *direction > 0 {
+            if current_angle + step_size > stop_angle {
+                *direction = -1;
+                stop_angle
             } else {
-                if (current_angle as i32 - step_size as i32) <= start_angle as i32 {
-                    *direction = 1;
-                    start_angle
-                } else {
-                    current_angle.wrapping_sub(step_size)
-                }
+                current_angle + step_size
             }
+        } else if (current_angle as i32 - step_size as i32) <= start_angle as i32 {
+            *direction = 1;
+            start_angle
+        } else {
+            current_angle.wrapping_sub(step_size)
         }
     }
 }

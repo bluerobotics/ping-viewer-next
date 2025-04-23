@@ -274,6 +274,12 @@ pub struct DiscoveryComponent {
     known_devices_tx: broadcast::Sender<Vec<DeviceInfo>>,
 }
 
+impl Default for DiscoveryComponent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DiscoveryComponent {
     pub fn new() -> Self {
         let (known_devices_tx, known_devices_rx) = broadcast::channel(1);
@@ -296,8 +302,8 @@ impl DiscoveryComponent {
         info!("DeviceDiscovery service is stopped");
     }
 
-    pub fn broadcast_known_devices(&self, device_ids: &Vec<DeviceInfo>) {
-        let _ = self.known_devices_tx.send(device_ids.clone());
+    pub fn broadcast_known_devices(&self, device_ids: &[DeviceInfo]) {
+        let _ = self.known_devices_tx.send(device_ids.to_owned());
     }
 
     pub fn get_discovery_rx(&self) -> broadcast::Receiver<DeviceInfo> {

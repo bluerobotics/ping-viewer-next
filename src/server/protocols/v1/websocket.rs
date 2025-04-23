@@ -52,7 +52,7 @@ impl WebsocketManager {
         for client in &self.clients {
             // check client list was subscribed or subscribed to all
             if client.device_number.is_none() || client.device_number == device_number {
-                let is_match = client.re.as_ref().map_or(false, |regx| regx.is_match(name));
+                let is_match = client.re.as_ref().is_some_and(|regx| regx.is_match(name));
                 if is_match {
                     client.actor.do_send(StringMessage(string.clone()));
                 }
