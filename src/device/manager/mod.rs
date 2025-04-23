@@ -662,7 +662,7 @@ impl DeviceManager {
         self.device.insert(hash, device);
 
         trace!("Updating device properties for: {:?}", hash);
-        let _ = self.update_device_properties(hash).await?;
+        self.update_device_properties(hash).await?;
 
         trace!("Device broadcast enable by default for: {hash:?}");
         let device_info = self.continuous_mode(hash).await?;
@@ -1102,15 +1102,9 @@ impl DeviceManager {
         let device = self.get_device(device_id)?;
         if let Some(DeviceProperties::Ping360(properties)) = &device.properties {
             return Ok(Answer::DeviceConfig(ModifyDeviceResult::Ping360Config(
-                properties
-                    .continuous_mode_settings
-                    .read()
-                    .map_err(|err| {
-                        ManagerError::Other(format!(
-                            "get_ping360_config: {err}, device: {device_id}"
-                        ))
-                    })?
-                    .clone(),
+                *properties.continuous_mode_settings.read().map_err(|err| {
+                    ManagerError::Other(format!("get_ping360_config: {err}, device: {device_id}"))
+                })?,
             )));
         }
         Err(ManagerError::DeviceSourceError(
