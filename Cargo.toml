@@ -8,40 +8,40 @@ repository = "https://github.com/bluerobotics/ping-viewer-next"
 license = "MIT"
 
 [dependencies]
-actix = "0.13.3"
-actix-cors = "0.7.0"
-actix-web = "4.9.0"
-bluerobotics-ping = "0.3.3"
-actix-web-actors = "4.3.0"
-chrono = "0.4.38"
-clap = {version = "4.5.17", features = ["derive"] }
+actix = "0.13.5"
+actix-cors = "0.7.1"
+actix-web = "4.10.2"
+bluerobotics-ping = "0.3.4"
+actix-web-actors = "4.3.1"
+chrono = "0.4.40"
+clap = {version = "4.5.37", features = ["derive"] }
 lazy_static = "1.5.0"
-mime_guess = "2.0.4"
-paperclip = { version = "0.9.1" , features = ["actix4", "swagger-ui", "uuid"] }
-serde = { version = "1.0.210", features = ["derive"] }
-regex = "1.10.6"
-rust-embed = "8.4.0"
-serde_json = "1.0.128"
-tokio = { version = "1.40.0", features = ["full"] }
-tokio-serial = "5.4.4"
-tracing = { version = "0.1.40", features = ["log", "async-await"] }
+mime_guess = "2.0.5"
+paperclip = { version = "0.9.5" , features = ["actix4", "swagger-ui", "uuid"] }
+serde = { version = "1.0.219", features = ["derive"] }
+regex = "1.11.1"
+rust-embed = "8.7.0"
+serde_json = "1.0.140"
+tokio = { version = "1.44.2", features = ["full"] }
+tokio-serial = "5.4.5"
+tracing = { version = "0.1.41", features = ["log", "async-await"] }
 tracing-log = "0.2.0"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tracing-appender = "0.2.3"
-tracing-tracy = {version = "0.11.0", features = ["ondemand"] }
+tracing-tracy = {version = "0.11.4", features = ["ondemand"] }
 udp-stream = "0.0.12"
-uuid = { version = "1.10.0", features = ["serde"] }
-validator = "0.18.1"
-thiserror = "1.0.63"
+uuid = { version = "1.16.0", features = ["serde"] }
+validator = "0.20.0"
+thiserror = "2.0.12"
 shellexpand = "3.1"
 
-reqwest = {version = "0.12.12", features = ["json"], optional = true }
-openssl = { version = "0.10.69", features = ["vendored"], optional = true }
+reqwest = {version = "0.12.15", features = ["json"], optional = true }
+openssl = { version = "0.10.72", features = ["vendored"], optional = true }
 dirs = "6.0.0"
 
 
 [build-dependencies]
-vergen-gix = { version = "1.0.1", default-features = false, features = ["build", "cargo"] }
+vergen-gix = { version = "1.0.9", default-features = false, features = ["build", "cargo"] }
 
 [lib]
 name = "ping_viewer_next"
