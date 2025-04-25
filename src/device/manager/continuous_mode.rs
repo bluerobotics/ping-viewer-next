@@ -7,7 +7,7 @@ use crate::device::{
     manager::{Answer, DeviceAnswer, DeviceManager, DeviceSelection, ManagerError},
 };
 
-use super::{DeviceProperties, Ping360Properties};
+use super::{DeviceProperties, ManagerActorHandler, Ping360Properties, SourceSelection};
 
 impl DeviceManager {
     // Call the helpers specifically for each device type
@@ -61,15 +61,35 @@ impl DeviceManager {
                 };
 
                 // Check if firmware supports auto-transmit mode
-                if properties.common.device_information.firmware_version_major >= 3
-                    && properties.common.device_information.firmware_version_minor >= 3
-                {
-                    Some(Self::start_ping360_firmware_mode(
-                        handler,
-                        device_id,
-                        properties.clone(),
-                        subscriber,
-                    ))
+                let supports_auto_transmit =
+                    properties.common.device_information.firmware_version_major >= 3
+                        && properties.common.device_information.firmware_version_minor >= 3;
+
+                if supports_auto_transmit {
+                    match self.get_device_source(device_id) {
+                        Ok(source) => match source {
+                            super::SourceSelection::UdpStream(_) => {
+                                Some(Self::start_ping360_firmware_mode(
+                                    self.get_device_manager_handler(),
+                                    handler,
+                                    device_id,
+                                    properties.clone(),
+                                    subscriber,
+                                ))
+                            }
+                            super::SourceSelection::SerialStream(_) => {
+                                Some(Self::start_ping360_software_mode(
+                                    handler,
+                                    device_id,
+                                    properties.clone(),
+                                ))
+                            }
+                        },
+                        Err(err) => {
+                            error!("Error during start_continuous_mode: Failed to check source: {err:?}");
+                            None
+                        }
+                    }
                 } else {
                     Some(Self::start_ping360_software_mode(
                         handler,
@@ -107,7 +127,7 @@ impl DeviceManager {
 
     // Execute some especial commands required for device stop auto_send mode
     pub async fn continuous_mode_shutdown_routine(
-        &self,
+        &mut self,
         device_id: Uuid,
         device_type: DeviceSelection,
     ) -> Result<(), ManagerError> {
@@ -129,7 +149,14 @@ impl DeviceManager {
                 }
             }
             DeviceSelection::Ping360 => {
-                if let Err(err) = handler
+                if matches!(
+                    self.get_device_source(device_id)?,
+                    SourceSelection::UdpStream(_)
+                ) {
+                    if let Err(err) = self.turnoff_device_on_continuous_mode(device_id).await {
+                        error!("Something went wrong while executing continuous_mode_shutdown_routine, details: {err:?}, device: {device_id}");
+                    }
+                } else if let Err(err) = handler
                     .send(crate::device::devices::PingRequest::Ping360(
                         crate::device::devices::Ping360Request::MotorOff,
                     ))
@@ -211,6 +238,7 @@ impl DeviceManager {
     }
 
     fn start_ping360_firmware_mode(
+        manager_handler: ManagerActorHandler,
         handler: DeviceActorHandler,
         device_id: Uuid,
         properties: Ping360Properties,
@@ -228,17 +256,6 @@ impl DeviceManager {
                         break;
                     }
                 };
-
-                // Stop the motor before starting auto-transmit
-                if let Err(err) = handler
-                    .send(crate::device::devices::PingRequest::Ping360(
-                        crate::device::devices::Ping360Request::MotorOff,
-                    ))
-                    .await
-                {
-                    error!("Failed to stop motor: {err:?}, device: {device_id}");
-                    break;
-                }
 
                 // Start auto-transmit mode
                 if let Err(err) = handler
@@ -274,6 +291,31 @@ impl DeviceManager {
                     };
                     if initial_settings != current_settings {
                         debug!("Restarting firmware scanning routine for Ping360Config, device: {device_id}");
+
+                        if properties.common.device_information.firmware_version_major >= 3
+                            && properties.common.device_information.firmware_version_minor >= 3
+                        {
+                            if let Err(err) = manager_handler
+                                .send(
+                                    crate::device::manager::Request::SpecialTurnOffContinuousMode(
+                                        crate::device::manager::UuidWrapper { uuid: device_id },
+                                    ),
+                                )
+                                .await
+                            {
+                                error!("Failed to turn-off autotransmit for ping360: {err:?}, device: {device_id}");
+                                break;
+                            }
+                        } else if let Err(err) = handler
+                            .send(crate::device::devices::PingRequest::Ping360(
+                                crate::device::devices::Ping360Request::MotorOff,
+                            ))
+                            .await
+                        {
+                            error!("Failed to stop motor: {err:?}, device: {device_id}");
+                            break;
+                        }
+
                         break;
                     }
 
