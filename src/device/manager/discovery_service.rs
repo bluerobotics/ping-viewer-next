@@ -7,7 +7,7 @@ use bluerobotics_ping::ping360::Device as Ping360;
 use tokio::sync::broadcast;
 use tokio::time::sleep;
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
-use tracing::{error, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use udp_stream::UdpStream;
 use uuid::Uuid;
 
@@ -111,6 +111,13 @@ impl DeviceFactory {
                             "Device creation error: Device upgrade attempt {} of {} failed: {err:?}. Retrying...",
                             retry_count, max_retries
                         );
+
+                        debug!("Force stopping device for discovery service next attempt");
+                        match crate::device::manager::turnoff_device_continuous_mode(&source).await {
+                            Ok(()) => debug!("Force stopping device success"),
+                            Err(err) =>
+                                error!("Force stopping device for discovery service next attempt error. Error: {err:?}")
+                        };
 
                         sleep(retry_delay).await;
                         continue;
