@@ -210,6 +210,7 @@ impl DeviceDiscoveryManager {
                     }
                 }
 
+                #[cfg(not(feature = "blueos-extension"))]
                 let used_ports: Vec<String> = known_devices
                     .iter()
                     .filter_map(|device| {
@@ -222,6 +223,7 @@ impl DeviceDiscoveryManager {
                     .collect();
 
                 // Add serial devices, skipping used ports
+                #[cfg(not(feature = "blueos-extension"))]
                 if let Some(result) = device_discovery::serial_discovery(Some(&used_ports)).await {
                     for source in result {
                         let key = get_device_key(&source);
