@@ -163,6 +163,7 @@ pub struct DeviceManager {
     receiver: mpsc::Receiver<ManagerActorRequest>,
     pub device: HashMap<Uuid, Device>,
     discovery_service: DiscoveryComponent,
+    pub manager_handler: ManagerActorHandler,
 }
 
 #[derive(Debug)]
@@ -334,15 +335,21 @@ impl DeviceManager {
 
     pub fn new(size: usize) -> (Self, ManagerActorHandler) {
         let (sender, receiver) = mpsc::channel(size);
+
+        let actor_handler = ManagerActorHandler { sender };
         let actor = DeviceManager {
             receiver,
             device: HashMap::new(),
             discovery_service: DiscoveryComponent::new(),
+            manager_handler: actor_handler.clone(),
         };
-        let actor_handler = ManagerActorHandler { sender };
 
         trace!("DeviceManager and handler successfully created: Success");
         (actor, actor_handler)
+    }
+
+    pub fn get_device_manager_handler(&self) -> ManagerActorHandler {
+        self.manager_handler.clone()
     }
 
     pub async fn run(mut self) {
