@@ -219,6 +219,8 @@ pub enum Request {
     ModifyDevice(ModifyDevice),
     EnableContinuousMode(UuidWrapper),
     DisableContinuousMode(UuidWrapper),
+    #[serde(skip)]
+    SpecialTurnOffContinuousMode(UuidWrapper),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
@@ -278,6 +280,12 @@ impl DeviceManager {
                 let result = self.create(request.source, request.device_selection).await;
                 if let Err(e) = actor_request.respond_to.send(result) {
                     error!("DeviceManager: Failed to return Create response: {e:?}");
+                }
+            }
+            Request::SpecialTurnOffContinuousMode(request) => {
+                let result = self.turnoff_device_on_continuous_mode(*request).await;
+                if let Err(e) = actor_request.respond_to.send(result) {
+                    error!("DeviceManager: Failed to return SpecialTurnOffContinuousMode response: {e:?}");
                 }
             }
             Request::Delete(uuid) => {
@@ -871,6 +879,25 @@ impl DeviceManager {
         Ok(Answer::DeviceInfo(vec![info]))
     }
 
+    pub async fn turnoff_device_on_continuous_mode(
+        &mut self,
+        device_id: Uuid,
+    ) -> Result<Answer, ManagerError> {
+        self.check_device_status(device_id, &[DeviceStatus::ContinuousMode])?;
+
+        let source = self.get_device_source(device_id)?;
+        turnoff_device_continuous_mode(&source).await?;
+
+        sleep(Duration::from_millis(500)).await;
+
+        let device_info = self.list().await?;
+        info!(
+            "Device successfully conclude turnoff process, details: {:?}",
+            device_info
+        );
+        Ok(device_info)
+    }
+
     pub async fn delete(&mut self, id: Uuid) -> Result<Answer, ManagerError> {
         let device = self
             .device
@@ -942,6 +969,9 @@ impl DeviceManager {
         self.check_device_status(device_id, &[DeviceStatus::ContinuousMode])?;
         let device_type = self.get_device_type(device_id)?;
 
+        self.continuous_mode_shutdown_routine(device_id, device_type)
+            .await?;
+
         let device = self.get_mut_device(device_id)?;
         if let Some(broadcast) = device.broadcast.take() {
             broadcast.abort_handle().abort();
@@ -950,9 +980,6 @@ impl DeviceManager {
         device.status = DeviceStatus::Running;
 
         let updated_device_info = device.info();
-
-        self.continuous_mode_shutdown_routine(device_id, device_type)
-            .await?;
 
         Ok(Answer::DeviceInfo(vec![updated_device_info]))
     }
@@ -1259,4 +1286,49 @@ impl ManagerActorHandler {
             }
         }
     }
+}
+
+pub async fn turnoff_device_continuous_mode(source: &SourceSelection) -> Result<(), ManagerError> {
+    match source {
+        SourceSelection::SerialStream(serial_config) => {
+            debug!(
+                "Sending break line to serial device at {} for 1 second",
+                serial_config.path
+            );
+            let serial_stream = tokio_serial::new(&serial_config.path, serial_config.baudrate)
+                .open_native_async()
+                .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
+            serial_stream.set_break().map_err(|err| {
+                ManagerError::DeviceSourceError(format!("Failed to send break signal: {}", err))
+            })?;
+            sleep(Duration::from_secs(1)).await;
+            serial_stream.clear_break().map_err(|err| {
+                ManagerError::DeviceSourceError(format!("Failed to clear break signal: {}", err))
+            })?;
+            drop(serial_stream);
+        }
+        SourceSelection::UdpStream(udp_config) => {
+            debug!(
+                "Sending empty datagram to UDP device at {}:{}",
+                udp_config.ip, udp_config.port
+            );
+            let socket = UdpSocket::bind("0.0.0.0:0").map_err(|err| {
+                ManagerError::DeviceSourceError(format!("Failed to bind UDP socket: {}", err))
+            })?;
+            let empty_datagram: [u8; 0] = [];
+            socket
+                .send_to(
+                    &empty_datagram,
+                    format!("{}:{}", udp_config.ip, udp_config.port),
+                )
+                .map_err(|err| {
+                    ManagerError::DeviceSourceError(format!(
+                        "Failed to send empty datagram: {}",
+                        err
+                    ))
+                })?;
+        }
+    }
+
+    Ok(())
 }
