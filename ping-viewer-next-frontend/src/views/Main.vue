@@ -241,10 +241,7 @@ const yawConnectionStatus = ref('Disconnected');
 let yawWebSocket = null;
 let reconnectTimeout = null;
 
-const commonSettings = reactive({
-  colorPalette: 'Thermal Blue',
-  customPalette: [],
-});
+const commonSettings = reactive({});
 
 const ping1DSettings = reactive({
   columnCount: 500,
@@ -256,6 +253,8 @@ const ping1DSettings = reactive({
   textBackground: 'rgba(0, 0, 0, 0.8)',
   debug: false,
   depthArrowColor: '#f44336',
+  colorPalette: 'Thermal Blue',
+  customPalette: [],
 });
 
 const ping360Settings = reactive({
@@ -269,6 +268,8 @@ const ping360Settings = reactive({
   markerColor: '#4caf50',
   radiusLineWidth: 0.5,
   debug: false,
+  colorPalette: 'Thermal Blue',
+  customPalette: [],
 });
 
 const glass = computed(() => isGlassMode.value);
@@ -279,9 +280,10 @@ const undownloadedRecordings = computed(() =>
 
 const deviceSettings = computed(() => {
   if (!activeDevice.value) return {};
+  const deviceType = activeDevice.value.device.device_type;
+  const settings = deviceType === 'Ping360' ? ping360Settings : ping1DSettings;
   return {
-    ...commonSettings,
-    ...(activeDevice.value.device.device_type === 'Ping360' ? ping360Settings : ping1DSettings),
+    ...settings,
     width: activeDevice.value?.width || window.innerWidth,
     height: activeDevice.value?.height || window.innerHeight,
   };
@@ -477,9 +479,7 @@ const saveSettings = () => {
 };
 
 const resetSettings = () => {
-  Object.assign(commonSettings, {
-    colorPalette: 'Ocean',
-  });
+  Object.assign(commonSettings, {});
 
   Object.assign(ping1DSettings, {
     columnCount: 100,
@@ -491,6 +491,8 @@ const resetSettings = () => {
     textBackground: 'rgba(0, 0, 0, 0.5)',
     debug: false,
     depthArrowColor: '#f44336',
+    colorPalette: 'Ocean',
+    customPalette: [],
   });
 
   Object.assign(ping360Settings, {
@@ -504,6 +506,8 @@ const resetSettings = () => {
     markerColor: '#00FF00',
     radiusLineWidth: 0.5,
     debug: false,
+    colorPalette: 'Ocean',
+    customPalette: [],
   });
 };
 
