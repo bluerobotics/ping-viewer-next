@@ -234,37 +234,3 @@ onMounted(async () => {
   }
 });
 </script>
-
-<style scoped>
-.space-y-4>*+* {
-  margin-top: 1rem;
-}
-
-.gap-2 {
-  gap: 0.5rem;
-}
-
-.settings-scroll {
-  overflow-y: auto;
-  max-height: calc(80vh - 64px);
-  padding: 16px;
-}
-
-.settings-scroll::-webkit-scrollbar {
-  width: 8px;
-}
-
-.settings-scroll::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
-}
-
-.settings-scroll::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-}
-
-.settings-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
-}
-</style>

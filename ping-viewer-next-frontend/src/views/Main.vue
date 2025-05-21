@@ -865,6 +865,11 @@ provide('cleanupYawConnection', cleanupYawConnection);
     0px 8px 12px 6px rgba(0, 0, 0, 0.15) !important;
 }
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--v-theme-on-surface), 0.2) transparent;
+}
+
 /* Glass effects */
 .glass {
   background-color: rgba(var(--v-theme-background), 0.3) !important;
@@ -928,6 +933,8 @@ provide('cleanupYawConnection', cleanupYawConnection);
   position: fixed;
   top: calc(var(--button-size) + var(--button-gap));
   left: calc(var(--button-size) + var(--button-gap));
+  max-height: calc(100vh - 2 * (var(--button-size) + var(--button-gap)));
+  padding: 1rem;
   z-index: 999;
   border-radius: var(--border-radius);
 }
