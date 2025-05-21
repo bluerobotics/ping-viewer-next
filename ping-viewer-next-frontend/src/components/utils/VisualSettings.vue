@@ -24,15 +24,10 @@
         </v-tab>
       </v-tabs>
 
-      <v-window v-model="activeSettingsTab">
+      <v-window v-model="activeSettingsTab" class="settings-window">
         <!-- General Settings -->
         <v-window-item value="general">
           <div class="px-4">
-            <v-list-subheader class="px-0">Palette</v-list-subheader>
-            <div>
-              <SonarColorOptions :initial-palette="localCommonSettings.colorPalette"
-                @update:colorPalette="updateColorPalette" />
-            </div>
             <section>
               <v-list-subheader class="px-0">Display Options</v-list-subheader>
               <div class="d-flex align-center justify-space-between">
@@ -52,6 +47,13 @@
         <!-- Ping1D Settings -->
         <v-window-item value="ping1d">
           <div class="px-4">
+            <section>
+              <v-list-subheader class="px-0">Palette</v-list-subheader>
+              <div>
+                <SonarColorOptions :initial-palette="localPing1DSettings.colorPalette"
+                  @update:colorPalette="updatePing1DColorPalette" />
+              </div>
+            </section>
             <section>
               <v-list-subheader class="px-0">Display Settings</v-list-subheader>
               <div class="d-flex flex-column gap-4 px-3">
@@ -105,6 +107,13 @@
         <!-- Ping360 Settings -->
         <v-window-item value="ping360">
           <div class="px-4">
+            <section>
+              <v-list-subheader class="px-0">Palette</v-list-subheader>
+              <div>
+                <SonarColorOptions :initial-palette="localPing360Settings.colorPalette"
+                  @update:colorPalette="updatePing360ColorPalette" />
+              </div>
+            </section>
             <section class="mb-2">
               <v-list-subheader class="px-0">Display Settings</v-list-subheader>
               <div class="d-flex flex-column gap-4 px-3">
@@ -243,10 +252,6 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  commonSettings: {
-    type: Object,
-    required: true,
-  },
   ping1DSettings: {
     type: Object,
     required: true,
@@ -275,7 +280,6 @@ const props = defineProps({
 
 const emit = defineEmits([
   'update:isOpen',
-  'update:commonSettings',
   'update:ping1DSettings',
   'update:ping360Settings',
   'update:isDarkMode',
@@ -288,7 +292,6 @@ const emit = defineEmits([
 
 const activeSettingsTab = ref('general');
 const selectedPreset = ref('default');
-const localCommonSettings = reactive({ ...props.commonSettings });
 const localPing1DSettings = reactive({ ...props.ping1DSettings });
 const localPing360Settings = reactive({ ...props.ping360Settings });
 const mavlinkStatus = ref('Disconnected');
@@ -324,9 +327,6 @@ const presetConfigs = {
   default: {
     description: 'Default color settings',
     settings: {
-      commonSettings: {
-        colorPalette: 'Ocean',
-      },
       ping1DSettings: {
         columnCount: 500,
         tickCount: 5,
@@ -354,9 +354,6 @@ const presetConfigs = {
   deuteranopia: {
     description: 'Optimized for red-green color blindness (deuteranopia)',
     settings: {
-      commonSettings: {
-        colorPalette: 'Monochrome Black',
-      },
       ping1DSettings: {
         depthLineColor: '#0077BB',
         depthTextColor: '#0077BB',
@@ -375,9 +372,6 @@ const presetConfigs = {
   protanopia: {
     description: 'Optimized for red-green color blindness (protanopia)',
     settings: {
-      commonSettings: {
-        colorPalette: 'Monochrome Black',
-      },
       ping1DSettings: {
         depthLineColor: '#0077BB',
         depthTextColor: '#0077BB',
@@ -396,9 +390,6 @@ const presetConfigs = {
   tritanopia: {
     description: 'Optimized for blue-yellow color blindness',
     settings: {
-      commonSettings: {
-        colorPalette: 'Monochrome Black',
-      },
       ping1DSettings: {
         depthLineColor: '#FF99AA',
         depthTextColor: '#FF99AA',
@@ -417,9 +408,6 @@ const presetConfigs = {
   monochromacy: {
     description: 'Monochrome mode using high-contrast patterns',
     settings: {
-      commonSettings: {
-        colorPalette: 'Monochrome Black',
-      },
       ping1DSettings: {
         depthLineColor: '#FFFFFF',
         depthTextColor: '#FFFFFF',
@@ -438,9 +426,6 @@ const presetConfigs = {
   highContrast: {
     description: 'High contrast mode for better visibility',
     settings: {
-      commonSettings: {
-        colorPalette: 'Monochrome White',
-      },
       ping1DSettings: {
         depthLineColor: '#FFFFFF',
         depthTextColor: '#FFFFFF',
@@ -502,11 +487,6 @@ const handlePresetChange = (preset) => {
 
   const config = presetConfigs[preset].settings;
 
-  Object.assign(localCommonSettings, {
-    ...localCommonSettings,
-    ...config.commonSettings,
-  });
-
   Object.assign(localPing1DSettings, {
     ...localPing1DSettings,
     ...config.ping1DSettings,
@@ -517,7 +497,6 @@ const handlePresetChange = (preset) => {
     ...config.ping360Settings,
   });
 
-  emit('update:commonSettings', { ...localCommonSettings });
   emit('update:ping1DSettings', { ...localPing1DSettings });
   emit('update:ping360Settings', { ...localPing360Settings });
 
@@ -526,12 +505,20 @@ const handlePresetChange = (preset) => {
 
 const saveSettings = () => {
   // Save visual settings
-  localStorage.setItem('common-settings', JSON.stringify(localCommonSettings));
   localStorage.setItem('ping1d-settings', JSON.stringify(localPing1DSettings));
   localStorage.setItem('ping360-settings', JSON.stringify(localPing360Settings));
 
-  if (localCommonSettings.customPalette?.length > 0) {
-    localStorage.setItem('customColorPalette', JSON.stringify(localCommonSettings.customPalette));
+  if (localPing1DSettings.customPalette?.length > 0) {
+    localStorage.setItem(
+      'ping1d-custom-palette',
+      JSON.stringify(localPing1DSettings.customPalette)
+    );
+  }
+  if (localPing360Settings.customPalette?.length > 0) {
+    localStorage.setItem(
+      'ping360-custom-palette',
+      JSON.stringify(localPing360Settings.customPalette)
+    );
   }
 
   if (serverSettings.url !== props.serverUrl) {
@@ -540,9 +527,6 @@ const saveSettings = () => {
 
   // Save server settings
   localStorage.setItem('serverUrl', serverSettings.url);
-  localStorage.setItem('mavlinkUrl', serverSettings.mavlinkUrl);
-  localStorage.setItem('autoConnectMavlink', serverSettings.autoConnectMavlink.toString());
-
   localStorage.setItem('mavlinkUrl', serverSettings.mavlinkUrl);
   localStorage.setItem('autoConnectMavlink', serverSettings.autoConnectMavlink.toString());
 
@@ -566,21 +550,21 @@ const saveSettings = () => {
   emit('update:isOpen', false);
 };
 
-const updateColorPalette = (newPalette) => {
-  localCommonSettings.colorPalette = newPalette;
+const updatePing1DColorPalette = (newPalette) => {
+  localPing1DSettings.colorPalette = newPalette;
   if (newPalette === 'Custom') {
-    localCommonSettings.customPalette = colorPalettes.Custom;
+    localPing1DSettings.customPalette = colorPalettes.Custom;
   }
-  emit('update:commonSettings', { ...localCommonSettings });
+  emit('update:ping1DSettings', { ...localPing1DSettings });
 };
 
-watch(
-  () => props.commonSettings,
-  (newSettings) => {
-    Object.assign(localCommonSettings, newSettings);
-  },
-  { deep: true }
-);
+const updatePing360ColorPalette = (newPalette) => {
+  localPing360Settings.colorPalette = newPalette;
+  if (newPalette === 'Custom') {
+    localPing360Settings.customPalette = colorPalettes.Custom;
+  }
+  emit('update:ping360Settings', { ...localPing360Settings });
+};
 
 watch(
   () => props.ping1DSettings,
@@ -594,30 +578,6 @@ watch(
   () => props.ping360Settings,
   (newSettings) => {
     Object.assign(localPing360Settings, newSettings);
-  },
-  { deep: true }
-);
-
-watch(
-  localCommonSettings,
-  (newSettings) => {
-    emit('update:commonSettings', { ...newSettings });
-  },
-  { deep: true }
-);
-
-watch(
-  localPing1DSettings,
-  (newSettings) => {
-    emit('update:ping1DSettings', { ...newSettings });
-  },
-  { deep: true }
-);
-
-watch(
-  localPing360Settings,
-  (newSettings) => {
-    emit('update:ping360Settings', { ...newSettings });
   },
   { deep: true }
 );
