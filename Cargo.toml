@@ -52,7 +52,7 @@ name = "ping-viewer-next"
 path = "src/main.rs"
 
 [features]
-default = ["blueos-extension"]
+default = []
 desktop-app = ["build-frontend"]
 build-frontend = ["embed-frontend"]
 embed-frontend =[]
