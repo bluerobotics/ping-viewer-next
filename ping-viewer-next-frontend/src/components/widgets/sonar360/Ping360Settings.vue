@@ -559,10 +559,3 @@ onMounted(async () => {
   }
 });
 </script>
-
-<style>
-.v-card.v-theme--dark {
-  scrollbar-width: none;
-  scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.1);
-}
-</style>

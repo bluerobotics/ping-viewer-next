@@ -598,35 +598,12 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
-.settings-menu {
-  transition: all 0.3s ease;
-}
+<style>
 
-.menu-content {
-  padding: 1rem;
-}
-
-:deep(.v-tabs) {
-  background-color: transparent !important;
-}
-
-:deep(.v-tab) {
-  color: rgba(var(--v-theme-on-surface), 0.7);
-}
-
-:deep(.v-tab--selected) {
-  color: rgb(var(--v-theme-on-surface));
-}
-
-:deep(.v-window) {
-  background-color: transparent !important;
-}
-
-@media (max-width: 600px) {
-  .settings-menu {
-    width: calc(100vw - var(--button-size) - var(--button-gap) * 2);
-    max-width: 400px;
-  }
+.settings-window {
+  /* flex: 1; */
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: calc(70vh - 2 * (var(--button-size) + var(--button-gap)));
 }
 </style>
