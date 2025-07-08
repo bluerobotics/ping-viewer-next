@@ -10,19 +10,19 @@ license = "MIT"
 [dependencies]
 actix = "0.13.5"
 actix-cors = "0.7.1"
-actix-web = "4.10.2"
-bluerobotics-ping = "0.3.4"
+actix-web = "4.11.0"
+bluerobotics-ping = { version="0.3.5", features = ["serde", "json_schema"] }
 actix-web-actors = "4.3.1"
-chrono = "0.4.40"
-clap = {version = "4.5.37", features = ["derive"] }
+chrono = { version = "0.4.41", features = ["serde"] }
+clap = {version = "4.5.40", features = ["derive"] }
 lazy_static = "1.5.0"
 mime_guess = "2.0.5"
 paperclip = { version = "0.9.5" , features = ["actix4", "swagger-ui", "uuid"] }
 serde = { version = "1.0.219", features = ["derive"] }
 regex = "1.11.1"
-rust-embed = "8.7.0"
+rust-embed = "8.7.2"
 serde_json = "1.0.140"
-tokio = { version = "1.44.2", features = ["full"] }
+tokio = { version = "1.46.1", features = ["full"] }
 tokio-serial = "5.4.5"
 tracing = { version = "0.1.41", features = ["log", "async-await"] }
 tracing-log = "0.2.0"
@@ -30,13 +30,14 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tracing-appender = "0.2.3"
 tracing-tracy = {version = "0.11.4", features = ["ondemand"] }
 udp-stream = "0.0.12"
-uuid = { version = "1.16.0", features = ["serde"] }
+uuid = { version = "1.17.0", features = ["serde"] }
 validator = "0.20.0"
 thiserror = "2.0.12"
 shellexpand = "3.1"
+foxglove = { version = "0.9.1", default-features = false, features = ["schemars"] }
 
-reqwest = {version = "0.12.15", features = ["json"], optional = true }
-openssl = { version = "0.10.72", features = ["vendored"], optional = true }
+reqwest = {version = "0.12.22", features = ["json"], optional = true }
+openssl = { version = "0.10.73", features = ["vendored"], optional = true }
 dirs = "6.0.0"
 
 
