@@ -7,6 +7,7 @@
 
 <script setup>
 import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { calculateRange, gradiansToDegrees } from '../../ping-device/utils/ping360-utils';
 import Ping1D from '../widgets/sonar1d/Ping1D.vue';
 import Ping360 from '../widgets/sonar360/Ping360.vue';
 
@@ -36,14 +37,35 @@ const deviceSpecificProps = computed(() => {
   };
 
   if (currentDeviceData.value.device.device_type === 'Ping360') {
+    const d = currentDeviceData.value.data.measurementRaw;
+    let maxRange = 300;
+    let startAngle = 0;
+    let endAngle = 360;
+    if (d) {
+      if (d.sample_period && d.number_of_samples) {
+        maxRange = calculateRange({
+          sample_period: d.sample_period,
+          number_of_samples: d.number_of_samples,
+          speed_of_sound: 1500,
+        });
+      }
+      if (d.start_angle === 0 && d.stop_angle === 399) {
+        startAngle = 0;
+        endAngle = 360;
+      } else {
+        startAngle = (gradiansToDegrees(d.start_angle) + 180) % 360;
+        endAngle = (gradiansToDegrees(d.stop_angle) + 180) % 360;
+      }
+    }
     return {
       ...baseProps,
       ...commonSettings,
       ...ping360Settings,
       measurement: currentDeviceData.value.data.measurement,
       angle: currentDeviceData.value.data.measurement.angle,
-      startAngle: 0,
-      endAngle: 360,
+      maxDistance: maxRange,
+      startAngle,
+      endAngle,
     };
   }
 
@@ -91,17 +113,16 @@ const updateCurrentDeviceData = async (frame) => {
   await handleDeviceTypeChange(frame.device.device_type);
 
   if (frame.device.device_type === 'Ping360') {
-    const dataArray = Array.isArray(frame.data.data)
-      ? frame.data.data
-      : Object.values(frame.data.data);
-
+    const d = frame.data;
+    const dataArray = Array.isArray(d.data) ? d.data : Object.values(d.data);
     currentDeviceData.value = {
       device: frame.device,
       data: {
         measurement: {
-          angle: frame.data.angle,
+          angle: d.angle,
           data: new Uint8Array(dataArray),
         },
+        measurementRaw: d,
       },
     };
   } else {
