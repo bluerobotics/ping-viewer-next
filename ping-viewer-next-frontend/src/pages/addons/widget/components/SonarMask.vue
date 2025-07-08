@@ -194,6 +194,11 @@ export default defineComponent({
       default: 'full',
       validator: (value) => ['full', 'upper-sector', 'lower-sector'].includes(value.toLowerCase()),
     },
+    isRecording: {
+      type: Boolean,
+      required: false,
+      default: true,
+    },
   },
 
   emits: ['button-click'],
@@ -433,12 +438,17 @@ export default defineComponent({
 
       const pixelPos = coordinateToPixels(button.coordinate);
 
+      let backgroundColor = button.color || '#1976D2';
+      if (button.id === 'recording') {
+        backgroundColor = props.isRecording ? '#F44336' : '#1976D2';
+      }
+
       return {
         left: `calc(${pixelPos.x}px - ${btnWidth / 2}px)`,
         top: `calc(${pixelPos.y}px - ${btnHeight / 2}px)`,
         width: `${btnWidth}px`,
         height: `${btnHeight}px`,
-        backgroundColor: button.color || '#1976D2',
+        backgroundColor,
       };
     };
 
@@ -473,6 +483,19 @@ export default defineComponent({
     };
 
     const ping360DefaultButtons = [
+      {
+        id: 'recording',
+        label: 'REC',
+        icon: 'mdi-record',
+        action: 'toggle_recording',
+        coordinate: {
+          type: 'polar',
+          r: 1,
+          angle: 175,
+        },
+        size: { width: 40, height: 40 },
+        color: '#F44336',
+      },
       {
         id: 'range-sequence-up',
         label: '⬆︎',
@@ -580,6 +603,19 @@ export default defineComponent({
     ];
 
     const ping1dDefaultButtons = [
+      {
+        id: 'recording',
+        label: 'REC',
+        icon: 'mdi-record',
+        action: 'toggle_recording',
+        coordinate: {
+          type: 'standard',
+          x: 0.05,
+          y: 0.8,
+        },
+        size: { width: 40, height: 40 },
+        color: '#F44336',
+      },
       {
         id: 'range-increase-1',
         label: '+1',
@@ -894,11 +930,13 @@ export default defineComponent({
     };
 
     const handleButtonClick = (button) => {
-      emit('button-click', {
-        action: button.action,
-        value: button.value,
-        id: button.id,
-      });
+      if (!editMode.value) {
+        emit('button-click', {
+          action: button.action,
+          value: button.value,
+          id: button.id,
+        });
+      }
     };
 
     const startDrag = (event, index) => {
@@ -1165,6 +1203,13 @@ export default defineComponent({
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     };
+
+    watch(
+      () => props.isRecording,
+      () => {
+        activeButtons.value = [...activeButtons.value];
+      }
+    );
 
     onMounted(() => {
       activeButtons.value = activeButtons.value.map((btn) => ensureButtonCoordinateFormat(btn));
