@@ -14,10 +14,18 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, watchEffect } from 'vue';
 import { useRoute } from 'vue-router';
+import { useTheme } from 'vuetify';
 import MainView from './views/Main.vue';
 
 const route = useRoute();
 const isWidgetRoute = computed(() => route.path.startsWith('/addons/widget/'));
+const theme = useTheme();
+
+watchEffect(() => {
+  if (isWidgetRoute.value) {
+    theme.global.name.value = 'light';
+  }
+});
 </script>
