@@ -38,7 +38,21 @@
   </v-container>
 </template>
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { BlobReadable } from '@mcap/browser';
+import { McapIndexedReader } from '@mcap/core';
+import { loadDecompressHandlers } from '@mcap/support';
+import { ref, watch } from 'vue';
+
+const props = defineProps({
+  mcapData: {
+    type: ArrayBuffer,
+    default: null,
+  },
+  autoPlay: {
+    type: Boolean,
+    default: true,
+  },
+});
 
 const loadedData = ref([]);
 const currentFrame = ref(0);
@@ -48,31 +62,185 @@ let playTimer = null;
 let startTime = 0;
 let baseTimestamp = 0;
 
-const emit = defineEmits(['update:currentFrame', 'loadedData']);
+const emit = defineEmits(['update:currentFrame', 'loadedData', 'parsingProgress']);
 
-const displayedFrame = computed(() => {
-  return Math.min(Math.max(1, currentFrame.value + 1), loadedData.value.length);
-});
+const loadMcapFromBuffer = async (arrayBuffer) => {
+  try {
+    let decompressHandlers = {};
+    try {
+      decompressHandlers = await loadDecompressHandlers();
+    } catch (error) {
+      console.warn('Could not load decompression handlers:', error);
+    }
 
-const loadFile = (event) => {
+    const blob = new Blob([arrayBuffer], { type: 'application/octet-stream' });
+    const reader = await McapIndexedReader.Initialize({
+      readable: new BlobReadable(blob),
+      decompressHandlers,
+    });
+
+    const messages = [];
+    let messageCount = 0;
+    let totalMessages = 0;
+    if (
+      reader.messageIndex &&
+      Array.isArray(reader.messageIndex) &&
+      reader.messageIndex.length > 0
+    ) {
+      totalMessages = Number(reader.messageIndex.length);
+    } else if (reader.statistics?.messageCount) {
+      totalMessages = Number(reader.statistics.messageCount);
+    }
+
+    for await (const msg of reader.readMessages()) {
+      messages.push(msg);
+      messageCount++;
+      if (totalMessages > 0) {
+        if (messageCount % 100 === 0 || messageCount === totalMessages) {
+          emit('parsingProgress', Math.floor((messageCount / totalMessages) * 100));
+        }
+      }
+    }
+
+    loadedData.value = messages.flatMap((msg, index) => {
+      let parsedData;
+
+      try {
+        if (msg.data instanceof Uint8Array) {
+          const decoded = new TextDecoder().decode(msg.data);
+          try {
+            parsedData = JSON.parse(decoded);
+          } catch {
+            parsedData = { raw: decoded };
+          }
+        } else if (typeof msg.data === 'object') {
+          parsedData = msg.data;
+        } else {
+          parsedData = { raw: msg.data };
+        }
+      } catch (decodeError) {
+        console.warn('Error decoding message data:', decodeError);
+        parsedData = { raw: Array.from(msg.data) };
+      }
+
+      const timestamp = new Date(Number(msg.logTime / 1_000_000n)).toISOString();
+
+      const channelInfo = reader.channelsById.get(msg.channelId);
+      const topic = channelInfo?.topic;
+
+      if (!topic) {
+        return [];
+      }
+
+      const deviceMatch = topic.match(/\/device_([^\/]+)\/(.+)$/);
+      if (!deviceMatch) {
+        return [];
+      }
+
+      const deviceId = deviceMatch[1];
+      const rawDeviceType = deviceMatch[2];
+
+      // Normalize device type to expected format
+      let deviceType;
+      switch (rawDeviceType.toLowerCase()) {
+        case 'ping1d':
+          deviceType = 'Ping1D';
+          break;
+        case 'ping360':
+          deviceType = 'Ping360';
+          break;
+        default:
+          return [];
+      }
+
+      // Transform to match your expected JSON structure based on device type
+      if (deviceType === 'Ping1D') {
+        return [
+          {
+            timestamp,
+            device: {
+              id: deviceId,
+              device_type: deviceType,
+            },
+            data: {
+              sensorData: parsedData.profile_data,
+              currentDepth: parsedData.distance / 1000,
+              minDepth: parsedData.scan_start / 1000,
+              maxDepth: parsedData.scan_length / 1000,
+              confidence: parsedData.confidence,
+              accuracy:
+                ((100 - parsedData.confidence) / 100) *
+                (parsedData.scan_length / 1000 - parsedData.scan_start / 1000) *
+                0.1,
+            },
+          },
+        ];
+      }
+      if (deviceType === 'Ping360') {
+        return [
+          {
+            timestamp,
+            device: {
+              id: deviceId,
+              device_type: deviceType,
+            },
+            data: {
+              angle: parsedData.angle,
+              data: parsedData.data,
+              sample_period: parsedData.sample_period,
+              number_of_samples: parsedData.number_of_samples,
+              start_angle: parsedData.start_angle,
+              stop_angle: parsedData.stop_angle,
+            },
+          },
+        ];
+      }
+    });
+
+    currentFrame.value = 0;
+    if (loadedData.value.length > 0) {
+      baseTimestamp = new Date(loadedData.value[0].timestamp).getTime();
+    }
+
+    emit('loadedData', loadedData.value);
+    updateCurrentFrame();
+
+    // Auto-play if enabled and we have data
+    if (props.autoPlay && loadedData.value.length > 0) {
+      // Small delay to ensure everything is ready
+      setTimeout(() => {
+        play();
+      }, 100);
+    }
+  } catch (error) {
+    console.error('Detailed error loading MCAP file:', error);
+    console.error('Error stack:', error.stack);
+    const errorMessage = error.message;
+    alert(`Error loading MCAP file: ${errorMessage}\nCheck console for details.`);
+  }
+};
+
+const loadFile = async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      loadedData.value = JSON.parse(e.target.result);
-      currentFrame.value = 0;
-      baseTimestamp = new Date(loadedData.value[0].timestamp).getTime();
-      emit('loadedData', loadedData.value);
-      updateCurrentFrame();
-    } catch (error) {
-      console.error('Error parsing JSON file:', error);
-      alert("Error loading file. Please ensure it's a valid JSON file.");
-    }
-  };
-  reader.readAsText(file);
+  if (file.name.endsWith('.mcap')) {
+    const arrayBuffer = await file.arrayBuffer();
+    await loadMcapFromBuffer(arrayBuffer);
+  } else {
+    alert('Unsupported file type. Please select a .mcap file.');
+  }
 };
+
+watch(
+  () => props.mcapData,
+  async (newData) => {
+    if (newData) {
+      await loadMcapFromBuffer(newData);
+    }
+  },
+  { immediate: true }
+);
 
 const play = () => {
   if (currentFrame.value >= loadedData.value.length - 1) {
@@ -92,13 +260,12 @@ const pause = () => {
   }
 };
 
-const stop = () => {
-  isPlaying.value = false;
-  currentFrame.value = 0;
-  if (playTimer) {
-    clearTimeout(playTimer);
+const togglePlayPause = () => {
+  if (isPlaying.value) {
+    pause();
+  } else {
+    play();
   }
-  updateCurrentFrame();
 };
 
 const playNextFrame = () => {
@@ -151,5 +318,5 @@ watch(playbackSpeed, () => {
   }
 });
 
-defineExpose({ loadFile, play, pause, stop });
+defineExpose({ loadFile, play, pause, togglePlayPause });
 </script>
