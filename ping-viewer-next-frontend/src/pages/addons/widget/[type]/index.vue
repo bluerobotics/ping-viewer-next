@@ -23,7 +23,7 @@
 
     <div v-else-if="widgetComponent && deviceData" class="widget-container h-full w-full">
       <component :is="widgetComponent" v-bind="widgetProps" class="h-full w-full bg-transparent" ref="widgetRef" />
-      <SonarMask :width="dimensions.width" :height="dimensions.height" :type="widgetType" :polar_mode="polarMode"
+      <SonarMask :width="dimensions.width" :height="dimensions.height" :type="widgetType" :polar_mode="polarMode" :isRecording="isRecording"
         class="widget-mask" @button-click="handleMaskButtonClick" />
     </div>
   </div>
@@ -54,8 +54,11 @@ export default defineComponent({
     const deviceData = ref(null);
     const dimensions = ref({ width: 0, height: 0 });
     const yawAngle = ref(0);
+    const isRecording = ref(false);
 
     let resizeObserver = null;
+    let datalakeUnsubscribe = null;
+    let recordingWebSocket = null;
 
     const updateDimensions = () => {
       if (!containerRef.value) return;
@@ -85,6 +88,92 @@ export default defineComponent({
       const host = new URL(serverUrl.value).host;
       return `${wsProtocol}//${host}/ws?device_number=${deviceId.value}`;
     });
+
+    const recordingWebSocketUrl = computed(() => {
+      if (!serverUrl.value) return '';
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = new URL(serverUrl.value).host;
+      return `${wsProtocol}//${host}/ws/recording`;
+    });
+
+    const setupRecordingWebSocket = () => {
+      if (!recordingWebSocketUrl.value || !deviceId.value) return;
+
+      try {
+        recordingWebSocket = new WebSocket(recordingWebSocketUrl.value);
+
+        recordingWebSocket.onopen = () => {};
+
+        recordingWebSocket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+
+            if (data.device_id === deviceId.value) {
+              isRecording.value = data.is_active || false;
+            }
+          } catch (err) {
+            console.error('Error parsing recording WebSocket message:', err);
+          }
+        };
+
+        recordingWebSocket.onerror = (error) => {
+          console.error('Recording WebSocket error:', error);
+        };
+
+        recordingWebSocket.onclose = (event) => {
+          if (event.code !== 1000 && deviceId.value) {
+            setTimeout(() => {
+              if (deviceId.value) {
+                setupRecordingWebSocket();
+              }
+            }, 3000);
+          }
+        };
+      } catch (err) {
+        console.error('Error setting up recording WebSocket:', err);
+      }
+    };
+
+    const closeRecordingWebSocket = () => {
+      if (recordingWebSocket) {
+        recordingWebSocket.close(1000, 'Component unmounting');
+        recordingWebSocket = null;
+      }
+    };
+
+    const fetchInitialRecordingStatus = async () => {
+      if (!serverUrl.value || !deviceId.value) return;
+
+      try {
+        const response = await fetch(`${serverUrl.value}/v1/recordings_manager/list`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          console.warn('Failed to fetch initial recording status:', response.statusText);
+          return;
+        }
+
+        const data = await response.json();
+
+        const deviceRecording = data.AllRecordingStatus?.find(
+          (recording) => recording.device_id === deviceId.value
+        );
+
+        if (deviceRecording) {
+          isRecording.value = deviceRecording.is_active || false;
+        } else {
+          isRecording.value = false;
+        }
+      } catch (err) {
+        console.error('Error fetching initial recording status:', err);
+        isRecording.value = false;
+      }
+    };
 
     const commonProps = {
       width: window.innerWidth,
@@ -163,6 +252,10 @@ export default defineComponent({
         const { action, value, id } = buttonEvent;
 
         switch (action) {
+          case 'toggle_recording':
+            await deviceInstance.value.common.toggleRecording();
+            break;
+
           case 'increase_range':
             if (widgetType.value === 'ping360') {
               const rangeTarget = value || '+10%';
@@ -512,6 +605,8 @@ export default defineComponent({
 
         deviceData.value = device;
         isLoading.value = false;
+        await fetchInitialRecordingStatus();
+        setupRecordingWebSocket();
       } catch (err) {
         console.error('Widget initialization error:', err);
         error.value = err.message;
@@ -558,9 +653,15 @@ export default defineComponent({
         resizeObserver.disconnect();
       }
 
+      if (datalakeUnsubscribe) {
+        datalakeUnsubscribe();
+      }
+
       if (deviceInstance.value) {
         deviceInstance.value.common.disconnect();
       }
+
+      closeRecordingWebSocket();
 
       window.removeEventListener('resize', updateDimensions);
     });
@@ -581,6 +682,7 @@ export default defineComponent({
       widgetType,
       handleMaskButtonClick,
       polarMode,
+      isRecording,
     };
   },
 });
