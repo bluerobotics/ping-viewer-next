@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
+pub mod recording;
+
 #[cfg(not(feature = "embed-frontend"))]
 #[derive(rust_embed::RustEmbed)]
 #[folder = "src/server/protocols/v1/frontend"]
@@ -62,6 +64,9 @@ pub fn register_services(cfg: &mut web::ServiceConfig) {
         .service(post_request)
         .service(device_manager_get)
         .service(device_manager_post)
+        .service(recording::recording_manager_get)
+        .service(recording::recording_manager_post)
+        .service(recording::recordings_manager_post_request)
         .service(post_create)
         .service(device_manager_device_get)
         .service(device_manager_device_ping1d_get)
@@ -69,6 +74,8 @@ pub fn register_services(cfg: &mut web::ServiceConfig) {
         .service(device_manager_device_common_get)
         .service(addons_handler)
         .service(cockpit_extras)
+        .service(recording::list_mcap_recordings)
+        .service(recording::download_mcap_file)
         .service(index_files);
 }
 
