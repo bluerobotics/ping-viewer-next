@@ -19,9 +19,17 @@ async fn main() {
         }
     }
 
+    let (recordings_manager, recordings_manager_handler) =
+        device::recording::RecordingManager::new(10, "recordings", handler.clone());
+    tokio::spawn(async move { recordings_manager.run().await });
+
     tokio::spawn(async move { manager.run().await });
 
-    server::manager::run(&cli::manager::server_address(), handler)
-        .await
-        .unwrap();
+    server::manager::run(
+        &cli::manager::server_address(),
+        handler,
+        recordings_manager_handler,
+    )
+    .await
+    .unwrap();
 }

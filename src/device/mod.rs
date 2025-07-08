@@ -13,3 +13,7 @@ pub mod devices;
 /// If a device is stopped or encounters an error during execution, it can be recovered
 /// and made available again.
 pub mod manager;
+
+/// The `recording` module provides functionalities for recording device measurements
+/// and managing current recording sessions.
+pub mod recording;
