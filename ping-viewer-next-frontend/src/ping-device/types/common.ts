@@ -66,6 +66,7 @@ export interface PingDeviceAPI {
 
   isPing360: Ref<boolean>;
   isPing1D: Ref<boolean>;
+  isRecording: Ref<boolean>;
 
   data: {
     messages: Ref<DeviceResponse[]>;
@@ -91,6 +92,10 @@ export interface PingDeviceAPI {
     disconnect: () => void;
     reconnect: () => void;
     sendConfigRequest: (key: string, value: number | string | boolean) => boolean;
+    toggleRecording: () => Promise<boolean>;
+    startRecording: () => Promise<boolean>;
+    stopRecording: () => Promise<boolean>;
+    getRecordingStatus: () => Promise<RecordingStatus | null>;
   };
 
   ping360: {
@@ -127,4 +132,12 @@ export interface PingDeviceAPI {
     setGainSetting: (gainSetting: number) => Promise<boolean>;
     setSpeedOfSound: (speedOfSound: number) => Promise<boolean>;
   };
+}
+
+export interface RecordingStatus {
+  device_id: string;
+  is_active: boolean;
+  file_path?: string;
+  start_time?: string;
+  device_type?: string;
 }
