@@ -8,14 +8,53 @@
         </div>
 
         <div v-if="isReplayActive" class="device-viewer" :class="{ 'glass-inner disable-hover': glass }">
-          <div class="device-header" :class="{ 'glass-inner disable-hover': glass }">
-            <v-btn icon="mdi-close" variant="text" @click="closeReplay" />
-            <div class="device-info">
-              <span class="device-type">{{ replayData.deviceType }} Replay</span>
-            </div>
-            <div class="replay-controls" :class="{ 'glass-inner disable-hover': glass }">
-              <DataPlayer ref="dataPlayer" @update:currentFrame="handleReplayFrame"
-                @loadedData="handleReplayDataLoaded" />
+
+          <v-dialog v-model="isReplayProgressDialogOpen" persistent max-width="400">
+            <v-card class="pa-6 text-center glass d-flex flex-column align-center justify-center position-relative">
+              <div class="d-flex justify-space-between align-center w-100 mb-4" style="min-height: 40px;">
+                <span class="text-h6">File Loader</span>
+                <v-btn icon="mdi-close" variant="text" class="ml-auto" style="position: absolute; top: 8px; right: 8px; z-index: 2;"
+                  @click="() => { isReplayActive.value = false; isReplayLoading.value = false; isReplayParsing.value = false; replayData.value = null; }" />
+              </div>
+              <v-progress-circular
+                :model-value="isReplayLoading ? replayDownloadProgress : replayParsingProgress"
+                color="primary-tonal"
+                :size="100"
+                :width="15"
+                class="mb-4"
+              >
+                <template v-slot:default>
+                  {{ isReplayLoading ? replayDownloadProgress : replayParsingProgress }} %
+                </template>
+              </v-progress-circular>
+              <div class="mt-2 text-h6">
+                {{ isReplayLoading ? 'Downloading replay...' : 'Parsing MCAP file...' }}
+              </div>
+            </v-card>
+          </v-dialog>
+
+          <div class="replay-controls-container center-bottom" :class="{ 'show-panel': showReplayControlsPanel }">
+            <v-btn
+              class="replay-controls-trigger square-button"
+              :class="{ glass }"
+              icon="mdi-play-box-outline"
+              variant="text"
+            />
+            <div class="replay-controls-panel" :class="{ 'glass': glass }">
+              <div class="replay-controls-header">
+                <span>Replay Menu</span>
+                <v-btn icon="mdi-close" variant="text" @click="closeReplay" class="close-replay-btn" />
+              </div>
+              <div class="replay-player-horizontal" :class="{ 'glass-inner disable-hover': glass }">
+                <DataPlayer
+                  ref="dataPlayer"
+                  :mcap-data="replayData?.data"
+                  :auto-play="true"
+                  @update:currentFrame="handleReplayFrame"
+                  @loadedData="handleReplayDataLoaded"
+                  @parsingProgress="handleReplayParsingProgress"
+                />
+              </div>
             </div>
           </div>
           <ReplayView ref="replayViewRef" class="device-content" v-bind="deviceSettings" />
@@ -98,21 +137,20 @@
               <v-btn icon="mdi-close" variant="text" @click="showRecordingsMenu = false" />
             </div>
 
-            <v-btn block variant="tonal" class="mb-4" @click="playRecording" prepend-icon="mdi-replay">
-              Play records
-            </v-btn>
+            <div v-if="isLoadingRecordings" class="text-center pa-4">
+              <v-progress-circular indeterminate color="primary" />
+              <div class="mt-2">Loading recordings...</div>
+            </div>
 
-            <div v-if="recordings.length === 0" class="text-center pa-4 text-medium-emphasis">
+            <div v-else-if="recordings.length === 0" class="text-center pa-4 text-medium-emphasis">
               <v-icon size="48" class="mb-2">mdi-video-off</v-icon>
               <div>No recordings available</div>
               <div class="text-caption mt-2">
-                Records will appear here when you capture data from devices
+                MCAP recordings will appear here when you capture data from devices
               </div>
             </div>
 
             <v-list v-else :class="{ 'glass-inner': glass }">
-              <v-list-subheader>Recent Recordings</v-list-subheader>
-
               <v-list-item v-for="recording in recordings" :key="recording.id"
                 :class="{ 'new-recording': !recording.downloaded }">
                 <template v-slot:prepend>
@@ -127,7 +165,7 @@
                   {{ formatRecordingDate(recording.timestamp) }}
                 </v-list-item-subtitle>
 
-                <v-list-item-subtitle v-if="recording.settings" class="text-caption">
+                <v-list-item-subtitle class="text-caption">
                   {{ formatRecordingDetails(recording) }}
                 </v-list-item-subtitle>
 
@@ -136,7 +174,7 @@
                     <v-tooltip location="top" text="Play Recording">
                       <template v-slot:activator="{ props }">
                         <v-btn v-bind="props" icon="mdi-play" variant="text" size="small"
-                          @click="playRecording(recording)" :disabled="isReplayActive" />
+                          @click="playRecording(recording)" />
                       </template>
                     </v-tooltip>
 
@@ -146,37 +184,46 @@
                           @click="downloadRecording(recording)" />
                       </template>
                     </v-tooltip>
-
-                    <v-tooltip location="top" text="Delete Recording">
-                      <template v-slot:activator="{ props }">
-                        <v-btn v-bind="props" icon="mdi-delete" variant="text" size="small" color="error"
-                          @click="deleteRecording(recording)" />
-                      </template>
-                    </v-tooltip>
                   </div>
                 </template>
               </v-list-item>
             </v-list>
-
-            <v-card-actions v-if="recordings.length > 0" class="mt-4">
-              <v-spacer />
-              <v-btn color="error" variant="text" @click="clearRecordings">
-                Clear All
-              </v-btn>
-            </v-card-actions>
           </div>
         </v-card>
 
         <v-btn class="bottom-button square-button" :class="{ glass }" @click="showRecordingsMenu = !showRecordingsMenu">
-          <v-badge :content="undownloadedRecordings.length.toString()" :model-value="undownloadedRecordings.length > 0"
-            color="error" location="top end" offset-x="-6" offset-y="-6">
+          <v-badge :content="recordings.length.toString()" :model-value="recordings.length > 0"
+            color="primary" location="top end" offset-x="-6" offset-y="-6">
             <v-icon icon="mdi-video-image" :size="iconSize" :color="iconColor" />
           </v-badge>
         </v-btn>
 
-        <v-btn class="bottom-right-button square-button" :class="{ glass }">
-          <v-icon icon="mdi-bell" :size="iconSize" :color="iconColor" />
+        <v-btn class="bottom-right-button square-button" :class="{ glass }" @click="showNotifications = !showNotifications">
+          <v-badge
+            v-if="unreadCount > 0"
+            :content="unreadCount"
+            color="error"
+            location="top end"
+            offset-x="-6"
+            offset-y="-6"
+          >
+            <v-icon icon="mdi-bell" :size="iconSize" :color="iconColor" />
+          </v-badge>
+          <v-icon v-else icon="mdi-bell" :size="iconSize" :color="iconColor" />
         </v-btn>
+
+        <v-card class="notification-menu-wrapper" :class="{ 'glass': glass }" v-if="showNotifications">
+          <div class="d-flex justify-space-between align-center px-4 pt-4">
+            <div class="text-h6">Notifications</div>
+            <v-btn icon="mdi-close" variant="text" @click="showNotifications = false" />
+          </div>
+          <NotificationMenu
+            :glass="glass"
+            :icon-size="iconSize"
+            :is-open="showNotifications"
+            @update:is-open="showNotifications = $event"
+          />
+        </v-card>
 </template>
 
 <script setup>
@@ -195,6 +242,7 @@ import {
 import { useDisplay, useTheme } from 'vuetify';
 
 import ConnectionManager from '../components/utils/ConnectionManager.vue';
+import NotificationMenu from '../components/utils/NotificationMenu.vue';
 import ServerConnection from '../components/utils/ServerConnection.vue';
 import VisualSettings from '../components/utils/VisualSettings.vue';
 import ReplayView from '../components/views/ReplayView.vue';
@@ -203,6 +251,8 @@ import Ping1DSettings from '../components/widgets/sonar1d/Ping1DSettings.vue';
 import Ping360Loader from '../components/widgets/sonar360/Ping360Loader.vue';
 import Ping360Settings from '../components/widgets/sonar360/Ping360Settings.vue';
 import { useMenuCoordination } from '../composables/useMenuCoordination';
+import { wsManager } from '../composables/useRecordingSessions';
+import { useNotificationStore } from '../stores/notificationStore';
 
 const { name: breakpoint } = useDisplay();
 const theme = useTheme();
@@ -220,18 +270,26 @@ const showRecordingsMenu = ref(false);
 const isSpeedDialOpen = ref(false);
 const isGlassMode = ref(true);
 const isMenuOpen = ref(false);
-const showNotification = ref(false);
+const showNotifications = ref(false);
 const recordings = ref([]);
 const replayData = ref(null);
 const isReplayActive = ref(false);
 const replayViewRef = ref(null);
 const dataPlayer = ref(null);
+const isLoadingRecordings = ref(false);
+const showReplayControlsPanel = ref(false);
+const isReplayLoading = ref(false);
+const isReplayParsing = ref(false);
+const replayDownloadProgress = ref(0);
+const replayParsingProgress = ref(0);
+let replayControlsTimeout = null;
 
 const menus = {
   connection: isConnectionMenuOpen,
   middle: isMenuOpen,
   recordings: showRecordingsMenu,
   settings: showSettings,
+  notifications: showNotifications,
 };
 
 useMenuCoordination(menus);
@@ -273,10 +331,6 @@ const ping360Settings = reactive({
 });
 
 const glass = computed(() => isGlassMode.value);
-
-const undownloadedRecordings = computed(() =>
-  recordings.value.filter((recording) => !recording.downloaded)
-);
 
 const deviceSettings = computed(() => {
   if (!activeDevice.value) return {};
@@ -415,6 +469,11 @@ const processWebSocketMessage = (data) => {
 };
 
 const handleDeviceSelection = (device) => {
+  if (isReplayActive.value) {
+    isReplayActive.value = false;
+    replayData.value = null;
+    showReplayControlsPanel.value = false;
+  }
   selectDevice(device);
   isConnectionMenuOpen.value = false;
 };
@@ -533,24 +592,68 @@ const updateDarkMode = (value) => {
   toggleTheme();
 };
 
-const playRecording = (recording) => {
-  showRecordingsMenu.value = false;
-  isReplayActive.value = true;
-  replayData.value = recording;
+const playRecording = async (recording) => {
+  if (!serverUrl.value) return;
 
-  if (activeDevice.value) {
-    activeDevice.value = null;
+  isReplayLoading.value = true;
+  isReplayParsing.value = false;
+  isReplayActive.value = true;
+  replayDownloadProgress.value = 0;
+
+  try {
+    const response = await fetch(`${serverUrl.value}/recordings/download/${recording.fileName}`);
+    if (!response.ok) throw new Error('Failed to download recording for playback');
+
+    const contentLength = response.headers.get('Content-Length');
+    const total = contentLength ? Number.parseInt(contentLength, 10) : 0;
+    const reader = response.body.getReader();
+    let received = 0;
+    const chunks = [];
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      if (total) {
+        replayDownloadProgress.value = Math.floor((received / total) * 100);
+      }
+    }
+
+    // Combine chunks into a single ArrayBuffer
+    const blob = new Blob(chunks);
+    const arrayBuffer = await blob.arrayBuffer();
+
+    isReplayLoading.value = false;
+    isReplayParsing.value = true;
+
+    showRecordingsMenu.value = false;
+
+    if (dataPlayer.value && isReplayActive.value) {
+      await nextTick();
+    }
+
+    replayData.value = {
+      ...recording,
+      data: arrayBuffer,
+      isMcap: true,
+    };
+
+    if (activeDevice.value) {
+      activeDevice.value = null;
+    }
+  } catch (error) {
+    console.error('Error loading recording for playback:', error);
+    isReplayLoading.value = false;
+    isReplayParsing.value = false;
+    isReplayActive.value = false;
   }
 };
 
 const closeReplay = () => {
   isReplayActive.value = false;
   replayData.value = null;
-};
-
-const handleRecordingComplete = (recordingData) => {
-  recordings.value.unshift(recordingData);
-  showNotification.value = true;
+  showReplayControlsPanel.value = false;
 };
 
 const formatRecordingDate = (timestamp) => {
@@ -558,6 +661,10 @@ const formatRecordingDate = (timestamp) => {
 };
 
 const formatRecordingDetails = (recording) => {
+  if (recording.isMcap) {
+    return `${formatFileSize(recording.fileSize)}`;
+  }
+
   if (!recording.settings) return '';
 
   const details = [];
@@ -576,39 +683,29 @@ const formatRecordingDetails = (recording) => {
   return details.join(' | ');
 };
 
-const downloadRecording = (recording) => {
-  const dataStr = JSON.stringify(recording.data, null, 2);
-  const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
+const downloadRecording = async (recording) => {
+  if (!serverUrl.value) return;
 
-  const linkElement = document.createElement('a');
-  linkElement.setAttribute('href', dataUri);
-  linkElement.setAttribute('download', recording.fileName);
-  linkElement.click();
-
-  const index = recordings.value.findIndex((r) => r.id === recording.id);
-  if (index !== -1) {
-    recordings.value[index] = { ...recordings.value[index], downloaded: true };
-  }
-};
-
-const deleteRecording = (recording) => {
-  const index = recordings.value.findIndex((r) => r.id === recording.id);
-  if (index !== -1) {
-    recordings.value.splice(index, 1);
-    saveRecordingsToStorage();
-  }
-};
-
-const clearRecordings = () => {
-  recordings.value = [];
-  saveRecordingsToStorage();
-};
-
-const saveRecordingsToStorage = () => {
   try {
-    localStorage.setItem('sonar-recordings', JSON.stringify(recordings.value));
+    const response = await fetch(`${serverUrl.value}/recordings/download/${recording.fileName}`);
+    if (!response.ok) {
+      throw new Error('Failed to download recording');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', url);
+    linkElement.setAttribute('download', recording.fileName);
+    linkElement.click();
+    window.URL.revokeObjectURL(url);
+
+    const index = recordings.value.findIndex((r) => r.id === recording.id);
+    if (index !== -1) {
+      recordings.value[index] = { ...recordings.value[index], downloaded: true };
+    }
   } catch (error) {
-    console.error('Error saving recordings to storage:', error);
+    console.error('Error downloading recording:', error);
   }
 };
 
@@ -617,7 +714,17 @@ const handleReplayFrame = (frame) => {
 };
 
 const handleReplayDataLoaded = (data) => {
+  isReplayParsing.value = false;
   replayViewRef.value?.onDataLoaded(data);
+  showReplayControlsPanel.value = true;
+  if (replayControlsTimeout) clearTimeout(replayControlsTimeout);
+  replayControlsTimeout = setTimeout(() => {
+    showReplayControlsPanel.value = false;
+  }, 3000);
+};
+
+const handleReplayParsingProgress = (progress) => {
+  replayParsingProgress.value = progress;
 };
 
 const toggleTheme = () => {
@@ -631,8 +738,45 @@ const handleFullscreenChange = () => {
 
 const onServerConnected = (url) => {
   serverUrl.value = url;
-  localStorage.setItem('serverUrl', url);
-  connectWebSocket();
+  wsManager.connect(url);
+  wsManager.addListener((data) => {
+    if (data.device_id) {
+      const sessionData = data.RecordingStatus || data;
+      const existingSession = recordingSessions.value.get(sessionData.device_id);
+      const statusChanged = !existingSession || existingSession.is_active !== sessionData.is_active;
+
+      // Update recording session state
+      recordingSessions.value.set(sessionData.device_id, sessionData);
+
+      // Show notification only if status changed
+      if (statusChanged) {
+        if (sessionData.is_active) {
+          notificationStore.addNotification({
+            title: 'Recording Started',
+            message: `Recording started for device ${sessionData.device_id}`,
+            icon: 'mdi-record',
+            color: 'success',
+            device_type: sessionData.device_type,
+            device_id: sessionData.device_id,
+          });
+        } else {
+          notificationStore.addNotification({
+            title: 'Recording Stopped',
+            message: `Recording stopped for device ${sessionData.device_id}`,
+            icon: 'mdi-stop',
+            color: 'error',
+            device_type: sessionData.device_type,
+            device_id: sessionData.device_id,
+          });
+        }
+      }
+    } else if (data.AllRecordingStatus) {
+      // Handle initial status fetch
+      for (const session of data.AllRecordingStatus) {
+        recordingSessions.value.set(session.device_id, session);
+      }
+    }
+  });
 };
 
 const handleServerUrlUpdate = async (newUrl) => {
@@ -787,9 +931,101 @@ watchOnce(serverUrl, (newUrl) => {
   }
 });
 
+const notificationStore = useNotificationStore();
+const notifications = computed(() => notificationStore.notifications);
+const unreadCount = computed(() => notifications.value.filter((n) => !n.read).length);
+
+const recordingSessions = ref(new Map());
+
+const fetchInitialRecordingStatuses = async () => {
+  if (!serverUrl.value) return;
+
+  try {
+    const response = await fetch(`${serverUrl.value}/v1/device_manager/GetAllRecordingStatus`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch recording statuses');
+    }
+    const data = await response.json();
+    if (data.AllRecordingStatus) {
+      for (const session of data.AllRecordingStatus) {
+        recordingSessions.value.set(session.device_id, session);
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching initial recording statuses:', err);
+  }
+};
+
+const fetchRecordings = async () => {
+  if (!serverUrl.value) return;
+
+  isLoadingRecordings.value = true;
+  try {
+    const response = await fetch(`${serverUrl.value}/recordings/list`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch recordings');
+    }
+
+    const files = await response.json();
+    recordings.value = files.map((file) => ({
+      id: file.file_name, // Use filename as ID since it's unique
+      fileName: file.file_name,
+      fileSize: file.file_size,
+      modified: file.modified,
+      timestamp: file.modified,
+      deviceType: extractDeviceTypeFromFileName(file.file_name),
+      deviceId: extractDeviceIdFromFileName(file.file_name),
+      downloaded: false,
+      isMcap: true,
+    }));
+  } catch (error) {
+    console.error('Error fetching recordings:', error);
+    recordings.value = [];
+  } finally {
+    isLoadingRecordings.value = false;
+  }
+};
+
+const extractDeviceTypeFromFileName = (fileName) => {
+  // Extract device type from filename pattern
+  // Example: device_00000000-0000-0000-c82c-5029143af4e9_20250626_164121.mcap
+  if (fileName.includes('ping360') || fileName.includes('Ping360')) {
+    return 'Ping360';
+  }
+  if (fileName.includes('ping1d') || fileName.includes('Ping1D')) {
+    return 'Ping1D';
+  }
+  return 'Unknown';
+};
+
+const extractDeviceIdFromFileName = (fileName) => {
+  // Extract device ID from filename pattern
+  const match = fileName.match(/device_([a-f0-9-]+)_/);
+  return match ? match[1] : 'unknown';
+};
+
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
+};
+
+// Watch for recordings menu to open and fetch recordings
+watch(
+  () => showRecordingsMenu.value,
+  (newValue) => {
+    if (newValue && serverUrl.value) {
+      fetchRecordings();
+    }
+  }
+);
+
 onMounted(() => {
   loadSettings();
   initializeYawConnection();
+  fetchInitialRecordingStatuses();
 
   const savedTheme = localStorage.getItem('theme');
   if (savedTheme) {
@@ -799,15 +1035,6 @@ onMounted(() => {
     const prefersDark = window.matchMedia('(prefers-color-scheme: light)').matches;
     theme.global.name.value = prefersDark ? 'dark' : 'light';
     isDarkMode.value = prefersDark;
-  }
-
-  try {
-    const savedRecordings = localStorage.getItem('sonar-recordings');
-    if (savedRecordings) {
-      recordings.value = JSON.parse(savedRecordings);
-    }
-  } catch (error) {
-    console.error('Error loading saved recordings:', error);
   }
 
   const autoConnectMavlink = localStorage.getItem('autoConnectMavlink') === 'true';
@@ -828,6 +1055,7 @@ onUnmounted(() => {
   if (websocket.value) {
     websocket.value.close();
   }
+  wsManager.disconnect();
   document.removeEventListener('fullscreenchange', handleFullscreenChange);
   cleanupYawConnection();
 });
@@ -847,13 +1075,17 @@ provide('deviceSettings', {
 
 provide('recordings', {
   recordings,
-  handleRecordingComplete,
+  fetchRecordings,
 });
 
 provide('yawAngle', yawAngle);
 provide('yawConnectionStatus', yawConnectionStatus);
 provide('connectYawWebSocket', connectYawWebSocket);
 provide('cleanupYawConnection', cleanupYawConnection);
+provide('wsManager', wsManager);
+provide('recordingSessions', recordingSessions);
+
+const isReplayProgressDialogOpen = computed(() => isReplayLoading.value || isReplayParsing.value);
 </script>
 
 <style>
@@ -1136,7 +1368,6 @@ provide('cleanupYawConnection', cleanupYawConnection);
   flex-direction: column;
 }
 
-
 .device-header {
   padding: 1rem;
   display: flex;
@@ -1177,24 +1408,186 @@ provide('cleanupYawConnection', cleanupYawConnection);
   left: calc(var(--button-size) + var(--button-gap));
   z-index: 999;
   border-radius: var(--border-radius);
+  max-height: calc(100vh - 2 * (var(--button-size) + var(--button-gap)));
+  overflow: hidden;
 }
 
-.recordings-list {
-  max-height: 20vh;
+.menu-content {
+  width: 100%;
+  padding: 1rem;
+}
+
+.v-list {
   overflow-y: auto;
+  height: 350px;
 }
 
-.new-recording {
-  background: rgba(var(--v-theme-primary), 0.1);
+.menu-actions {
+  margin-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.replay-controls {
-  border-bottom: 1px solid rgba(var(--v-border-color), 0.12);
+.v-icon {
+  transition: transform 0.3s ease;
+}
+
+.rotate-180 {
+  transform: rotate(180deg);
 }
 
 @media (max-width: 600px) {
   .recordings-menu-wrapper {
     width: calc(100vw - var(--button-size) - var(--button-gap) * 2);
   }
+}
+
+.notification-menu {
+  z-index: 1000;
+}
+
+.notification-card {
+  overflow: hidden;
+}
+
+.notification-list {
+  overflow-y: auto;
+}
+
+.notification-list .v-list-item {
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.notification-list .v-list-item:last-child {
+  border-bottom: none;
+}
+
+.notification-list .v-list-item.unread {
+  background-color: rgba(var(--v-theme-primary), 0.05);
+}
+
+.notification-list .v-list-item.unread::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: rgb(var(--v-theme-primary));
+}
+
+.notification-menu-wrapper {
+  position: fixed;
+  bottom: calc(var(--button-size) + var(--button-gap));
+  right: calc(var(--button-size) + var(--button-gap));
+  z-index: 999;
+  border-radius: var(--border-radius);
+  max-height: calc(100vh - 2 * (var(--button-size) + var(--button-gap)));
+  overflow: hidden;
+}
+
+@media (max-width: 600px) {
+  .notification-menu-wrapper {
+    width: calc(100vw - var(--button-size) - var(--button-gap) * 2);
+  }
+}
+
+.replay-controls-container.center-bottom {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  top: unset;
+  right: unset;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--button-gap);
+}
+
+.replay-controls-trigger {
+  border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+  border-bottom: none !important;
+}
+
+.replay-controls-panel {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--button-size) + var(--button-gap));
+  top: unset;
+  right: unset;
+  transform: translate(-50%, 20px);
+  opacity: 0;
+  visibility: hidden;
+  min-width: 600px;
+  max-width: 900px;
+  transition: all 0.3s cubic-bezier(.4,0,.2,1);
+  transition-delay: 0.1s;
+  border-radius: var(--border-radius);
+  padding: 1.5rem 2rem;
+  background: rgb(var(--v-theme-background));
+  box-shadow: 0px 4px 24px 0px rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.replay-controls-container.center-bottom:hover .replay-controls-panel,
+.replay-controls-container.center-bottom:focus-within .replay-controls-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition-delay: 0s;
+}
+
+.replay-controls-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(var(--v-border-color), 0.12);
+}
+
+.close-replay-btn {
+  margin-left: 1rem;
+}
+
+.replay-player-horizontal {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2rem;
+}
+
+@media (max-width: 900px) {
+  .replay-controls-panel {
+    min-width: 90vw;
+    max-width: 98vw;
+    padding: 1rem;
+  }
+  .replay-player-horizontal {
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
+
+.replay-controls-container.center-bottom.show-panel .replay-controls-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition-delay: 0s;
+}
+
+.replay-loading-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 2000;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 </style>

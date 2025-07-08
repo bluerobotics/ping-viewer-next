@@ -1,26 +1,23 @@
 <template>
   <v-container class="pa-0">
     <v-row>
-      <v-col class="mr-2">
-        <input type="file" @change="loadFile" accept=".json" />
+      <v-col class="mr-2" v-if="!mcapData">
+        <input type="file" @change="loadFile" accept=".mcap" />
       </v-col>
 
       <template v-if="loadedData.length > 0">
-        <v-col cols="auto" class="d-flex align-center">
-          <v-btn color="success" @click="play" :disabled="isPlaying" density="compact" class="mr-1">
-            <v-icon left>mdi-play</v-icon>
-          </v-btn>
-
-          <v-btn color="warning" @click="pause" :disabled="!isPlaying" density="compact" class="mr-1">
-            <v-icon left>mdi-pause</v-icon>
-          </v-btn>
-
-          <v-btn color="error" @click="stop" density="compact" class="mr-1">
-            <v-icon left>mdi-stop</v-icon>
+        <v-col cols="2">
+          <v-btn
+            :color="isPlaying ? 'warning' : 'success'"
+            @click="togglePlayPause"
+            density="compact"
+            icon
+          >
+            <v-icon>{{ isPlaying ? 'mdi-pause' : 'mdi-play' }}</v-icon>
           </v-btn>
         </v-col>
 
-        <v-col cols="2" class="d-flex flex-column justify-center mr-4">
+        <v-col cols="2" class="d-flex flex-column justify-center mr-4 pr-0">
           <input type="range" v-model.number="playbackSpeed" min="0.1" max="10" step="0.1" class="w-100" />
           <div class="text-caption">Speed: {{ playbackSpeed }}x</div>
         </v-col>
@@ -29,8 +26,7 @@
           <input type="range" v-model.number="currentFrame" :min="0" :max="loadedData.length - 1" class="w-100"
             @input="handleFrameChange" />
           <div class="d-flex justify-space-between">
-            <span class="text-caption">Frame: {{ displayedFrame }} / {{ loadedData.length }}</span>
-            <span class="text-caption">Time: {{ formatTime(loadedData[currentFrame]?.timestamp) }}</span>
+            <span class="text-caption">{{ formatTime(loadedData[currentFrame]?.timestamp) }}</span>
           </div>
         </v-col>
       </template>
