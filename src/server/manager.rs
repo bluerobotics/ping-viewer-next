@@ -1,4 +1,4 @@
-use crate::device::manager::ManagerActorHandler;
+use crate::device::{manager::ManagerActorHandler, recording::RecordingsManagerHandler};
 
 use super::protocols;
 use actix_cors::Cors;
@@ -14,7 +14,11 @@ fn add_v1_paths(scope: Scope) -> Scope {
     scope.configure(protocols::v1::rest::register_services)
 }
 
-pub async fn run(server_address: &str, handler: ManagerActorHandler) -> std::io::Result<()> {
+pub async fn run(
+    server_address: &str,
+    devices_manager_handler: ManagerActorHandler,
+    recordings_handler: RecordingsManagerHandler,
+) -> std::io::Result<()> {
     let server_address = server_address.to_string();
     info!("ServerManager: Service starting");
 
@@ -25,7 +29,8 @@ pub async fn run(server_address: &str, handler: ManagerActorHandler) -> std::io:
         let default = add_v1_paths(web::scope(""));
 
         App::new()
-            .app_data(Data::new(handler.clone()))
+            .app_data(Data::new(devices_manager_handler.clone()))
+            .app_data(Data::new(recordings_handler.clone()))
             .wrap(cors)
             .wrap(middleware::Logger::default())
             .wrap_api()
@@ -34,6 +39,7 @@ pub async fn run(server_address: &str, handler: ManagerActorHandler) -> std::io:
             .service(v1)
             .service(protocols::v1::rest::server_metadata)
             .service(protocols::v1::websocket::websocket)
+            .service(protocols::v1::websocket::recording_websocket)
             .service(default)
             .build()
     });
