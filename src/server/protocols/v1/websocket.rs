@@ -14,10 +14,14 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
+use tokio::sync::broadcast;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::device::manager::{ManagerActorHandler, Request};
+use crate::device::{
+    manager::{ManagerActorHandler, Request},
+    recording::{RecordingManagerCommand, RecordingsManagerHandler},
+};
 
 pub struct StringMessage(String);
 
@@ -235,6 +239,78 @@ pub async fn websocket(
         &req,
         stream,
     )
+}
+
+pub struct RecordingStatusActor {
+    recording_subscriber: broadcast::Receiver<crate::device::recording::RecordingSession>,
+}
+
+impl RecordingStatusActor {
+    pub fn new(
+        recording_subscriber: broadcast::Receiver<crate::device::recording::RecordingSession>,
+    ) -> Self {
+        Self {
+            recording_subscriber,
+        }
+    }
+}
+
+impl Actor for RecordingStatusActor {
+    type Context = ws::WebsocketContext<Self>;
+}
+
+impl Handler<StringMessage> for RecordingStatusActor {
+    type Result = ();
+
+    fn handle(&mut self, message: StringMessage, ctx: &mut Self::Context) {
+        ctx.text(message.0);
+    }
+}
+
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for RecordingStatusActor {
+    fn started(&mut self, ctx: &mut Self::Context) {
+        info!("RecordingStatusActor: Starting websocket client");
+
+        let addr = ctx.address();
+        let mut subscriber = self.recording_subscriber.resubscribe();
+
+        tokio::spawn(async move {
+            while let Ok(session) = subscriber.recv().await {
+                let _ = addr.do_send(StringMessage(serde_json::to_string(&session).unwrap()));
+            }
+        });
+    }
+
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        match msg {
+            Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
+            Ok(ws::Message::Close(msg)) => ctx.close(msg),
+            _ => (),
+        }
+    }
+}
+
+#[api_v2_operation(skip)]
+#[get("ws/recording")]
+pub async fn recording_websocket(
+    req: HttpRequest,
+    stream: web::Payload,
+    recorder_handler: web::Data<RecordingsManagerHandler>,
+) -> Result<HttpResponse, actix_web::Error> {
+    let recording_manager = match recorder_handler
+        .send(RecordingManagerCommand::GetSubscriber)
+        .await
+    {
+        Ok(crate::device::recording::Answer::RecordingManager(manager)) => manager,
+        _ => {
+            return Ok(HttpResponse::InternalServerError().json(json!({
+                "error": "Failed to get Recordings Manager"
+            })))
+        }
+    };
+    let subscriber = recording_manager;
+
+    ws::start(RecordingStatusActor::new(subscriber), &req, stream)
 }
 
 #[derive(Deserialize, Apiv2Schema, Clone)]
