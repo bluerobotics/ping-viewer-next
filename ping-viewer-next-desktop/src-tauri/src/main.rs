@@ -12,18 +12,22 @@ async fn main() {
 
     let (manager, handler) = device::manager::DeviceManager::new(10);
 
+    let (recordings_manager, recordings_manager_handler) =
+    device::recording::RecordingManager::new(10, "recordings", handler.clone());
+    tokio::spawn(async move { recordings_manager.run().await });
+
     tokio::spawn(async move { manager.run().await });
 
-    run_tauri_app(handler).await;
+    run_tauri_app(handler, recordings_manager_handler).await;
 }
 
-async fn run_tauri_app(handler: device::manager::ManagerActorHandler) {
+async fn run_tauri_app(handler: device::manager::ManagerActorHandler, recordings_handler: device::recording::RecordingsManagerHandler) {
     tauri::Builder::default()
         .setup(|app: &mut tauri::App| {
             let window = app.get_webview_window("main").unwrap();
 
             std::thread::spawn(move || {
-                run_from_tauri(&cli::manager::server_address(), handler).unwrap();
+                run_from_tauri(&cli::manager::server_address(), handler, recordings_handler).unwrap();
             });
 
             std::thread::spawn(move || {
@@ -41,6 +45,7 @@ async fn run_tauri_app(handler: device::manager::ManagerActorHandler) {
 pub async fn run_from_tauri(
     server_address: &str,
     handler: device::manager::ManagerActorHandler,
+    recordings_handler: device::recording::RecordingsManagerHandler
 ) -> std::io::Result<()> {
-    server::manager::run(server_address, handler).await
+    server::manager::run(server_address, handler, recordings_handler).await
 }
