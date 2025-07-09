@@ -45,7 +45,11 @@ pub struct RecordingManager {
     base_path: PathBuf,
     status_broadcast: broadcast::Sender<RecordingSession>,
     devices_manager_handler: ManagerActorHandler,
+    vehicle_data: Arc<RwLock<Option<VehicleData>>>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VehicleData;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
 #[serde(tag = "command", content = "payload")]
@@ -60,6 +64,25 @@ pub enum RecordingManagerCommand {
 #[derive(Clone)]
 pub struct RecordingsManagerHandler {
     sender: mpsc::Sender<ManagerActorRequest>,
+}
+
+impl RecordingsManagerHandler {
+    pub async fn send(&self, request: RecordingManagerCommand) -> Result<Answer, ManagerError> {
+        let (respond_to, response) = oneshot::channel();
+        let actor_request = ManagerActorRequest {
+            request,
+            respond_to,
+        };
+
+        self.sender
+            .send(actor_request)
+            .await
+            .map_err(|e| ManagerError::Other(format!("Failed to send request: {}", e)))?;
+
+        response
+            .await
+            .map_err(|e| ManagerError::Other(format!("Failed to receive response: {}", e)))?
+    }
 }
 
 #[derive(Debug)]
@@ -78,10 +101,11 @@ pub enum Answer {
 }
 
 impl RecordingManager {
-    pub fn new(
+    pub fn new_with_pose(
         size: usize,
         base_path: impl AsRef<Path>,
         device_manager: ManagerActorHandler,
+        vehicle_data: Arc<RwLock<Option<VehicleData>>>,
     ) -> (Self, RecordingsManagerHandler) {
         let (sender, receiver) = mpsc::channel(size);
         let actor_handler: RecordingsManagerHandler = RecordingsManagerHandler { sender };
@@ -92,8 +116,17 @@ impl RecordingManager {
             status_broadcast,
             receiver,
             devices_manager_handler: device_manager,
+            vehicle_data,
         };
         (actor, actor_handler)
+    }
+
+    pub fn new(
+        size: usize,
+        base_path: impl AsRef<Path>,
+        device_manager: ManagerActorHandler,
+    ) -> (Self, RecordingsManagerHandler) {
+        Self::new_with_pose(size, base_path, device_manager, Arc::new(RwLock::new(None)))
     }
 
     pub async fn run(mut self) {
@@ -355,32 +388,47 @@ impl RecordingManager {
     }
 }
 
-impl RecordingsManagerHandler {
-    pub async fn send(&self, request: RecordingManagerCommand) -> Result<Answer, ManagerError> {
-        let (result_sender, result_receiver) = oneshot::channel();
+use mavlink::ardupilotmega::AHRS2_DATA;
 
-        trace!("Handling RecordingManager request: {request:?}: Forwarding request.");
-        let device_request = ManagerActorRequest {
-            request,
-            respond_to: result_sender,
-        };
+#[derive(Deserialize)]
+struct Envelope {
+    message: AHRS2_DATA,
+}
 
-        self.sender
-            .send(device_request)
-            .await
-            .map_err(|err| ManagerError::TokioMpsc(err.to_string()))?;
+pub async fn zenoh_pose_bridge(latest_pose: Arc<RwLock<Option<VehicleData>>>) {
+    let session = match zenoh::open(zenoh::Config::default()).await {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Zenoh session error: {e}");
+            return;
+        }
+    };
+    let sub = match session.declare_subscriber("mavlink/1/1/AHRS2").await {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Zenoh subscribe error: {e}");
+            return;
+        }
+    };
+    println!("Subscribed to mavlink/1/1/AHRS2");
 
-        match result_receiver
-            .await
-            .map_err(|err| ManagerError::TokioMpsc(err.to_string()))?
-        {
-            Ok(ans) => {
-                trace!("Handling RecordingManager request: Success");
-                Ok(ans)
+    while let Ok(sample) = sub.recv_async().await {
+        let bytes = sample.payload().to_bytes();
+        match serde_json::from_slice::<Envelope>(&bytes) {
+            Ok(env) => {
+                let ahrs2 = &env.message;
+                let lat = ahrs2.lat as f64 / 1e7;
+                let lon = ahrs2.lng as f64 / 1e7;
+                let alt = ahrs2.altitude as f64;
+
+                let pose = Some(VehicleData);
+                {
+                    let mut pose_guard = latest_pose.write().await;
+                    *pose_guard = pose.clone();
+                }
             }
-            Err(err) => {
-                error!("Handling RecordingManager request: Error occurred on manager: {err:?}",);
-                Err(err)
+            Err(_) => {
+                eprintln!("Error: Invalid AHRS2 message: {:?}", bytes);
             }
         }
     }
