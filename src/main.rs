@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tracing::info;
 
 use ping_viewer_next::{cli, device, logger, server};
@@ -8,6 +10,12 @@ async fn main() {
     cli::manager::init();
     // Logger should start before everything else to register any log information
     logger::manager::init();
+
+    // Create the shared pose variable
+    let latest_pose = Arc::new(RwLock::new(None));
+
+    // Start the Zenoh-to-Foxglove pose bridge with the shared pose
+    tokio::spawn(device::recording::zenoh_pose_bridge(latest_pose.clone()));
 
     let (mut manager, handler) = device::manager::DeviceManager::new(10);
 
@@ -20,7 +28,12 @@ async fn main() {
     }
 
     let (recordings_manager, recordings_manager_handler) =
-        device::recording::RecordingManager::new(10, "recordings", handler.clone());
+        device::recording::RecordingManager::new_with_pose(
+            10,
+            "recordings",
+            handler.clone(),
+            latest_pose,
+        );
     tokio::spawn(async move { recordings_manager.run().await });
 
     tokio::spawn(async move { manager.run().await });
