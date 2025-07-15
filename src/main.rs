@@ -1,6 +1,8 @@
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tracing::info;
 
-use ping_viewer_next::{cli, device, logger, server};
+use ping_viewer_next::{cli, device, logger, server, vehicle::zenoh_client_bridge};
 
 #[tokio::main]
 async fn main() {
@@ -8,6 +10,11 @@ async fn main() {
     cli::manager::init();
     // Logger should start before everything else to register any log information
     logger::manager::init();
+
+    let vehicle_data = Arc::new(RwLock::new(None));
+
+    // Start the Zenoh-client with shared data
+    tokio::spawn(zenoh_client_bridge(vehicle_data.clone()));
 
     let (mut manager, handler) = device::manager::DeviceManager::new(10);
 
