@@ -22,6 +22,7 @@ use crate::device::{
     devices::DeviceActorHandler,
     manager::{DeviceSelection, ManagerError},
 };
+use crate::vehicle::VehicleData;
 
 use super::manager::{ManagerActorHandler, UuidWrapper};
 
@@ -45,6 +46,7 @@ pub struct RecordingManager {
     base_path: PathBuf,
     status_broadcast: broadcast::Sender<RecordingSession>,
     devices_manager_handler: ManagerActorHandler,
+    vehicle_data: Arc<RwLock<Option<VehicleData>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
@@ -78,10 +80,11 @@ pub enum Answer {
 }
 
 impl RecordingManager {
-    pub fn new(
+    pub fn new_with_pose(
         size: usize,
         base_path: impl AsRef<Path>,
         device_manager: ManagerActorHandler,
+        vehicle_data: Arc<RwLock<Option<VehicleData>>>,
     ) -> (Self, RecordingsManagerHandler) {
         let (sender, receiver) = mpsc::channel(size);
         let actor_handler: RecordingsManagerHandler = RecordingsManagerHandler { sender };
@@ -92,8 +95,17 @@ impl RecordingManager {
             status_broadcast,
             receiver,
             devices_manager_handler: device_manager,
+            vehicle_data,
         };
         (actor, actor_handler)
+    }
+
+    pub fn new(
+        size: usize,
+        base_path: impl AsRef<Path>,
+        device_manager: ManagerActorHandler,
+    ) -> (Self, RecordingsManagerHandler) {
+        Self::new_with_pose(size, base_path, device_manager, Arc::new(RwLock::new(None)))
     }
 
     pub async fn run(mut self) {
@@ -207,6 +219,7 @@ impl RecordingManager {
 
         let sessions = self.sessions.clone();
         let devices_manager_handler = self.devices_manager_handler.clone();
+        let vehicle_data = self.vehicle_data.clone();
 
         let device_handler = devices_manager_handler
             .send(crate::device::manager::Request::GetDeviceHandler(
@@ -220,7 +233,9 @@ impl RecordingManager {
         };
 
         tokio::spawn(async move {
-            if let Err(e) = Self::recording_task(handler, file_path, sessions, device_id, ctx).await
+            if let Err(e) =
+                Self::recording_task(handler, file_path, sessions, device_id, ctx, vehicle_data)
+                    .await
             {
                 error!("Recording task failed for device {}: {:?}", device_id, e);
             }
@@ -274,6 +289,7 @@ impl RecordingManager {
         sessions: Arc<RwLock<HashMap<Uuid, SessionGuard>>>,
         device_id: Uuid,
         ctx: Arc<Context>,
+        vehicle_data: Arc<RwLock<Option<VehicleData>>>,
     ) -> Result<(), ManagerError> {
         let subscriber = handler
             .send(super::devices::PingRequest::GetSubscriber)
@@ -294,12 +310,14 @@ impl RecordingManager {
         // Define topic strings
         let ping1d_topic = format!("/device_{}/Ping1D", device_id);
         let ping360_topic = format!("/device_{}/Ping360", device_id);
+        let vehicle_topic = format!("/device_{}/VehicleData", device_id);
 
         // Create device-specific channels with proper schema
         let ping1d_channel = ctx.channel_builder(&ping1d_topic).build::<ProfileStruct>();
         let ping360_channel = ctx
             .channel_builder(&ping360_topic)
             .build::<AutoDeviceDataStruct>();
+        let vehicle_channel = ctx.channel_builder(&vehicle_topic).build::<VehicleData>();
 
         while {
             let sessions_guard = sessions.read().await;
@@ -310,12 +328,13 @@ impl RecordingManager {
         } {
             match receiver.recv().await {
                 Ok(msg) => {
+                    let timestamp = foxglove::schemas::Timestamp::now();
                     // Handle Ping360
                     if let Ok(bluerobotics_ping::Messages::Ping360(
                         bluerobotics_ping::ping360::Messages::AutoDeviceData(answer),
                     )) = bluerobotics_ping::Messages::try_from(&msg)
                     {
-                        ping360_channel.log(&answer);
+                        ping360_channel.log_with_time(&answer, timestamp);
                     } else if let Ok(bluerobotics_ping::Messages::Ping360(
                         bluerobotics_ping::ping360::Messages::DeviceData(answer),
                     )) = bluerobotics_ping::Messages::try_from(&msg)
@@ -335,12 +354,15 @@ impl RecordingManager {
                             data_length: answer.number_of_samples,
                             data: answer.data,
                         };
-                        ping360_channel.log(&autotransducer);
+                        ping360_channel.log_with_time(&autotransducer, timestamp);
                     } else if let Ok(bluerobotics_ping::Messages::Ping1D(
                         bluerobotics_ping::ping1d::Messages::Profile(answer),
                     )) = bluerobotics_ping::Messages::try_from(&msg)
                     {
-                        ping1d_channel.log(&answer);
+                        ping1d_channel.log_with_time(&answer, timestamp);
+                    }
+                    if let Some(vehicle) = vehicle_data.read().await.as_ref() {
+                        vehicle_channel.log_with_time(vehicle, timestamp);
                     }
                 }
                 Err(e) => {
