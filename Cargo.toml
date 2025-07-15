@@ -19,6 +19,7 @@ lazy_static = "1.5.0"
 mime_guess = "2.0.5"
 paperclip = { version = "0.9.5" , features = ["actix4", "swagger-ui", "uuid"] }
 serde = { version = "1.0.219", features = ["derive"] }
+serde_json5 = { version = "0.2.1" }
 regex = "1.11.1"
 rust-embed = "8.7.2"
 serde_json = "1.0.140"
@@ -35,6 +36,9 @@ validator = "0.20.0"
 thiserror = "2.0.12"
 shellexpand = "3.1"
 foxglove = { version = "0.9.1", default-features = false, features = ["schemars"] }
+zenoh = "1.4.0"
+mavlink =  { default-features = false, features = ["std", "ardupilotmega", "tokio-1", "serde"], version = "0.15.0"}
+schemars = { version = "0.9.0"}
 
 reqwest = {version = "0.12.22", features = ["json"], optional = true }
 openssl = { version = "0.10.73", features = ["vendored"], optional = true }
@@ -53,7 +57,7 @@ name = "ping-viewer-next"
 path = "src/main.rs"
 
 [features]
-default = []
+default = ["embed-frontend"]
 desktop-app = ["build-frontend"]
 build-frontend = ["embed-frontend"]
 embed-frontend =[]
