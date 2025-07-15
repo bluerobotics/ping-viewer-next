@@ -27,7 +27,12 @@ async fn main() {
     }
 
     let (recordings_manager, recordings_manager_handler) =
-        device::recording::RecordingManager::new(10, "recordings", handler.clone());
+        device::recording::RecordingManager::new_with_pose(
+            10,
+            "recordings",
+            handler.clone(),
+            vehicle_data,
+        );
     tokio::spawn(async move { recordings_manager.run().await });
 
     tokio::spawn(async move { manager.run().await });
