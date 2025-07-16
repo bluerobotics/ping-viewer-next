@@ -184,6 +184,13 @@
                           @click="downloadRecording(recording)" />
                       </template>
                     </v-tooltip>
+
+                    <v-tooltip location="top" text="Delete Recording">
+                      <template v-slot:activator="{ props }">
+                        <v-btn v-bind="props" icon="mdi-delete" variant="text" size="small"
+                          color="error" @click="deleteRecording(recording)" />
+                      </template>
+                    </v-tooltip>
                   </div>
                 </template>
               </v-list-item>
@@ -706,6 +713,24 @@ const downloadRecording = async (recording) => {
     }
   } catch (error) {
     console.error('Error downloading recording:', error);
+  }
+};
+
+const deleteRecording = async (recording) => {
+  if (!serverUrl.value) return;
+  if (!confirm(`Are you sure you want to delete ${recording.fileName}?`)) return;
+  try {
+    const response = await fetch(`${serverUrl.value}/v1/recordings/delete/${recording.fileName}`, {
+      method: 'DELETE',
+      headers: { accept: 'application/json' },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to delete recording');
+    }
+    await fetchRecordings();
+  } catch (error) {
+    console.error('Error deleting recording:', error);
+    alert('Failed to delete recording.');
   }
 };
 
