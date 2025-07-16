@@ -5,7 +5,7 @@ use actix_web::Responder;
 use chrono::{DateTime, Utc};
 use mime_guess::from_path;
 use paperclip::actix::{
-    api_v2_operation, get, post,
+    api_v2_operation, delete, get, post,
     web::{self, HttpResponse, Json},
     Apiv2Schema,
 };
@@ -116,6 +116,24 @@ async fn list_mcap_recordings(req: web::HttpRequest) -> Result<Json<Vec<McapFile
     Ok(Json(files))
 }
 
+// Helper function to securely resolve a file path
+fn secure_file_path(
+    base: &Path,
+    file_name: &str,
+) -> Result<std::path::PathBuf, actix_web::HttpResponse> {
+    let file_path = base.join(file_name);
+    let canonical_base = base.canonicalize().map_err(|_| {
+        actix_web::HttpResponse::InternalServerError().body("Invalid recordings directory")
+    })?;
+    let canonical_file = file_path
+        .canonicalize()
+        .map_err(|_| actix_web::HttpResponse::NotFound().body("File not found"))?;
+    if !canonical_file.starts_with(&canonical_base) {
+        return Err(actix_web::HttpResponse::Forbidden().body("Access denied"));
+    }
+    Ok(canonical_file)
+}
+
 #[api_v2_operation(tags("Recordings Server"))]
 #[get("/recordings/download/{file_name}")]
 async fn download_mcap_file(
@@ -124,28 +142,10 @@ async fn download_mcap_file(
     query: web::Query<std::collections::HashMap<String, String>>,
 ) -> impl Responder {
     let recordings_dir = Path::new("recordings");
-    let file_path = recordings_dir.join(&*file_name);
-
-    let canonical_recordings = match recordings_dir.canonicalize() {
+    let canonical_file = match secure_file_path(recordings_dir, &*file_name) {
         Ok(path) => path,
-        Err(_) => {
-            debug!("Failed to canonicalize recordings directory");
-            return HttpResponse::InternalServerError().body("Invalid recordings directory");
-        }
+        Err(resp) => return resp,
     };
-
-    let canonical_file = match file_path.canonicalize() {
-        Ok(path) => path,
-        Err(_) => {
-            debug!("File not found or inaccessible: {:?}", file_path);
-            return HttpResponse::NotFound().body("File not found");
-        }
-    };
-
-    if !canonical_file.starts_with(&canonical_recordings) {
-        debug!("Attempted path traversal attack blocked: {:?}", file_path);
-        return HttpResponse::Forbidden().body("Access denied");
-    }
 
     if canonical_file.exists() && canonical_file.is_file() {
         match fs::read(&canonical_file) {
@@ -185,6 +185,32 @@ async fn download_mcap_file(
             Err(e) => {
                 debug!("Failed to read file {:?}: {:?}", canonical_file, e);
                 HttpResponse::InternalServerError().body("Failed to read file")
+            }
+        }
+    } else {
+        debug!("File not found or not a regular file: {:?}", canonical_file);
+        HttpResponse::NotFound().body("File not found")
+    }
+}
+
+#[api_v2_operation(tags("Recordings Server"))]
+#[delete("/recordings/delete/{file_name}")]
+async fn delete_mcap_file(file_name: web::Path<String>) -> impl Responder {
+    let recordings_dir = Path::new("recordings");
+    let canonical_file = match secure_file_path(recordings_dir, &*file_name) {
+        Ok(path) => path,
+        Err(resp) => return resp,
+    };
+
+    if canonical_file.exists() && canonical_file.is_file() {
+        match fs::remove_file(&canonical_file) {
+            Ok(_) => {
+                debug!("Deleted file: {:?}", canonical_file);
+                HttpResponse::Ok().body("File deleted")
+            }
+            Err(e) => {
+                debug!("Failed to delete file {:?}: {:?}", canonical_file, e);
+                HttpResponse::InternalServerError().body("Failed to delete file")
             }
         }
     } else {
