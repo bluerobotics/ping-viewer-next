@@ -76,6 +76,7 @@ pub fn register_services(cfg: &mut web::ServiceConfig) {
         .service(cockpit_extras)
         .service(recording::list_mcap_recordings)
         .service(recording::download_mcap_file)
+        .service(recording::delete_mcap_file)
         .service(index_files);
 }
 
