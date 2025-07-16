@@ -128,7 +128,7 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
         return [];
       }
 
-      const deviceMatch = topic.match(/\/device_([^\/]+)\/(.+)$/);
+      const deviceMatch = topic.match(/device_([^\/]+)\/(.+)$/);
       if (!deviceMatch) {
         return [];
       }
