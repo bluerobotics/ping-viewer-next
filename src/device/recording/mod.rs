@@ -308,9 +308,9 @@ impl RecordingManager {
         };
 
         // Define topic strings
-        let ping1d_topic = format!("/device_{}/Ping1D", device_id);
-        let ping360_topic = format!("/device_{}/Ping360", device_id);
-        let vehicle_topic = format!("/device_{}/VehicleData", device_id);
+        let ping1d_topic = format!("device_{}/Ping1D", device_id);
+        let ping360_topic = format!("device_{}/Ping360", device_id);
+        let vehicle_topic = format!("device_{}/VehicleData", device_id);
 
         // Create device-specific channels with proper schema
         let ping1d_channel = ctx.channel_builder(&ping1d_topic).build::<ProfileStruct>();
