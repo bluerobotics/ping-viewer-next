@@ -276,7 +276,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for RecordingStatusAc
 
         tokio::spawn(async move {
             while let Ok(session) = subscriber.recv().await {
-                let _ = addr.do_send(StringMessage(serde_json::to_string(&session).unwrap()));
+                addr.do_send(StringMessage(serde_json::to_string(&session).unwrap()));
             }
         });
     }
