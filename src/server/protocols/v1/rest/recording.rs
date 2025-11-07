@@ -61,7 +61,7 @@ async fn list_mcap_recordings(req: web::HttpRequest) -> Result<Json<Vec<McapFile
                         debug!("Found entry: {:?}", path);
 
                         // Filter for .mcap files or show all files if detailed listing is requested
-                        let is_mcap = path.extension().map_or(false, |ext| ext == "mcap");
+                        let is_mcap = path.extension().is_some_and(|ext| ext == "mcap");
                         let should_include = is_mcap || (show_detailed_listing && path.is_file());
 
                         if should_include {
@@ -142,7 +142,7 @@ async fn download_mcap_file(
     query: web::Query<std::collections::HashMap<String, String>>,
 ) -> impl Responder {
     let recordings_dir = Path::new("recordings");
-    let canonical_file = match secure_file_path(recordings_dir, &*file_name) {
+    let canonical_file = match secure_file_path(recordings_dir, &file_name) {
         Ok(path) => path,
         Err(resp) => return resp,
     };
@@ -197,7 +197,7 @@ async fn download_mcap_file(
 #[delete("/recordings/delete/{file_name}")]
 async fn delete_mcap_file(file_name: web::Path<String>) -> impl Responder {
     let recordings_dir = Path::new("recordings");
-    let canonical_file = match secure_file_path(recordings_dir, &*file_name) {
+    let canonical_file = match secure_file_path(recordings_dir, &file_name) {
         Ok(path) => path,
         Err(resp) => return resp,
     };
