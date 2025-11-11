@@ -1,34 +1,36 @@
 <template>
-  <v-dialog v-model="dialog" persistent width="500" class="server-connection">
-    <v-card>
-      <v-card-title class="text-h5 pb-2">
-        <v-icon start icon="mdi-connection" class="mr-2" />
-        Ping Viewer Next
+  <v-dialog v-if="!serverInfo" v-model="dialog" persistent width="500" class="glassMenu">
+    <v-card class="glassMenu server-connection">
+      <v-card-title class="text-h5 pt-2 pl-2">
+        <div class="flex  justify-between">
+          <v-icon start icon="mdi-connection" size="30" class="mr-2" />
+          <p class="-ml-4">Ping Viewer Next</p>
+          <div></div>
+        </div>
       </v-card-title>
 
-      <v-card-text>
-        <div v-if="!serverInfo">
-          <v-stepper v-model="currentStep" class="">
+      <v-card-text class="glassMenu server-connection">
+        <div>
+          <v-stepper v-model="currentStep" class="pl-6 glassMenuBlack elevation-3">
             <v-stepper-items>
-              <v-stepper-item v-for="step in 4" :key="step" :value="step">
-                <div class="d-flex align-center py-2">
-                  <div class="mr-4">
-                    <v-icon v-if="currentStep > step" color="success">mdi-check-circle</v-icon>
-                    <v-progress-circular v-else-if="currentStep === step && loading" indeterminate size="24" />
-                    <span v-else>{{ step }}</span>
-                  </div>
+              <v-stepper-item v-for="step in 4" :key="step" :value="step" >
+                <div class="flex w-full justify-between items-center">
                   <div class="flex-grow-1">
                     <div>{{ getStepText(step) }}</div>
-                    <div v-if="currentStep === step && error" class="text-error text-body-2 mt-1">
+                    <div v-if="currentStep === step && error" class="bg-[#FF525277] text-white text-body-2 py-2 px-4 rounded-md mt-2 ml-2" style="border: 1px solid #FFFFFF44">
                       {{ error }}
                     </div>
+                  </div>
+                  <div class="ml-8">
+                    <v-icon v-if="currentStep > step" color="success">mdi-check-circle</v-icon>
+                    <v-progress-circular v-else-if="currentStep === step && loading" indeterminate size="24" class="opacity-80"/>
                   </div>
                 </div>
 
                 <div v-if="step === 4 && currentStep === 4" class="mt-4">
-                  <v-text-field v-model="remoteAddress" label="Server Address" placeholder="e.g. pingviewernext:8080"
+                  <v-text-field v-model="remoteAddress" label="Server Address" placeholder="e.g. pingviewernext:8080" class="w-[95%] mt-[18px]"
                     hint="Enter the server address to connect" persistent-hint @keyup.enter="connectToRemote" />
-                  <v-btn block color="primary" class="mt-4" @click="connectToRemote" :loading="loading">
+                  <v-btn block class="mt-6 -mb-4 -ml-4  glassButton" @click="connectToRemote" :loading="loading">
                     Connect to Remote Server
                   </v-btn>
                 </div>
@@ -36,41 +38,15 @@
             </v-stepper-items>
           </v-stepper>
         </div>
-
-        <div v-else>
-          <v-row justify="center" class="mb-6">
-            <v-col cols="auto">
-              <v-progress-circular :model-value="autoConfirmCountdown * 20" color="primary" size="92">
-                <v-icon size="40" color="primary">mdi-check</v-icon>
-              </v-progress-circular>
-            </v-col>
-          </v-row>
-
-          <div class="text-center mb-6">
-            <div class="text-h6 mb-2">Connected Successfully</div>
-            <div class="text-body-1">{{ serverInfo.name }} (v{{ serverInfo.version }})</div>
-            <div v-if="autoConfirmCountdown > 0" class="text-body-2 mt-2">
-              Auto-continuing in {{ autoConfirmCountdown }}s...
-            </div>
-          </div>
-
-          <v-card-actions class="px-0">
-            <v-spacer />
-            <v-btn variant="text" @click="editServer">
-              Change Server
-            </v-btn>
-            <v-btn color="primary" @click="confirmConnection">
-              Continue
-            </v-btn>
-          </v-card-actions>
-        </div>
       </v-card-text>
     </v-card>
   </v-dialog>
+  <SplashScreen v-if="showSplashScreen" />
 </template>
 
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue';
+import SplashScreen from './SplashScreen.vue';
 
 const emit = defineEmits(['serverConnected']);
 
@@ -81,6 +57,7 @@ const error = ref(null);
 const serverInfo = ref(null);
 const remoteAddress = ref('');
 const autoConfirmCountdown = ref(0);
+const showSplashScreen = ref(true);
 let countdownTimer = null;
 
 const CACHE_KEY = 'pingviewer-server';
@@ -206,6 +183,7 @@ const confirmConnection = () => {
   const url = `http://${remoteAddress.value}`;
   saveLastUsedServer(remoteAddress.value);
   dialog.value = false;
+  showSplashScreen.value = false;
   emit('serverConnected', url);
 };
 
@@ -233,6 +211,23 @@ const checkBlueOSVersion = async () => {
   }
 };
 
+// Check if the there is an active connection; if not, keep the splash screen open for a maximum of 10 seconds.
+onBeforeMount(async () => {
+  const minSplashDuration = 5000;
+  const maxSplashDuration = 10000;
+  const startTime = Date.now();
+
+  // Close splash screen no matter what, after 10 seconds
+  setTimeout(() => {
+    showSplashScreen.value = false;
+  }, maxSplashDuration);
+
+  const elapsed = Date.now() - startTime;
+  if (elapsed < minSplashDuration) await sleep(minSplashDuration - elapsed);
+
+  showSplashScreen.value = false;
+});
+
 onMounted(async () => {
   // BlueOS extension should skip connection menu
   const versionCheck = await checkBlueOSVersion();
@@ -240,6 +235,7 @@ onMounted(async () => {
     serverInfo.value = versionCheck.data;
     remoteAddress.value = `${location.host}`;
     dialog.value = false;
+    showSplashScreen.value = false;
     confirmConnection();
     return;
   }
@@ -268,7 +264,7 @@ onMounted(async () => {
   }
   proceedToNextStep();
 
-  error.value = 'Could not connect to any known servers. Please enter a custom address.';
+  error.value = 'Could not connect to any known servers';
 });
 
 watch(serverInfo, (newValue, oldValue) => {
@@ -283,8 +279,21 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.main-window {
+  border-radius: var(--border-radius);
+  background-color: rgba(var(--v-theme-background), 0.5) !important;
+  border: 1px solid rgba(203, 203, 203, 0.13) !important;
+  box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.3),
+  0px 8px 12px 6px rgba(0, 0, 0, 0.15) !important;
+}
+
+
 .server-connection :deep(.v-stepper) {
-  box-shadow: none;
+  border-radius: var(--border-radius);
+  background-color: rgba(var(--v-theme-background), 0.5) !important;
+  border: 1px solid rgba(203, 203, 203, 0.13) !important;
+  box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.3),
+    0px 8px 12px 6px rgba(0, 0, 0, 0.15) !important;
 }
 
 .server-connection :deep(.v-stepper-item) {
