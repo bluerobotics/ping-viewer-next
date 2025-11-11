@@ -60,34 +60,34 @@
           <ReplayView ref="replayViewRef" class="device-content" v-bind="deviceSettings" />
         </div>
 
-        <div class="speed-dial-container" :class="{ 'speed-dial-open': isSpeedDialOpen, glass: glass }"
+        <div class="glassMenu speed-dial-container" :class="{ 'speed-dial-open': isSpeedDialOpen, glass: glass }"
           :style="{ '--items-count': speedDialItems.length }">
-          <v-btn class="main-trigger square-button" :class="{ 'glass-inner': glass }"
+          <v-btn class="main-trigger square-button" :class="{ 'glass-inner': glass }" style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); border-bottom-left-radius: 0; border-bottom-right-radius: 0;"
             @click="isSpeedDialOpen = !isSpeedDialOpen" variant="text">
-            <v-icon :icon="isSpeedDialOpen ? 'mdi-menu-open' : 'mdi-menu'" :size="iconSize" :color="iconColor" />
+            <v-icon :icon="isSpeedDialOpen ? 'mdi-menu-open' : 'mdi-menu'" :size="30" :color="iconColor" class="mb-[2px]" />
           </v-btn>
           <transition-group name="speed-dial-items">
             <template v-for="(item, index) in speedDialItems" :key="item.icon + index">
               <v-btn v-show="isSpeedDialOpen" class="speed-dial-item" :class="{ 'glass-inner': glass }"
                 :style="{ '--delay': `${index * 0.05}s` }" @click="item.action && item.action()">
-                <v-icon :icon="item.icon" :size="iconSize" :color="iconColor" />
+                <v-icon :icon="item.icon" :size="speedDialItems[index].size" :color="iconColor" />
               </v-btn>
             </template>
           </transition-group>
         </div>
 
-        <v-card class="connection-menu-wrapper" :class="{ 'glass': glass }" v-if="isConnectionMenuOpen">
-          <div class="d-flex justify-space-between align-center px-4 pt-4">
-            <div class="text-h6">Device Management</div>
+        <v-card class="glassMenu connection-menu-wrapper" :class="{ 'glass': glass }" v-if="isConnectionMenuOpen">
+          <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+            <div class="text-h6 text-center w-full">Device Management</div>
             <v-btn icon="mdi-close" variant="text" @click="isConnectionMenuOpen = false" />
           </div>
           <ConnectionManager v-if="serverUrl" :server-url="serverUrl" :glass="glass" :is-open="isConnectionMenuOpen"
             @update:is-open="isConnectionMenuOpen = $event" @select-device="handleDeviceSelection" />
         </v-card>
 
-        <v-card class="connection-menu-wrapper" :class="{ 'glass': glass }" v-if="showSettings">
-          <div class="d-flex justify-space-between align-center px-4 pt-4">
-            <div class="text-h6">Settings</div>
+        <v-card class="glassMenu connection-menu-wrapper" :class="{ 'glass': glass }" v-if="showSettings">
+           <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+            <div class="text-h6 text-center w-full ml-6">Settings</div>
             <v-btn icon="mdi-close" variant="text" @click="showSettings = false" />
           </div>
           <VisualSettings :is-open="showSettings" :glass="glass" :common-settings="commonSettings"
@@ -101,12 +101,12 @@
         </v-card>
 
         <div class="middle-section" :class="{ 'menu-open': isMenuOpen }">
-          <v-btn class="middle-button square-button" :class="{ glass }" @click="toggleMenu">
-            <v-icon :icon="isMenuOpen ? 'mdi-close' : 'mdi-wifi'" :size="iconSize" :color="iconColor"
-              :class="{ 'rotate-180': !isMenuOpen }" />
+          <v-btn class="glassMenu middle-button square-button" :class="{ glass }" @click="toggleMenu">
+            <v-icon :icon="isMenuOpen ? 'mdi-close' : 'mdi-contactless-payment'" :size="28" :color="iconColor"
+              :class="{ 'rotate-90': !isMenuOpen }" />
           </v-btn>
 
-          <div class="connection-menu" :class="{ 'glass disable-hover': glass }" v-show="isMenuOpen">
+          <div class="glassMenu connection-menu" :class="{ 'glass disable-hover': glass }" v-show="isMenuOpen">
             <div :class="[{ 'glass-inner disable-hover': glass }]">
               <!-- Dynamic Device Settings -->
               <template v-if="activeDevice">
@@ -118,9 +118,13 @@
               <template v-else>
 
                 <div class="menu-content text-center pa-4 text-medium-emphasis">
-                  <v-icon size="48" class="mb-2">mdi-devices</v-icon>
-                  <div>No device selected.</div>
-                    <v-btn variant="tonal" @click="isConnectionMenuOpen = true">
+                  <div class="flex w-full justify-center">
+                    <div class="glassMenuBlack flex flex-col align-center justify-center py-2 px-3 rounded-lg opacity-70" >
+                      <v-icon size="34" class="my-1 ">mdi-devices</v-icon>
+                      <div>No device selected</div>
+                    </div>
+                  </div>
+                    <v-btn variant="elevated" @click="isConnectionMenuOpen = true" class="glassButton mt-4">
                       <v-icon start>mdi-connection</v-icon>
                       Device Management
                     </v-btn>
@@ -130,10 +134,10 @@
           </div>
         </div>
 
-        <v-card class="recordings-menu-wrapper" :class="{ 'glass': glass }" v-if="showRecordingsMenu">
-          <div :class="['menu-content', { 'glass-inner disable-hover': glass }]">
-            <div class="d-flex justify-space-between align-center mb-4">
-              <div class="text-h6">Recordings</div>
+        <v-card class="glassMenu recordings-menu-wrapper" :class="{ 'glass': glass }" v-if="showRecordingsMenu">
+          <div :class="['menu-content pa-0', { 'glass-inner disable-hover': glass }]">
+           <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+             <div class="text-h6 text-center w-full ml-6">Recordings</div>
               <v-btn icon="mdi-close" variant="text" @click="showRecordingsMenu = false" />
             </div>
 
@@ -198,14 +202,14 @@
           </div>
         </v-card>
 
-        <v-btn class="bottom-button square-button" :class="{ glass }" @click="showRecordingsMenu = !showRecordingsMenu">
+        <v-btn class="glassMenu bottom-button square-button" :class="{ glass }" @click="showRecordingsMenu = !showRecordingsMenu">
           <v-badge :content="recordings.length.toString()" :model-value="recordings.length > 0"
             color="primary" location="top end" offset-x="-6" offset-y="-6">
-            <v-icon icon="mdi-video-image" :size="iconSize" :color="iconColor" />
+            <v-icon icon="mdi-record-circle" :size="30" :color="iconColor" />
           </v-badge>
         </v-btn>
 
-        <v-btn class="bottom-right-button square-button" :class="{ glass }" @click="showNotifications = !showNotifications">
+        <v-btn class="glassMenu bottom-right-button square-button" :class="{ glass }" @click="showNotifications = !showNotifications">
           <v-badge
             v-if="unreadCount > 0"
             :content="unreadCount"
@@ -219,9 +223,9 @@
           <v-icon v-else icon="mdi-bell" :size="iconSize" :color="iconColor" />
         </v-btn>
 
-        <v-card class="notification-menu-wrapper" :class="{ 'glass': glass }" v-if="showNotifications">
-          <div class="d-flex justify-space-between align-center px-4 pt-4">
-            <div class="text-h6">Notifications</div>
+        <v-card class="glassMenu notification-menu-wrapper" :class="{ 'glass': glass }" v-if="showNotifications">
+           <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+           <div class="text-h6 text-center w-full ml-6">Notifications</div>
             <v-btn icon="mdi-close" variant="text" @click="showNotifications = false" />
           </div>
           <NotificationMenu
@@ -272,7 +276,7 @@ const activeDevice = ref(null);
 const isConnectionMenuOpen = ref(false);
 const showSettings = ref(false);
 const isFullscreen = ref(false);
-const isDarkMode = ref(true);
+const isDarkMode = ref(false);
 const showRecordingsMenu = ref(false);
 const isSpeedDialOpen = ref(false);
 const isGlassMode = ref(true);
@@ -377,26 +381,31 @@ const speedDialItems = ref([
   {
     icon: 'mdi-information-outline',
     action: () => {},
+    size: 24,
   },
   {
     icon: 'mdi-connection',
     action: () => {
       isConnectionMenuOpen.value = !isConnectionMenuOpen.value;
     },
+    size: 25,
   },
   {
     icon: 'mdi-cog',
     action: () => {
       showSettings.value = !showSettings.value;
     },
+    size: 24,
   },
   {
     icon: 'mdi-memory',
     action: () => {},
+    size: 27,
   },
   {
     icon: 'mdi-tune',
     action: () => {},
+    size: 30,
   },
 ]);
 
@@ -1129,7 +1138,7 @@ const isReplayProgressDialogOpen = computed(() => isReplayLoading.value || isRep
 
 /* Glass effects */
 .glass {
-  background-color: rgba(var(--v-theme-background), 0.3) !important;
+  background-color: rgba(var(--v-theme-background), 0.5) !important;
   backdrop-filter: blur(25px) !important;
 }
 
@@ -1191,7 +1200,7 @@ const isReplayProgressDialogOpen = computed(() => isReplayLoading.value || isRep
   top: calc(var(--button-size) + var(--button-gap));
   left: calc(var(--button-size) + var(--button-gap));
   max-height: calc(100vh - 2 * (var(--button-size) + var(--button-gap)));
-  padding: 1rem;
+  padding: 0;
   z-index: 999;
   border-radius: var(--border-radius);
 }
@@ -1211,12 +1220,10 @@ const isReplayProgressDialogOpen = computed(() => isReplayLoading.value || isRep
   transition: all 0.3s ease;
   border-radius: 0 0 var(--border-radius) 0 !important;
   background: rgb(var(--v-theme-background));
-  box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.3),
-    0px 8px 12px 6px rgba(0, 0, 0, 0.15) !important;
 }
 
 .speed-dial-container.speed-dial-open {
-  height: calc((var(--button-size) * var(--items-count)) + (var(--button-gap) * (var(--items-count) - 1)));
+  height: calc((var(--button-size) * var(--items-count)) + (var(--button-gap) * (var(--items-count) - 1)) + 8px);
 }
 
 .speed-dial-menu-section {
@@ -1306,7 +1313,7 @@ const isReplayProgressDialogOpen = computed(() => isReplayLoading.value || isRep
 
 .menu-content {
   width: 300px;
-  padding: 1rem;
+  padding: 0;
 }
 
 .v-list {
@@ -1432,6 +1439,7 @@ const isReplayProgressDialogOpen = computed(() => isReplayLoading.value || isRep
   bottom: calc(var(--button-size) + var(--button-gap));
   left: calc(var(--button-size) + var(--button-gap));
   z-index: 999;
+  padding: 0;
   border-radius: var(--border-radius);
   max-height: calc(100vh - 2 * (var(--button-size) + var(--button-gap)));
   overflow: hidden;

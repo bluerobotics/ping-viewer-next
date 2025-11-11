@@ -5,7 +5,7 @@
 
 
         <!-- Device List -->
-        <div class="device-list mb-4">
+        <div class="device-list mt-1 mb-2">
           <div v-if="isLoading" class="d-flex justify-center my-4">
             <v-progress-circular indeterminate />
           </div>
@@ -52,22 +52,21 @@
 
               <template v-slot:append>
                 <div class="d-flex align-center gap-2">
-                  <v-chip variant="elevated" :color="getStatusColor(device.status)" size="small">
+                  <v-btn variant="elevated" class="rounded-lg -mb-1" :color="getStatusColor(device.status)" size="small">
                     {{ device.status }}
-                  </v-chip>
+                  </v-btn>
 
                   <v-menu location="start" offset="5">
                     <template v-slot:activator="{ props }">
-                      <v-btn v-bind="props" variant="tonal" icon size="small" density="compact">
+                      <v-btn v-bind="props" variant="text" icon size="22" density="compact" class="-mr-2 ml-2">
                         <v-icon>mdi-dots-vertical</v-icon>
                       </v-btn>
                     </template>
 
-                    <v-card :class="{ 'glass': glass }" min-width="200">
-                      <v-list :class="{ 'glass-inner': glass }" density="compact">
-                        <v-list-subheader>Device Actions</v-list-subheader>
-
-                        <v-list-item @click="selectDevice(device)">
+                    <v-card :class="{ 'glass': glass }" min-width="200"   >
+                      <v-list :class="{ 'glass-inner': glass }" density="compact" class="pa-0 pb-2">
+                        <v-list-subheader class="windowHeader">Device Actions</v-list-subheader>
+                        <v-list-item @click="selectDevice(device)" class="mt-2">
                           <template v-slot:prepend>
                             <v-icon variant="tonal">mdi-open-in-new</v-icon>
                           </template>
@@ -93,7 +92,7 @@
                           <v-list-item-subtitle>Start device data stream</v-list-item-subtitle>
                         </v-list-item>
 
-                        <v-divider v-if="isDeviceRecording(device.id) || (device.status === 'ContinuousMode' || device.status === 'Running')" class="my-2"></v-divider>
+                        <v-divider v-if="isDeviceRecording(device.id) || (device.status === 'ContinuousMode' || device.status === 'Running')" ></v-divider>
 
                         <v-list-item v-if="isDeviceRecording(device.id)" @click="stopRecording(device.id)"
                           :disabled="loadingStates[device.id]">
@@ -135,17 +134,18 @@
 
         <v-menu location="start" offset="10">
           <template v-slot:activator="{ props }">
-            <v-btn v-bind="props" variant="tonal">
-              <v-icon start>mdi-cog</v-icon>
-              Advanced
-            </v-btn>
+            <div class="flex w-full justify-end" style="position: relative;">
+              <v-btn v-bind="props" variant="plain" size="small"  class="mb-1 mr-1">
+                Advanced settings
+              </v-btn>
+            </div>
           </template>
 
           <v-card :class="{ 'glass': glass }" min-width="200">
-            <v-list :class="{ 'glass-inner': glass }">
-              <v-list-subheader>Device Manager Actions</v-list-subheader>
+            <v-list :class="{ 'glass-inner': glass }"  class="pa-0 pb-1">
+              <v-list-subheader class="windowHeader py-0">Device Manager Actions</v-list-subheader>
 
-              <v-list-item @click="autoCreateDevices" :disabled="isAutoCreating">
+              <v-list-item  class="py-2" @click="autoCreateDevices" :disabled="isAutoCreating">
                 <template v-slot:prepend>
                   <v-icon variant="tonal">mdi-plus-network</v-icon>
                 </template>
@@ -153,7 +153,7 @@
                 <v-list-item-subtitle>Automatically run devices</v-list-item-subtitle>
               </v-list-item>
 
-              <v-list-item @click="toggleManualCreate">
+              <v-list-item  class="py-2"@click="toggleManualCreate">
                 <template v-slot:prepend>
                   <v-icon variant="tonal">mdi-plus</v-icon>
                 </template>
@@ -161,7 +161,7 @@
                 <v-list-item-subtitle>Configure device manually</v-list-item-subtitle>
               </v-list-item>
 
-              <v-list-item @click="refreshDevices" :disabled="isRefreshing">
+              <v-list-item  class="py-2"@click="refreshDevices" :disabled="isRefreshing">
                 <template v-slot:prepend>
                   <v-icon variant="tonal">mdi-refresh</v-icon>
                 </template>
@@ -623,7 +623,7 @@ onUnmounted(() => {
 }
 
 .menu-content {
-  padding: 1rem;
+  padding: 0;
 }
 
 .device-list {

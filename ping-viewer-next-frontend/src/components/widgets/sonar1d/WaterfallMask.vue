@@ -35,8 +35,12 @@
       :disableUserSelect="true"
       class="measurements-box"
       :style="{
-        backgroundColor: textBackground,
-        zIndex: 40
+        backgroundColor: 'rgba(0, 0, 0, 0.10)',
+        color: 'rgba(255, 255, 255, 1)',
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        backdropFilter: 'blur(25px)',            
+        WebkitBackdropFilter: 'blur(16px)',     
+        boxShadow: '0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016'
       }"
       @resizing="onResize"
       @dragging="onDrag"
@@ -44,10 +48,10 @@
     >
       <div class="measurements-content text-sm px-1 rounded" :style="{ fontSize: `${fontSize}px` }">
 
-        <div class="text-left" :style="{ color: currentDepthColor }">
+        <div class="text-left" :style="{ color: '#FFFFFF' }">
           Depth: {{ currentDepth.toFixed(2) }}m
         </div>
-        <div class="text-left" :style="{ color: confidenceColor }">
+        <div class="text-left" :style="{ color: '#FFFFFF' }">
           Confidence: {{ confidence }}%
         </div>
       </div>

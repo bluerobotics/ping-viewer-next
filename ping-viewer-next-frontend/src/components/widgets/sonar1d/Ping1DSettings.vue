@@ -1,23 +1,25 @@
 <template>
-  <v-card>
-    <v-card-title class="text-h5 pb-2">Ping1D Settings</v-card-title>
-    <v-card-text>
+  <v-card class="pa-0" style="width: 300px; max-width: 90vw">
+    <div class="windowHeader flex w-full justify-between items-center pl-4 pt-0">
+      <v-card-title class="ml-[50px] text-md text-center">Ping1D Settings</v-card-title>
+    </div>
+    <v-card-text class="px-6 pt-4 pb-6">
       <div v-if="isLoading" class="d-flex justify-center my-4">
         <v-progress-circular indeterminate />
       </div>
-      <div v-else class="mb-4">
-        <div class="d-flex align-center justify-space-between mb-4">
+      <div v-else>
+        <div class="d-flex align-center justify-space-between">
           <v-tooltip text="Enable automatic parameter adjustment" location="left">
             <template v-slot:activator="{ props }">
-              <span v-bind="props" class="text-body-2 text-medium-emphasis">
+              <span v-bind="props" class="text-[20px] text-medium-emphasis">
                 Auto Mode
               </span>
             </template>
           </v-tooltip>
-          <v-switch class="gap-2" v-model="isAutoMode" hide-details density="compact"
+          <v-switch class="gap-2" color="white" v-model="isAutoMode" hide-details density="compact"
             @update:model-value="handleAutoModeChange"></v-switch>
         </div>
-
+        <v-divider class="w-4/5 mt-2 mb-4" />
         <div class="d-flex align-center justify-space-between mb-1">
           <v-tooltip text="Scanning range in meters" location="left">
             <template v-slot:activator="{ props }">
@@ -35,7 +37,7 @@
             density="compact" hide-details style="width: 90px" @update:model-value="debouncedSaveSettings" />
         </div>
 
-        <div class="d-flex align-center justify-space-between mb-1">
+        <div class="d-flex align-center justify-space-between ">
           <v-tooltip text="Signal amplification level" location="left">
             <template v-slot:activator="{ props }">
               <span v-bind="props" class="text-body-2 text-medium-emphasis">
@@ -45,8 +47,8 @@
           </v-tooltip>
         </div>
         <v-select v-model="settings.gain_setting" :items="gainOptions" :disabled="isAutoMode"
-          density="compact" hide-details class="mb-4" @update:model-value="debouncedSaveSettings"></v-select>
-
+          density="compact" hide-details class="mb-1" @update:model-value="debouncedSaveSettings"></v-select>
+        <v-divider class="w-4/5 mt-6 mb-4" />
         <div class="d-flex align-center justify-space-between">
           <v-tooltip text="Number of pings per second (Hz)" location="left">
             <template v-slot:activator="{ props }">
@@ -57,7 +59,7 @@
           </v-tooltip>
         </div>
         <div class="d-flex align-center gap-2 mb-4">
-          <v-slider v-model="pingsPerSecond" :min="0" :max="30" :step="1" density="compact" hide-details
+          <v-slider color="white" v-model="pingsPerSecond" :min="0" :max="30" :step="1" density="compact" hide-details
             class="flex-grow-1" @update:model-value="debouncedSaveSettings"></v-slider>
           <v-text-field v-if="pingsPerSecond != 0" v-model.number="pingsPerSecond" type="number" :min="0" :max="30" :step="1"
             density="compact" hide-details style="width: 10px" @update:model-value="debouncedSaveSettings"
@@ -78,7 +80,7 @@
           <span class="text-caption text-medium-emphasis mr-1">m/s</span>
         </div>
         <div class="d-flex align-center gap-2">
-          <v-slider v-model="settings.speed_of_sound" :min="1400" :max="1600" :step="1" density="compact" hide-details
+          <v-slider color="white" v-model="settings.speed_of_sound" :min="1400" :max="1600" :step="1" density="compact" hide-details
             class="flex-grow-1" @update:model-value="debouncedSaveSettings"></v-slider>
           <v-text-field v-model.number="settings.speed_of_sound" type="number" :min="1400" :max="1600" :step="1"
             density="compact" hide-details style="width: 10px" @update:model-value="debouncedSaveSettings"></v-text-field>
@@ -107,11 +109,17 @@ const props = defineProps({
   },
 });
 
+const emit = defineEmits(['close']);
+
 const DEBOUNCE_VALUE_MS = 500;
 
 const isLoading = ref(false);
 const isInitializing = ref(true);
 const rawAutoMode = ref(1);
+
+const handleClose = () => {
+  emit('close');
+};
 
 const isAutoMode = computed({
   get: () => Boolean(rawAutoMode.value),
