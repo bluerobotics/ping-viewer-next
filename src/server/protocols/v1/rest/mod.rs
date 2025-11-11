@@ -62,6 +62,7 @@ async fn server_metadata() -> Result<Json<ServerMetadata>, Error> {
 pub fn register_services(cfg: &mut web::ServiceConfig) {
     cfg.service(index)
         .service(post_request)
+        .service(device_manager_firmware_update)
         .service(device_manager_get)
         .service(device_manager_post)
         .service(recording::recording_manager_get)
@@ -107,6 +108,16 @@ async fn post_request(
 ) -> Result<Json<crate::device::manager::Answer>, Error> {
     let request = json.into_inner();
 
+    send_request_and_broadcast(&manager_handler, request).await
+}
+
+#[api_v2_operation(tags("Device Manager"))]
+#[post("device_manager/firmware_update")]
+async fn device_manager_firmware_update(
+    manager_handler: web::Data<ManagerActorHandler>,
+    info: web::Json<crate::device::manager::firmware_update::FirmwareUpdateRequest>,
+) -> Result<Json<crate::device::manager::Answer>, Error> {
+    let request = crate::device::manager::Request::FirmwareUpdate(info.into_inner());
     send_request_and_broadcast(&manager_handler, request).await
 }
 

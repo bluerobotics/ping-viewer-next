@@ -6,6 +6,8 @@ pub mod device_discovery;
 pub mod device_handle;
 /// Specially for DeviceManager, allow discovery service to run on background
 pub mod discovery_service;
+/// Firmware update tools and types
+pub mod firmware_update;
 
 use paperclip::actix::Apiv2Schema;
 use serde::{Deserialize, Serialize};
@@ -28,6 +30,10 @@ use udp_stream::UdpStream;
 use uuid::Uuid;
 
 use super::devices::{DeviceActor, DeviceActorHandler, DeviceType, PingAnswer};
+use crate::device::manager::firmware_update::{
+    FirmwareDeviceKind, FirmwareUpdateError, FirmwareUpdateMode, FirmwareUpdateRequest,
+    FirmwareUpdateResult, ManualUpdate,
+};
 use bluerobotics_ping::{
     common::{DeviceInformationStruct, ProtocolVersionStruct},
     device::{Ping1D, Ping360},
@@ -44,6 +50,7 @@ pub struct Device {
     pub status: DeviceStatus,
     pub device_type: DeviceSelection,
     pub properties: Option<DeviceProperties>,
+    pub firmware_update_handle: Option<tokio::task::JoinHandle<()>>, // Track active firmware update process
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -151,12 +158,14 @@ pub struct SourceSerialStruct {
     pub baudrate: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Apiv2Schema)]
 pub enum DeviceStatus {
     Available,
+    Bootloader,
     Running,
     Error,
     ContinuousMode,
+    FirmwareUpdateInProgress,
 }
 
 pub struct DeviceManager {
@@ -183,6 +192,7 @@ pub enum Answer {
     InnerDeviceHandler(DeviceActorHandler),
     DeviceInfo(Vec<DeviceInfo>),
     DeviceConfig(ModifyDeviceResult),
+    FirmwareUpdate(FirmwareUpdateResult),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -196,6 +206,7 @@ pub enum ManagerError {
     TokioMpsc(String),
     NotImplemented(Request),
     Other(String),
+    FirmwareUpdateError(FirmwareUpdateError),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -221,6 +232,8 @@ pub enum Request {
     DisableContinuousMode(UuidWrapper),
     #[serde(skip)]
     SpecialTurnOffContinuousMode(UuidWrapper),
+    FirmwareUpdate(FirmwareUpdateRequest),
+    ResetDeviceStatus(ResetDeviceStatusRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
@@ -255,6 +268,12 @@ impl Deref for UuidWrapper {
     }
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
+pub struct ResetDeviceStatusRequest {
+    pub device_id: Uuid,
+    pub status: DeviceStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
 pub struct CreateStruct {
     pub source: SourceSelection,
     pub device_selection: DeviceSelection,
@@ -267,6 +286,300 @@ pub struct DeviceRequestStruct {
 }
 
 impl DeviceManager {
+    pub async fn firmware_update(
+        &mut self,
+        request: FirmwareUpdateRequest,
+    ) -> Result<Answer, ManagerError> {
+        let selected_device_updagrade;
+
+        let (source, device_id_opt, revision_opt, status_opt, device_type_opt, _manual_path_opt) =
+            match request.mode {
+                FirmwareUpdateMode::AutoUpdate(ref uuidw) => {
+                    // fetch device properties to determine device type
+                    let props = self.get_device_properties(uuidw.uuid).await?;
+
+                    let (revision_opt, device_kind) = match &props {
+                        Some(DeviceProperties::Ping1D(p)) => {
+                            let revision = p.common.device_information.device_revision;
+                            let device_kind = match revision {
+                                1 => FirmwareDeviceKind::Ping1D,
+                                2 => FirmwareDeviceKind::Ping2,
+                                _ => {
+                                    return Err(ManagerError::FirmwareUpdateError(
+                                        FirmwareUpdateError::UnsupportedDevice,
+                                    ))
+                                }
+                            };
+                            (Some(revision), device_kind)
+                        }
+                        Some(DeviceProperties::Ping360(_)) => (None, FirmwareDeviceKind::Ping360),
+                        _ => {
+                            return Err(ManagerError::FirmwareUpdateError(
+                                FirmwareUpdateError::UnsupportedDevice,
+                            ))
+                        }
+                    };
+
+                    selected_device_updagrade = device_kind;
+
+                    let source: SourceSelection = self.get_device_source(uuidw.uuid)?;
+                    let status: DeviceStatus = self.get_device_status(uuidw.uuid)?;
+                    let dtype: DeviceSelection = self.get_device_type(uuidw.uuid)?;
+
+                    // Check if firmware update is already in progress
+                    // Allow firmware updates when device is in Bootloader status (for retries after failure)
+                    if status == DeviceStatus::FirmwareUpdateInProgress {
+                        // Return Running status instead of error for better user experience
+                        return Ok(Answer::FirmwareUpdate(FirmwareUpdateResult::Running));
+                    }
+
+                    // Additional check: see if there's an active firmware update process handle
+                    if let Ok(device) = self.get_device(uuidw.uuid) {
+                        if let Some(handle) = &device.firmware_update_handle {
+                            if !handle.is_finished() {
+                                // There's an active firmware update process running
+                                return Ok(Answer::FirmwareUpdate(FirmwareUpdateResult::Running));
+                            }
+                        }
+                    }
+
+                    (
+                        source,
+                        Some(uuidw.uuid),
+                        revision_opt,
+                        Some(status),
+                        Some(dtype),
+                        None,
+                    )
+                }
+                FirmwareUpdateMode::ManualUpdate(ManualUpdate {
+                    ref path,
+                    ref device_kind,
+                }) => {
+                    selected_device_updagrade = device_kind.to_owned();
+
+                    // Check if there's already a firmware update in progress for this serial port
+                    let is_update_in_progress = self.device.values().any(|device| {
+                        matches!(device.status, DeviceStatus::FirmwareUpdateInProgress) &&
+                        matches!(&device.source, SourceSelection::SerialStream(serial) if serial.path == *path)
+                    });
+
+                    if is_update_in_progress {
+                        return Ok(Answer::FirmwareUpdate(FirmwareUpdateResult::Running));
+                    }
+
+                    (
+                        SourceSelection::SerialStream(SourceSerialStruct {
+                            path: path.clone(),
+                            baudrate: 115200,
+                        }),
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some(path.clone()),
+                    )
+                }
+            };
+
+        match selected_device_updagrade {
+            FirmwareDeviceKind::Ping1D | FirmwareDeviceKind::Ping2 => {
+                // If a device instance exists, stop it to release the port
+                if let Some(device_id) = device_id_opt {
+                    // If we have a running/available device, try to put it into bootloader using the protocol
+                    if let (Some(status), Some(dtype)) =
+                        (status_opt.clone(), device_type_opt.clone())
+                    {
+                        match status {
+                            DeviceStatus::Available => {
+                                // Temporarily create device to send goto_bootloader
+                                if matches!(dtype, DeviceSelection::Ping1D) {
+                                    // Prefer the high-level auto_create path which enables continuous mode
+                                    let _ = self.auto_create_device(device_id).await;
+                                    if let Ok(Answer::InnerDeviceHandler(handler)) =
+                                        self.get_device_handler(device_id).await
+                                    {
+                                        let _ = handler
+                                            .send(crate::device::devices::PingRequest::Ping1D(
+                                                crate::device::devices::Ping1DRequest::GotoBootloader,
+                                            ))
+                                            .await;
+                                        // Give time for device to process GotoBootloader before closing port
+                                        sleep(Duration::from_millis(1000)).await;
+                                    }
+                                }
+                            }
+                            DeviceStatus::Running | DeviceStatus::ContinuousMode => {
+                                // get handler and send goto_bootloader
+                                if let Ok(Answer::InnerDeviceHandler(handler)) =
+                                    self.get_device_handler(device_id).await
+                                {
+                                    let _ = handler
+                                        .send(crate::device::devices::PingRequest::Ping1D(
+                                            crate::device::devices::Ping1DRequest::GotoBootloader,
+                                        ))
+                                        .await;
+                                    // Give time for device to process GotoBootloader before closing port
+                                    sleep(Duration::from_millis(1000)).await;
+                                }
+                            }
+                            DeviceStatus::Error => {
+                                // Need to put device into bootloader mode
+                                // (handled by existing logic above)
+                            }
+                            DeviceStatus::Bootloader => {
+                                // Device is already in bootloader mode (likely from previous failed update)
+                                // No need to send goto_bootloader command again
+                                info!("Device {} already in bootloader mode, skipping goto_bootloader", device_id);
+                            }
+                            DeviceStatus::FirmwareUpdateInProgress => {
+                                // This shouldn't happen due to our earlier check, but handle it gracefully
+                                warn!("Device {} is already undergoing firmware update", device_id);
+                            }
+                        }
+                    }
+                    // Ensure device released before flashing
+                    let _ = self.disable_device(device_id).await;
+                    // Mark status as FirmwareUpdateInProgress to prevent concurrent updates
+                    // (device should already be in Bootloader status after previous failure)
+                    if let Ok(device) = self.get_mut_device(device_id) {
+                        device.status = DeviceStatus::FirmwareUpdateInProgress;
+                    }
+                    // Give the device time to switch to bootloader and enumerate
+                    // Use shorter delay if device is already in bootloader mode
+                    let bootloader_delay = if let Some(DeviceStatus::Bootloader) = status_opt {
+                        Duration::from_millis(1000) // Shorter delay for already-bootloader devices
+                    } else {
+                        Duration::from_millis(5000) // Normal delay for fresh bootloader transitions
+                    };
+                    sleep(bootloader_delay).await;
+                }
+            }
+            FirmwareDeviceKind::Ping360 => {
+                // Ping360 bootloader handles putting device into bootloader mode automatically
+                // Just ensure device is released and mark as in progress
+                if let Some(device_id) = device_id_opt {
+                    let _ = self.disable_device(device_id).await;
+                    if let Ok(device) = self.get_mut_device(device_id) {
+                        device.status = DeviceStatus::FirmwareUpdateInProgress;
+                    }
+                    // Short delay for Ping360
+                    sleep(Duration::from_millis(1000)).await;
+                }
+            }
+        }
+
+        let base = crate::device::manager::firmware_update::default_firmware_base_dir();
+
+        let firmware_path_str = match selected_device_updagrade {
+            FirmwareDeviceKind::Ping1D | FirmwareDeviceKind::Ping2 => {
+                let revision = revision_opt.unwrap_or(1);
+                crate::device::manager::firmware_update::ensure_firmware_present(revision, &base)
+                    .await
+                    .map_err(ManagerError::FirmwareUpdateError)?
+                    .to_string_lossy()
+                    .to_string()
+            }
+            FirmwareDeviceKind::Ping360 => {
+                crate::device::manager::firmware_update::ensure_ping360_firmware_present(&base)
+                    .await
+                    .map_err(ManagerError::FirmwareUpdateError)?
+                    .to_string_lossy()
+                    .to_string()
+            }
+        };
+
+        // Stop discovery right before flashing to avoid port contention
+        self.discovery_service.stop_discovery();
+
+        // Run updater with completion callback
+        let device_id_for_callback = device_id_opt;
+        let manager_handler_for_callback = self.manager_handler.clone();
+        let callback = Box::new(move |success: bool| {
+            let device_id = device_id_for_callback;
+            let manager_handler = manager_handler_for_callback;
+            tokio::spawn(async move {
+                if let Some(device_id) = device_id {
+                    let new_status = if success {
+                        DeviceStatus::Available
+                    } else {
+                        // Keep device in Bootloader status on failure so user can retry
+                        DeviceStatus::Bootloader
+                    };
+
+                    let _ = manager_handler
+                        .send(Request::ResetDeviceStatus(ResetDeviceStatusRequest {
+                            device_id,
+                            status: new_status,
+                        }))
+                        .await;
+                }
+            });
+        });
+
+        let update_result = match selected_device_updagrade {
+            FirmwareDeviceKind::Ping1D | FirmwareDeviceKind::Ping2 => {
+                crate::device::manager::firmware_update::update_ping1d_with_callback(
+                    &source,
+                    Some(firmware_path_str.as_str()),
+                    request.force,
+                    device_id_opt,
+                    Some(callback),
+                )
+                .await
+            }
+            FirmwareDeviceKind::Ping360 => {
+                crate::device::manager::firmware_update::update_ping360_with_callback(
+                    &source,
+                    Some(firmware_path_str.as_str()),
+                    request.force,
+                    device_id_opt,
+                    Some(callback),
+                )
+                .await
+            }
+        };
+
+        let res = match update_result {
+            Ok((r, handle)) => {
+                // Store the firmware update task handle for tracking
+                if let Some(device_id) = device_id_opt {
+                    if let Ok(device) = self.get_mut_device(device_id) {
+                        device.firmware_update_handle = Some(handle);
+                    }
+                }
+                r
+            }
+            Err(_e) => {
+                // Ensure discovery resumes even on error
+                self.discovery_service.start_discovery();
+                return Err(ManagerError::FirmwareUpdateError(
+                    FirmwareUpdateError::UnsupportedDevice,
+                ));
+            }
+        };
+
+        self.discovery_service.start_discovery();
+        if let Ok(Answer::DeviceInfo(inner)) = self.list().await {
+            self.discovery_service.broadcast_known_devices(&inner);
+        }
+        Ok(Answer::FirmwareUpdate(res))
+    }
+
+    pub async fn reset_device_status(
+        &mut self,
+        device_id: Uuid,
+        status: DeviceStatus,
+    ) -> Result<Answer, ManagerError> {
+        if let Some(device) = self.device.get_mut(&device_id) {
+            info!("Reset device {} status to {:?}", device_id, status);
+            device.status = status;
+            Ok(Answer::DeviceInfo(vec![]))
+        } else {
+            Err(ManagerError::DeviceNotExist(device_id))
+        }
+    }
+
     async fn handle_message(&mut self, actor_request: ManagerActorRequest) {
         trace!("DeviceManager: Received a request, details: {actor_request:?}");
         match actor_request.request {
@@ -330,6 +643,18 @@ impl DeviceManager {
                     error!("DeviceManager: Failed to return ModifyDevice response: {err:?}");
                 }
             }
+            Request::FirmwareUpdate(req) => {
+                let answer = self.firmware_update(req).await;
+                if let Err(err) = actor_request.respond_to.send(answer) {
+                    error!("DeviceManager: Failed to return FirmwareUpdate response: {err:?}");
+                }
+            }
+            Request::ResetDeviceStatus(req) => {
+                let answer = self.reset_device_status(req.device_id, req.status).await;
+                if let Err(err) = actor_request.respond_to.send(answer) {
+                    error!("DeviceManager: Failed to return ResetDeviceStatus response: {err:?}");
+                }
+            }
             _ => {
                 if let Err(e) = actor_request
                     .respond_to
@@ -366,7 +691,11 @@ impl DeviceManager {
         self.discovery_service.start_discovery();
 
         if let Ok(Answer::DeviceInfo(inner)) = self.list().await {
-            self.discovery_service.broadcast_known_devices(&inner);
+            let filtered: Vec<DeviceInfo> = inner
+                .into_iter()
+                .filter(|d| d.status != DeviceStatus::Bootloader)
+                .collect();
+            self.discovery_service.broadcast_known_devices(&filtered);
         }
 
         let mut discovery_rx = self.discovery_service.get_discovery_rx();
@@ -406,7 +735,13 @@ impl DeviceManager {
         };
 
         for device in device_info {
-            if matches!(device.status, DeviceStatus::Error | DeviceStatus::Available) {
+            if matches!(
+                device.status,
+                DeviceStatus::Error
+                    | DeviceStatus::Available
+                    | DeviceStatus::Bootloader
+                    | DeviceStatus::FirmwareUpdateInProgress
+            ) {
                 continue;
             }
 
@@ -672,6 +1007,7 @@ impl DeviceManager {
             broadcast: None,
             device_type: device_selection,
             properties: None,
+            firmware_update_handle: None,
         };
 
         self.device.insert(hash, device);
@@ -853,6 +1189,24 @@ impl DeviceManager {
     ) -> Result<Answer, ManagerError> {
         let id = device_info.id;
         if self.device.contains_key(&id) {
+            // If the device already exists and is in bootloader, update it back to Available
+            if let Some(existing) = self.device.get_mut(&id) {
+                if existing.status == DeviceStatus::Bootloader {
+                    existing.status = DeviceStatus::Available;
+                    existing.source = device_info.source;
+                    existing.device_type = device_info.device_type;
+                    existing.properties = device_info.properties;
+
+                    let info = existing.info();
+
+                    if let Ok(Answer::DeviceInfo(inner)) = self.list().await {
+                        self.discovery_service.broadcast_known_devices(&inner);
+                    }
+
+                    return Ok(Answer::DeviceInfo(vec![info]));
+                }
+            }
+
             error!("Device register id {id:?} : Error, device already exists");
             return Err(ManagerError::DeviceAlreadyExist(id));
         }
@@ -866,6 +1220,7 @@ impl DeviceManager {
             broadcast: None,
             device_type: device_info.device_type,
             properties: device_info.properties,
+            firmware_update_handle: None,
         };
 
         let info = device.info();
@@ -908,6 +1263,20 @@ impl DeviceManager {
         if let Ok(Answer::DeviceInfo(inner)) = self.list().await {
             self.discovery_service.broadcast_known_devices(&inner);
         }
+
+        Ok(Answer::DeviceInfo(vec![device_info]))
+    }
+
+    pub async fn disable_device(&mut self, id: Uuid) -> Result<Answer, ManagerError> {
+        let device = self.get_mut_device(id)?;
+
+        device.status = DeviceStatus::Available;
+
+        device.handler = None;
+        device.actor = None;
+        device.broadcast = None;
+
+        let device_info = device.info();
 
         Ok(Answer::DeviceInfo(vec![device_info]))
     }

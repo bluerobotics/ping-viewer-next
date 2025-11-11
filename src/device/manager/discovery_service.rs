@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::net::SocketAddrV4;
 use std::time::Duration;
 
+use bluerobotics_ping::device::PingDevice;
 use bluerobotics_ping::ping1d::Device as Ping1D;
 use bluerobotics_ping::ping360::Device as Ping360;
 use tokio::sync::broadcast;
@@ -15,7 +16,8 @@ use crate::device::devices::{DeviceActor, DeviceType, PingAnswer, UpgradeResult}
 use crate::device::manager::ManagerError;
 
 use super::{
-    device_discovery, DeviceInfo, DeviceSelection, DeviceStatus, SourceSelection, SourceType,
+    device_discovery, CommonProperties, DeviceInfo, DeviceProperties, DeviceSelection,
+    DeviceStatus, Ping1DProperties, Ping360Config, Ping360Properties, SourceSelection, SourceType,
 };
 
 use std::collections::hash_map::DefaultHasher;
@@ -131,12 +133,162 @@ impl DeviceFactory {
         source.hash(&mut hasher);
         let id = Uuid::from_u128(hasher.finish() as u128);
 
+        // Try to fetch properties for available device based on resolved type
+        let properties: Option<DeviceProperties> = match device_type {
+            DeviceSelection::Common => {
+                // Common properties
+                let common = match &device.device_type {
+                    DeviceType::Common(dev) => {
+                        let device_information = dev.device_information().await.map_err(|e| {
+                            ManagerError::DeviceError(
+                                crate::device::devices::DeviceError::PingError(e),
+                            )
+                        })?;
+                        let protocol_version = dev.protocol_version().await.map_err(|e| {
+                            ManagerError::DeviceError(
+                                crate::device::devices::DeviceError::PingError(e),
+                            )
+                        })?;
+                        CommonProperties {
+                            device_information,
+                            protocol_version,
+                        }
+                    }
+                    // DeviceType::Ping1D(dev) => {
+                    //     let device_information = dev.device_information().await.map_err(|e| {
+                    //         ManagerError::DeviceError(
+                    //             crate::device::devices::DeviceError::PingError(e),
+                    //         )
+                    //     })?;
+                    //     let protocol_version = dev.protocol_version().await.map_err(|e| {
+                    //         ManagerError::DeviceError(
+                    //             crate::device::devices::DeviceError::PingError(e),
+                    //         )
+                    //     })?;
+                    //     CommonProperties {
+                    //         device_information,
+                    //         protocol_version,
+                    //     }
+                    // }
+                    // DeviceType::Ping360(dev) => {
+                    //     let device_information = dev.device_information().await.map_err(|e| {
+                    //         ManagerError::DeviceError(
+                    //             crate::device::devices::DeviceError::PingError(e),
+                    //         )
+                    //     })?;
+                    //     let protocol_version = dev.protocol_version().await.map_err(|e| {
+                    //         ManagerError::DeviceError(
+                    //             crate::device::devices::DeviceError::PingError(e),
+                    //         )
+                    //     })?;
+                    //     CommonProperties {
+                    //         device_information,
+                    //         protocol_version,
+                    //     }
+                    // }
+                    _ => unreachable!(),
+                };
+                Some(DeviceProperties::Common(common))
+            }
+            DeviceSelection::Ping1D => {
+                let common = match &device.device_type {
+                    DeviceType::Ping1D(dev) => {
+                        let device_information = dev.device_information().await.map_err(|e| {
+                            ManagerError::DeviceError(
+                                crate::device::devices::DeviceError::PingError(e),
+                            )
+                        })?;
+                        let protocol_version = dev.protocol_version().await.map_err(|e| {
+                            ManagerError::DeviceError(
+                                crate::device::devices::DeviceError::PingError(e),
+                            )
+                        })?;
+                        CommonProperties {
+                            device_information,
+                            protocol_version,
+                        }
+                    }
+                    // DeviceType::Common(dev) => {
+                    //     let device_information = dev.device_information().await.map_err(|e| {
+                    //         ManagerError::DeviceError(
+                    //             crate::device::devices::DeviceError::PingError(e),
+                    //         )
+                    //     })?;
+                    //     let protocol_version = dev.protocol_version().await.map_err(|e| {
+                    //         ManagerError::DeviceError(
+                    //             crate::device::devices::DeviceError::PingError(e),
+                    //         )
+                    //     })?;
+                    //     CommonProperties {
+                    //         device_information,
+                    //         protocol_version,
+                    //     }
+                    // }
+                    // DeviceType::Ping360(_) | DeviceType::Null => unreachable!(),
+                    _ => unreachable!(),
+                };
+                Some(DeviceProperties::Ping1D(Ping1DProperties { common }))
+            }
+            DeviceSelection::Ping360 => match &device.device_type {
+                DeviceType::Ping360(dev) => {
+                    let device_information = dev.device_information().await.map_err(|e| {
+                        ManagerError::DeviceError(crate::device::devices::DeviceError::PingError(e))
+                    })?;
+                    let protocol_version = dev.protocol_version().await.map_err(|e| {
+                        ManagerError::DeviceError(crate::device::devices::DeviceError::PingError(e))
+                    })?;
+
+                    let device_data = dev.device_data().await.map_err(|e| {
+                        ManagerError::DeviceError(crate::device::devices::DeviceError::PingError(e))
+                    })?;
+
+                    let auto_transmit = Ping360Config {
+                        mode: device_data.mode,
+                        gain_setting: device_data.gain_setting,
+                        transmit_duration: device_data.transmit_duration,
+                        sample_period: device_data.sample_period,
+                        transmit_frequency: device_data.transmit_frequency,
+                        number_of_samples: 1200,
+                        start_angle: 0,
+                        stop_angle: 399,
+                        num_steps: 1,
+                        delay: 0,
+                    };
+
+                    Some(DeviceProperties::Ping360(Ping360Properties {
+                        common: CommonProperties {
+                            device_information,
+                            protocol_version,
+                        },
+                        continuous_mode_settings: std::sync::Arc::new(std::sync::RwLock::new(
+                            auto_transmit,
+                        )),
+                    }))
+                }
+                // DeviceType::Common(dev) => {
+                //     let device_information = dev.device_information().await.map_err(|e| {
+                //         ManagerError::DeviceError(crate::device::devices::DeviceError::PingError(e))
+                //     })?;
+                //     let protocol_version = dev.protocol_version().await.map_err(|e| {
+                //         ManagerError::DeviceError(crate::device::devices::DeviceError::PingError(e))
+                //     })?;
+                //     Some(DeviceProperties::Common(CommonProperties {
+                //         device_information,
+                //         protocol_version,
+                //     }))
+                // }
+                // DeviceType::Ping1D(_) | DeviceType::Null => unreachable!(),
+                _ => unreachable!(),
+            },
+            DeviceSelection::Auto => None,
+        };
+
         let device = DeviceInfo {
             id,
             source,
             status: DeviceStatus::Available,
             device_type,
-            properties: None,
+            properties,
         };
 
         Ok(device)
