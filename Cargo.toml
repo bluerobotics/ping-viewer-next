@@ -10,38 +10,38 @@ license = "MIT"
 [dependencies]
 actix = "0.13.5"
 actix-cors = "0.7.1"
-actix-web = "4.11.0"
-bluerobotics-ping = { version="0.3.5", features = ["serde", "json_schema"] }
+actix-web = "=4.11.0"
+bluerobotics-ping = { version="0.3.6", features = ["serde", "json_schema"] }
 actix-web-actors = "4.3.1"
-chrono = { version = "0.4.41", features = ["serde"] }
+chrono = { version = "0.4.42", features = ["serde"] }
 clap = {version = "4.5.40", features = ["derive"] }
 lazy_static = "1.5.0"
 mime_guess = "2.0.5"
 paperclip = { version = "0.9.5" , features = ["actix4", "swagger-ui", "uuid"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json5 = { version = "0.2.1" }
-regex = "1.11.1"
-rust-embed = "8.7.2"
-serde_json = "1.0.140"
-tokio = { version = "1.46.1", features = ["full"] }
+regex = "1.12.2"
+rust-embed = "8.9.0"
+serde_json = "1.0.145"
+tokio = { version = "1.48.0", features = ["full"] }
 tokio-serial = "5.4.5"
 tracing = { version = "0.1.41", features = ["log", "async-await"] }
 tracing-log = "0.2.0"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 tracing-appender = "0.2.3"
 tracing-tracy = {version = "0.11.4", features = ["ondemand"] }
 udp-stream = "0.0.12"
-uuid = { version = "1.17.0", features = ["serde"] }
+uuid = { version = "1.18.1", features = ["serde"] }
 validator = "0.20.0"
-thiserror = "2.0.12"
+thiserror = "2.0.17"
 shellexpand = "3.1"
-foxglove = { version = "0.9.1", default-features = false, features = ["schemars"] }
-zenoh = "1.4.0"
-mavlink =  { default-features = false, features = ["std", "ardupilotmega", "tokio-1", "serde"], version = "0.15.0"}
-schemars = { version = "0.9.0"}
+foxglove = { version = "0.16.1", default-features = false, features = ["schemars"] }
+zenoh = "1.6.2"
+mavlink =  { default-features = false, features = ["std", "ardupilotmega", "tokio-1", "serde"], version = "0.16.2"}
+schemars = { version = "1.1.0"}
 
-reqwest = {version = "0.12.22", features = ["json"], optional = true }
-openssl = { version = "0.10.73", features = ["vendored"], optional = true }
+reqwest = {version = "0.12.24", features = ["json"], optional = true }
+openssl = { version = "0.10.75", features = ["vendored"], optional = true }
 dirs = "6.0.0"
 
 
