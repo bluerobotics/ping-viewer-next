@@ -15,7 +15,7 @@ interface SonarMeasurement {
 const props = withDefaults(
   defineProps<{
     numLines: number;
-    lineLength: number;
+    lineLength?: number;
     measurement: SonarMeasurement | null;
     colorPalette: string;
     getColorFromPalette: (value: number, palette: string) => number[];
@@ -24,6 +24,7 @@ const props = withDefaults(
     yaw_angle: number;
   }>(),
   {
+    lineLength: 1200,
     measurement: null,
     startAngle: 0,
     endAngle: 360,
@@ -37,8 +38,9 @@ let gl: WebGLRenderingContext | null = null;
 let shaderProgram: WebGLProgram | null = null;
 let texture: WebGLTexture | null = null;
 
-const textureData = new Uint8Array(props.numLines * props.lineLength * 4);
-const tempBuffer = new Uint8Array(props.numLines * props.lineLength * 4);
+let textureData = new Uint8Array(props.numLines * props.lineLength * 4);
+let tempBuffer = new Uint8Array(props.numLines * props.lineLength * 4);
+let currentLineLength = props.lineLength;
 const currentAngle = ref(0);
 const previousYaw = ref(0);
 
@@ -185,9 +187,33 @@ const setupBuffers = () => {
   gl.vertexAttribPointer(textureCoord, 2, gl.FLOAT, false, 0, 0);
 };
 
+const resizeTextureBuffers = (newLineLength: number) => {
+  if (newLineLength === currentLineLength) return;
+
+  textureData = new Uint8Array(props.numLines * newLineLength * 4);
+  tempBuffer = new Uint8Array(props.numLines * newLineLength * 4);
+  currentLineLength = newLineLength;
+
+  if (gl && texture) {
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      currentLineLength,
+      props.numLines,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      textureData
+    );
+    render();
+  }
+};
+
 const rotateTextureData = (lineOffset: number) => {
   tempBuffer.set(textureData);
-  const bytesPerLine = props.lineLength * 4;
+  const bytesPerLine = currentLineLength * 4;
 
   for (let i = 0; i < props.numLines; i++) {
     const sourceLineIndex = (i - lineOffset + props.numLines) % props.numLines;
@@ -213,7 +239,7 @@ const setupTexture = () => {
     gl.TEXTURE_2D,
     0,
     gl.RGBA,
-    props.lineLength,
+    currentLineLength,
     props.numLines,
     0,
     gl.RGBA,
@@ -238,6 +264,10 @@ const render = () => {
 };
 
 const updateSonarData = (angle: number, newData: Uint8Array) => {
+  if (newData.length !== currentLineLength) {
+    resizeTextureBuffers(newData.length);
+  }
+
   const yawDiff = props.yaw_angle - previousYaw.value;
   if (yawDiff !== 0) {
     const linesPerDegree = props.numLines / 360;
@@ -247,7 +277,7 @@ const updateSonarData = (angle: number, newData: Uint8Array) => {
   }
 
   const lineIndex = angle % props.numLines;
-  const textureStart = lineIndex * props.lineLength * 4;
+  const textureStart = lineIndex * currentLineLength * 4;
 
   for (let i = 0; i < newData.length; i++) {
     const color = props.getColorFromPalette(newData[i], props.colorPalette);
@@ -267,11 +297,11 @@ const updateSonarData = (angle: number, newData: Uint8Array) => {
     0,
     0,
     lineIndex,
-    props.lineLength,
+    currentLineLength,
     1,
     gl.RGBA,
     gl.UNSIGNED_BYTE,
-    textureData.subarray(textureStart, textureStart + props.lineLength * 4)
+    textureData.subarray(textureStart, textureStart + currentLineLength * 4)
   );
 
   currentAngle.value = angle;
@@ -320,7 +350,7 @@ watch(
           gl.TEXTURE_2D,
           0,
           gl.RGBA,
-          props.lineLength,
+          currentLineLength,
           props.numLines,
           0,
           gl.RGBA,

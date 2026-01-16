@@ -6,9 +6,9 @@
 				:radiusLineColor="radiusLineColor" :markerColor="markerColor"
 				:markerBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"
 				:startAngle="startAngle" :endAngle="endAngle">
-				<Sonar360Shader :measurement="measurement" :numLines="400" :lineLength="1202"
-					:color-palette="colorPalette" :get-color-from-palette="getColorFromPalette" :startAngle="startAngle"
-					:endAngle="endAngle" :yaw_angle="yaw_angle" :debug=false />
+			<Sonar360Shader :measurement="measurement" :numLines="400"
+				:color-palette="colorPalette" :get-color-from-palette="getColorFromPalette" :startAngle="startAngle"
+				:endAngle="endAngle" :yaw_angle="yaw_angle" :debug=false />
 			</Sonar360Mask>
 		</div>
 
