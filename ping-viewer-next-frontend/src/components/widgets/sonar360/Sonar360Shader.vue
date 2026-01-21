@@ -5,6 +5,7 @@
 </template>
 
 <script setup lang="ts">
+import { onKeyStroke } from '@vueuse/core';
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 interface SonarMeasurement {
@@ -321,6 +322,31 @@ const resizeCanvas = () => {
     render();
   }
 };
+
+const clearShaderContent = () => {
+  textureData.fill(0);
+  tempBuffer.fill(0);
+
+  if (gl && texture) {
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      currentLineLength,
+      props.numLines,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      textureData
+    );
+    render();
+  }
+};
+
+onKeyStroke(['r', 'R'], () => {
+  clearShaderContent();
+});
 
 onMounted(() => {
   nextTick(() => {

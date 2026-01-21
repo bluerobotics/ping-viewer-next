@@ -5,6 +5,7 @@
 </template>
 
 <script>
+import { onKeyStroke } from '@vueuse/core';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 export default {
@@ -417,6 +418,21 @@ export default {
         render();
       }
     }
+
+    function clearShaderContent() {
+      measurementHistory.value = [];
+      pendingUpdates.value = [];
+
+      virtualMaxDepth.value = props.maxDepth;
+
+      if (textureData) {
+        textureData.fill(0);
+      }
+    }
+
+    onKeyStroke(['r', 'R'], () => {
+      clearShaderContent();
+    });
 
     onMounted(() => {
       resizeCanvas();
