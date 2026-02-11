@@ -90,13 +90,13 @@
             <div class="text-h6 text-center w-full ml-6">Settings</div>
             <v-btn icon="mdi-close" variant="text" @click="showSettings = false" />
           </div>
-          <VisualSettings :is-open="showSettings" :glass="glass" :common-settings="commonSettings"
+          <VisualSettings :is-open="showSettings" :glass="glass"
             :ping1DSettings="ping1DSettings" :ping360Settings="ping360Settings" :is-dark-mode="isDarkMode"
             :is-glass-mode="isGlassMode" :server-url="serverUrl" :yaw-connection-status="yawConnectionStatus"
-            @update:is-open="showSettings = $event" @update:common-settings="updateCommonSettings"
-            @update:ping1D-settings="updatePing1DSettings" @update:ping360-settings="updatePing360Settings"
-            @update:is-dark-mode="updateDarkMode" @update:is-glass-mode="updateGlassMode"
-            @update:server-url="handleServerUrlUpdate" @updateMavlink="handleMavlinkUpdate" @save="saveSettings"
+            @update:isOpen="showSettings = $event"
+            @update:ping1DSettings="updatePing1DSettings" @update:ping360Settings="updatePing360Settings"
+            @update:isDarkMode="updateDarkMode" @update:isGlassMode="updateGlassMode"
+            @update:serverUrl="handleServerUrlUpdate" @updateMavlink="handleMavlinkUpdate" @save="saveSettings"
             @reset="resetSettings" />
         </v-card>
 

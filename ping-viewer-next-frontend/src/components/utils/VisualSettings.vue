@@ -567,17 +567,17 @@ const updatePing360ColorPalette = (newPalette) => {
 };
 
 watch(
-  () => props.ping1DSettings,
+  localPing1DSettings,
   (newSettings) => {
-    Object.assign(localPing1DSettings, newSettings);
+    emit('update:ping1DSettings', { ...newSettings });
   },
   { deep: true }
 );
 
 watch(
-  () => props.ping360Settings,
+  localPing360Settings,
   (newSettings) => {
-    Object.assign(localPing360Settings, newSettings);
+    emit('update:ping360Settings', { ...newSettings });
   },
   { deep: true }
 );
