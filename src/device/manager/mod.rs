@@ -833,7 +833,7 @@ impl DeviceManager {
     pub async fn list(&self) -> Result<Answer, ManagerError> {
         if self.device.is_empty() {
             trace!("No devices available for list generation request");
-            return Err(ManagerError::NoDevices);
+            return Ok(Answer::DeviceInfo(Vec::new()));
         };
         let mut list = Vec::new();
         for device in self.device.values() {
