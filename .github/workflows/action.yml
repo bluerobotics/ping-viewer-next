@@ -10,11 +10,17 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Install build dependencies
+        # Note: Dependencies after git are related to Tauri
         uses: awalsh128/cache-apt-pkgs-action@v1.4.3
         with:
           packages: |
-            curl \
+            curl
             git
+            libwebkit2gtk-4.0-dev
+            libwebkit2gtk-4.1-dev
+            libappindicator3-dev
+            librsvg2-dev
+            patchelf
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,11 +28,6 @@ jobs:
       - name: Set directory to safe for git
         # Note: Required by vergen (https://crates.io/crates/vergen)
         run: git config --global --add safe.directory $GITHUB_WORKSPACE
-
-      - name: install dependencies (desktop-app)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Install build dependencies - Rustup
         run: |
@@ -37,6 +38,9 @@ jobs:
         uses: oven-sh/setup-bun@v2.0.1
         with:
           bun-version: 1.1.30
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
 
       - name: Check style
         run: cargo fmt --check
