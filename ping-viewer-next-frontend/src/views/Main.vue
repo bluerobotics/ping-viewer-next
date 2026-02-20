@@ -1046,6 +1046,13 @@ const formatFileSize = (bytes) => {
   return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 };
 
+watch(isSpeedDialOpen, (open) => {
+  if (!open) {
+    isConnectionMenuOpen.value = false;
+    showSettings.value = false;
+  }
+});
+
 // Watch for recordings menu to open and fetch recordings
 watch(
   () => showRecordingsMenu.value,
