@@ -175,7 +175,10 @@
         <!-- Manual Creation Dialog -->
         <v-dialog v-model="showManualCreate" max-width="500">
           <v-card :class="{ 'glass': glass }">
-            <v-card-title>Create New Device</v-card-title>
+            <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+              <div class="text-h6 text-center w-full">Create New Device</div>
+              <v-btn icon="mdi-close" variant="text" @click="showManualCreate = false" />
+            </div>
             <v-card-text>
               <v-form @submit.prevent="createDevice">
                 <v-select v-model="newDevice.device_selection" :items="deviceTypes" label="Device Type" class="mb-4" />
@@ -197,11 +200,11 @@
                 </template>
               </v-form>
             </v-card-text>
-            <v-card-actions>
-              <v-spacer />
-              <v-btn color="error" variant="text" @click="showManualCreate = false">Cancel</v-btn>
-              <v-btn color="success" :loading="isCreating" @click="createDevice">Create</v-btn>
-            </v-card-actions>
+            <div class="flex w-full justify-end">
+              <v-btn variant="plain" size="small" class="mb-1 mr-1" :loading="isCreating" @click="createDevice">
+                Create
+              </v-btn>
+            </div>
           </v-card>
         </v-dialog>
 
