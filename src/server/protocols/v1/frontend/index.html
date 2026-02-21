@@ -23,7 +23,7 @@
                 const messageElement = document.createElement('div');
                 messageElement.textContent = event.data;
                 messagesDiv.appendChild(messageElement);
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;  // Auto-scroll to the bottom
+                messagesDiv.scrollTop = messagesDiv.scrollHeight; // Auto-scroll to the bottom
             };
 
             socket.onclose = function(event) {
