@@ -2,7 +2,7 @@
   <v-dialog v-if="!serverInfo" v-model="dialog" persistent width="500" class="glassMenu">
     <v-card class="glassMenu server-connection">
       <v-card-title class="text-h5 pt-2 pl-2">
-        <div class="flex  justify-between">
+        <div class="flex justify-between">
           <v-icon start icon="mdi-connection" size="30" class="mr-2" />
           <p class="-ml-4">Ping Viewer Next</p>
           <div></div>
@@ -30,7 +30,7 @@
                 <div v-if="step === 4 && currentStep === 4" class="mt-4">
                   <v-text-field v-model="remoteAddress" label="Server Address" placeholder="e.g. pingviewernext:8080" class="w-[95%] mt-[18px]"
                     hint="Enter the server address to connect" persistent-hint @keyup.enter="connectToRemote" />
-                  <v-btn block class="mt-6 -mb-4 -ml-4  glassButton" @click="connectToRemote" :loading="loading">
+                  <v-btn block class="mt-6 -mb-4 -ml-4 glassButton" @click="connectToRemote" :loading="loading">
                     Connect to Remote Server
                   </v-btn>
                 </div>
