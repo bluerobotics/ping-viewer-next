@@ -379,11 +379,6 @@ const iconSize = computed(() => {
 
 const speedDialItems = ref([
   {
-    icon: 'mdi-information-outline',
-    action: () => {},
-    size: 24,
-  },
-  {
     icon: 'mdi-connection',
     action: () => {
       isConnectionMenuOpen.value = !isConnectionMenuOpen.value;
@@ -396,11 +391,6 @@ const speedDialItems = ref([
       showSettings.value = !showSettings.value;
     },
     size: 24,
-  },
-  {
-    icon: 'mdi-memory',
-    action: () => {},
-    size: 27,
   },
   {
     icon: 'mdi-tune',
