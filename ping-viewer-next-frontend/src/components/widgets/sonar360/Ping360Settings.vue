@@ -1,6 +1,9 @@
 <template>
   <v-card>
-    <v-card-title class="text-h5 pb-2">Sonar Settings</v-card-title>
+    <div class="windowHeader flex w-full justify-between items-center pl-4 pt-0">
+      <v-card-title class="text-md text-center flex-grow-1">Sonar Settings</v-card-title>
+      <v-btn icon="mdi-close" variant="text" @click="handleClose" />
+    </div>
 
     <v-card-text>
       <div v-if="isLoading" class="d-flex justify-center my-4">
@@ -212,7 +215,11 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:range', 'rangeChange', 'update:angles']);
+const emit = defineEmits(['update:range', 'rangeChange', 'update:angles', 'close']);
+
+const handleClose = () => {
+  emit('close');
+};
 
 // Constants from Ping360 specs
 const SAMPLE_PERIOD_TICK_DURATION = 25e-9;
