@@ -6,7 +6,7 @@
   </template>
   <template v-else>
     <v-app>
-      <v-main class="bg-gradient-to-br from-blue-900 to-blue-800">
+      <v-main class="bg-[radial-gradient(ellipse_at_50%_40%,#005C84,#00223A)]">
         <MainView />
       </v-main>
     </v-app>
