@@ -341,6 +341,7 @@ onUnmounted(() => {
 .measurements-content {
 	display: grid;
 	line-height: 1.2;
+	user-select: none;
 }
 
 :deep(.vdr) {
