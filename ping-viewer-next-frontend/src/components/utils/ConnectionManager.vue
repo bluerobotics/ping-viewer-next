@@ -135,17 +135,17 @@
         <v-menu location="start" offset="10">
           <template v-slot:activator="{ props }">
             <div class="flex w-full justify-end" style="position: relative;">
-              <v-btn v-bind="props" variant="plain" size="small"  class="mb-1 mr-1">
+              <v-btn v-bind="props" variant="plain" size="small" class="mb-1 mr-1">
                 Advanced settings
               </v-btn>
             </div>
           </template>
 
           <v-card :class="{ 'glass': glass }" min-width="200">
-            <v-list :class="{ 'glass-inner': glass }"  class="pa-0 pb-1">
-              <v-list-subheader class="windowHeader py-0">Device Manager Actions</v-list-subheader>
+            <v-list :class="{ 'glass-inner': glass }" class="pa-0 pb-1">
+              <v-list-subheader class="windowHeader py-0 text-center">Device Manager Actions</v-list-subheader>
 
-              <v-list-item  class="py-2" @click="autoCreateDevices" :disabled="isAutoCreating">
+              <v-list-item class="py-2" @click="autoCreateDevices" :disabled="isAutoCreating">
                 <template v-slot:prepend>
                   <v-icon variant="tonal">mdi-plus-network</v-icon>
                 </template>
@@ -153,7 +153,7 @@
                 <v-list-item-subtitle>Automatically run devices</v-list-item-subtitle>
               </v-list-item>
 
-              <v-list-item  class="py-2"@click="toggleManualCreate">
+              <v-list-item class="py-2"@click="toggleManualCreate">
                 <template v-slot:prepend>
                   <v-icon variant="tonal">mdi-plus</v-icon>
                 </template>
@@ -161,7 +161,7 @@
                 <v-list-item-subtitle>Configure device manually</v-list-item-subtitle>
               </v-list-item>
 
-              <v-list-item  class="py-2"@click="refreshDevices" :disabled="isRefreshing">
+              <v-list-item class="py-2"@click="refreshDevices" :disabled="isRefreshing">
                 <template v-slot:prepend>
                   <v-icon variant="tonal">mdi-refresh</v-icon>
                 </template>
