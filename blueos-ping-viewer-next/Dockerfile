@@ -13,7 +13,7 @@ RUN chmod +x /entrypoint.sh && \
     else \
         cp /ping-viewer-next.armv7 /app/ping-viewer-next; \
     fi && \
-    chmod +x  /app/ping-viewer-next && \
+    chmod +x /app/ping-viewer-next && \
     rm /ping-viewer-next.*
 LABEL version="1.0.0-beta.6"
 

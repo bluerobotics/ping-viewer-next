@@ -1073,7 +1073,7 @@ impl DeviceManager {
                     PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping360(
                         bluerobotics_ping::ping360::Messages::DeviceData(msg),
                     )) => msg,
-                    err =>  return Err(ManagerError::Other(format!(
+                    err => return Err(ManagerError::Other(format!(
                         "properties : Unexpected answer from Ping360 device: {device_id:?}, details: {err:?}"
                     )))
                 };

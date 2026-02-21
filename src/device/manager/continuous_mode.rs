@@ -180,7 +180,7 @@ impl DeviceManager {
             if let Ok(bluerobotics_ping::Messages::Ping1D(bluerobotics_ping::ping1d::Messages::Profile(_answer))) = bluerobotics_ping::Messages::try_from(&msg) {
                 let answer = Answer::DeviceMessage(DeviceAnswer {
                     answer: crate::device::devices::PingAnswer::PingMessage(
-                        match  bluerobotics_ping::Messages::try_from(&msg){
+                        match bluerobotics_ping::Messages::try_from(&msg){
                             Ok(msg) => msg,
                             Err(err) => {
                                 error!("Unexpected message during scan: {err:?}");
@@ -203,7 +203,7 @@ impl DeviceManager {
                 if let Ok(bluerobotics_ping::Messages::Ping360(bluerobotics_ping::ping360::Messages::AutoDeviceData(_answer))) = bluerobotics_ping::Messages::try_from(&msg) {
                     let answer = Answer::DeviceMessage(DeviceAnswer {
                         answer: crate::device::devices::PingAnswer::PingMessage(
-                            match  bluerobotics_ping::Messages::try_from(&msg){
+                            match bluerobotics_ping::Messages::try_from(&msg){
                                 Ok(msg) => msg,
                                 Err(err) => {
                                     error!("Unexpected message during scan: {err:?}");
