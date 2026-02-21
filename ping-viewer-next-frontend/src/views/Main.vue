@@ -14,7 +14,7 @@
               <div class="d-flex justify-space-between align-center w-100 mb-4" style="min-height: 40px;">
                 <span class="text-h6">File Loader</span>
                 <v-btn icon="mdi-close" variant="text" class="ml-auto" style="position: absolute; top: 8px; right: 8px; z-index: 2;"
-                  @click="() => { isReplayActive.value = false; isReplayLoading.value = false; isReplayParsing.value = false; replayData.value = null; }" />
+                  @click="() => { isReplayActive = false; isReplayLoading = false; isReplayParsing = false; replayData = null; }" />
               </div>
               <v-progress-circular
                 :model-value="isReplayLoading ? replayDownloadProgress : replayParsingProgress"
