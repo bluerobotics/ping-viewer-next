@@ -132,7 +132,7 @@
           </v-list>
         </div>
 
-        <v-menu location="start" offset="10">
+        <v-menu location="end" offset="10">
           <template v-slot:activator="{ props }">
             <div class="flex w-full justify-end" style="position: relative;">
               <v-btn v-bind="props" variant="plain" size="small"  class="mb-1 mr-1">
