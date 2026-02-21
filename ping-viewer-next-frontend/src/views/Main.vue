@@ -141,64 +141,75 @@
               <v-btn icon="mdi-close" variant="text" @click="showRecordingsMenu = false" />
             </div>
 
-            <div v-if="isLoadingRecordings" class="text-center pa-4">
-              <v-progress-circular indeterminate color="primary" />
-              <div class="mt-2">Loading recordings...</div>
+            <div class="pa-3">
+              <input ref="mcapFileInput" type="file" accept=".mcap" style="display: none" @change="loadLocalMcapFile" />
+              <v-btn block variant="tonal" color="primary" prepend-icon="mdi-folder-open" @click="mcapFileInput?.click()">
+                Load Local MCAP File
+              </v-btn>
             </div>
 
-            <div v-else-if="recordings.length === 0" class="text-center pa-4 text-medium-emphasis">
-              <v-icon size="48" class="mb-2">mdi-video-off</v-icon>
-              <div>No recordings available</div>
-              <div class="text-caption mt-2">
-                MCAP recordings will appear here when you capture data from devices
+            <v-divider v-if="serverUrl" />
+
+            <template v-if="serverUrl">
+              <div v-if="isLoadingRecordings" class="text-center pa-4">
+                <v-progress-circular indeterminate color="primary" />
+                <div class="mt-2">Loading recordings...</div>
               </div>
-            </div>
 
-            <v-list v-else :class="{ 'glass-inner': glass }">
-              <v-list-item v-for="recording in recordings" :key="recording.id"
-                :class="{ 'new-recording': !recording.downloaded }">
-                <template v-slot:prepend>
-                  <v-icon :icon="recording.deviceType === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'" />
-                </template>
+              <div v-else-if="recordings.length === 0" class="text-center pa-4 text-medium-emphasis">
+                <v-icon size="48" class="mb-2">mdi-video-off</v-icon>
+                <div>No server recordings available</div>
+                <div class="text-caption mt-2">
+                  MCAP recordings will appear here when you capture data from devices
+                </div>
+              </div>
 
-                <v-list-item-title class="text-truncate">
-                  {{ recording.fileName }}
-                </v-list-item-title>
+              <v-list v-else :class="{ 'glass-inner': glass }">
+                <v-list-item v-for="recording in recordings" :key="recording.id"
+                  :class="{ 'new-recording': !recording.downloaded }">
+                  <template v-slot:prepend>
+                    <v-icon :icon="recording.deviceType === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'" />
+                  </template>
 
-                <v-list-item-subtitle>
-                  {{ formatRecordingDate(recording.timestamp) }}
-                </v-list-item-subtitle>
+                  <v-list-item-title class="text-truncate">
+                    {{ recording.fileName }}
+                  </v-list-item-title>
 
-                <v-list-item-subtitle class="text-caption">
-                  {{ formatRecordingDetails(recording) }}
-                </v-list-item-subtitle>
+                  <v-list-item-subtitle>
+                    {{ formatRecordingDate(recording.timestamp) }}
+                  </v-list-item-subtitle>
 
-                <template v-slot:append>
-                  <div class="d-flex gap-2">
-                    <v-tooltip location="top" text="Play Recording">
-                      <template v-slot:activator="{ props }">
-                        <v-btn v-bind="props" icon="mdi-play" variant="text" size="small"
-                          @click="playRecording(recording)" />
-                      </template>
-                    </v-tooltip>
+                  <v-list-item-subtitle class="text-caption">
+                    {{ formatRecordingDetails(recording) }}
+                  </v-list-item-subtitle>
 
-                    <v-tooltip location="top" text="Download Recording">
-                      <template v-slot:activator="{ props }">
-                        <v-btn v-bind="props" icon="mdi-download" variant="text" size="small"
-                          @click="downloadRecording(recording)" />
-                      </template>
-                    </v-tooltip>
+                  <template v-slot:append>
+                    <div class="d-flex gap-2">
+                      <v-tooltip location="top" text="Play Recording">
+                        <template v-slot:activator="{ props }">
+                          <v-btn v-bind="props" icon="mdi-play" variant="text" size="small"
+                            @click="playRecording(recording)" />
+                        </template>
+                      </v-tooltip>
 
-                    <v-tooltip location="top" text="Delete Recording">
-                      <template v-slot:activator="{ props }">
-                        <v-btn v-bind="props" icon="mdi-delete" variant="text" size="small"
-                          color="error" @click="deleteRecording(recording)" />
-                      </template>
-                    </v-tooltip>
-                  </div>
-                </template>
-              </v-list-item>
-            </v-list>
+                      <v-tooltip location="top" text="Download Recording">
+                        <template v-slot:activator="{ props }">
+                          <v-btn v-bind="props" icon="mdi-download" variant="text" size="small"
+                            @click="downloadRecording(recording)" />
+                        </template>
+                      </v-tooltip>
+
+                      <v-tooltip location="top" text="Delete Recording">
+                        <template v-slot:activator="{ props }">
+                          <v-btn v-bind="props" icon="mdi-delete" variant="text" size="small"
+                            color="error" @click="deleteRecording(recording)" />
+                        </template>
+                      </v-tooltip>
+                    </div>
+                  </template>
+                </v-list-item>
+              </v-list>
+            </template>
           </div>
         </v-card>
 
@@ -289,6 +300,7 @@ const replayViewRef = ref(null);
 const dataPlayer = ref(null);
 const isLoadingRecordings = ref(false);
 const showReplayControlsPanel = ref(false);
+const mcapFileInput = ref(null);
 const isReplayLoading = ref(false);
 const isReplayParsing = ref(false);
 const replayDownloadProgress = ref(0);
@@ -663,6 +675,51 @@ const playRecording = async (recording) => {
     isReplayLoading.value = false;
     isReplayParsing.value = false;
     isReplayActive.value = false;
+  }
+};
+
+const loadLocalMcapFile = async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  if (!file.name.endsWith('.mcap')) {
+    alert('Please select a valid .mcap file.');
+    return;
+  }
+
+  isReplayParsing.value = true;
+  isReplayLoading.value = false;
+  isReplayActive.value = true;
+  replayParsingProgress.value = 0;
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+
+    showRecordingsMenu.value = false;
+
+    if (dataPlayer.value && isReplayActive.value) {
+      await nextTick();
+    }
+
+    replayData.value = {
+      fileName: file.name,
+      fileSize: file.size,
+      deviceType: extractDeviceTypeFromFileName(file.name),
+      data: arrayBuffer,
+      isMcap: true,
+    };
+
+    if (activeDevice.value) {
+      activeDevice.value = null;
+    }
+  } catch (error) {
+    console.error('Error loading local MCAP file:', error);
+    isReplayParsing.value = false;
+    isReplayActive.value = false;
+  } finally {
+    if (mcapFileInput.value) {
+      mcapFileInput.value.value = '';
+    }
   }
 };
 
