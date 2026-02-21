@@ -101,9 +101,8 @@
         </v-card>
 
         <div class="middle-section" :class="{ 'menu-open': isMenuOpen }">
-          <v-btn class="glassMenu middle-button square-button" :class="{ glass }" @click="toggleMenu">
-            <v-icon :icon="isMenuOpen ? 'mdi-close' : 'mdi-contactless-payment'" :size="28" :color="iconColor"
-              :class="{ 'rotate-90': !isMenuOpen }" />
+          <v-btn v-if="!isMenuOpen" class="glassMenu middle-button square-button" :class="{ glass }" @click="toggleMenu">
+            <v-icon icon="mdi-contactless-payment" :size="28" :color="iconColor" class="rotate-90" />
           </v-btn>
 
           <div class="glassMenu connection-menu" :class="{ 'glass disable-hover': glass }" v-show="isMenuOpen">
@@ -113,7 +112,7 @@
                 <component :class="['menu-content', { 'glass-inner disable-hover': glass }]"
                   :is="getDeviceSettingsComponent" :server-url="serverUrl" :device-id="activeDevice.device.id"
                   :initial-angles="currentDeviceAngles" :is-open="isMenuOpen" @update:angles="handleAngleUpdate"
-                  @rangeChange="debouncedSaveSettings" />
+                  @rangeChange="debouncedSaveSettings" @close="isMenuOpen = false" />
               </template>
               <template v-else>
 
@@ -1193,6 +1192,11 @@ const isReplayProgressDialogOpen = computed(() => isReplayLoading.value || isRep
   left: calc(var(--button-size) + var(--button-gap));
   z-index: 999;
   border-radius: var(--border-radius);
+}
+
+.menu-open .connection-menu {
+  left: 0;
+  border-radius: 0 var(--border-radius) var(--border-radius) 0;
 }
 
 .connection-menu-wrapper {

@@ -1,7 +1,8 @@
 <template>
   <v-card class="pa-0" style="width: 300px; max-width: 90vw">
     <div class="windowHeader flex w-full justify-between items-center pl-4 pt-0">
-      <v-card-title class="ml-[50px] text-md text-center">Ping1D Settings</v-card-title>
+      <v-card-title class="text-md text-center flex-grow-1">Ping1D Settings</v-card-title>
+      <v-btn icon="mdi-close" variant="text" @click="handleClose" />
     </div>
     <v-card-text class="px-6 pt-4 pb-6">
       <div v-if="isLoading" class="d-flex justify-center my-4">
