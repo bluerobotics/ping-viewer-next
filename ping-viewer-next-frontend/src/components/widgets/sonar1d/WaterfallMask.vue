@@ -169,7 +169,7 @@ function resetPosition() {
 }
 
 const fontSize = computed(() => {
-  const scale = containerHeight.value / 40;
+  const scale = containerHeight.value / 42;
   return Math.floor(16 * scale);
 });
 
