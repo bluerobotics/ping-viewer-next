@@ -10,26 +10,36 @@
         <div v-if="isReplayActive" class="device-viewer" :class="{ 'glass-inner disable-hover': glass }">
 
           <v-dialog v-model="isReplayProgressDialogOpen" persistent max-width="400">
-            <v-card class="pa-6 text-center glass d-flex flex-column align-center justify-center position-relative">
-              <div class="d-flex justify-space-between align-center w-100 mb-4" style="min-height: 40px;">
-                <span class="text-h6">File Loader</span>
-                <v-btn icon="mdi-close" variant="text" class="ml-auto" style="position: absolute; top: 8px; right: 8px; z-index: 2;"
-                  @click="() => { isReplayActive = false; isReplayLoading = false; isReplayParsing = false; replayData = null; }" />
+            <v-card :class="{ 'glass': glass }">
+              <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+                <div class="text-h6 text-center w-full ml-6">File Loader</div>
+                <v-btn icon="mdi-close" variant="text" @click="closeFileLoaderDialog" />
               </div>
-              <v-progress-circular
-                :model-value="isReplayLoading ? replayDownloadProgress : replayParsingProgress"
-                color="primary-tonal"
-                :size="100"
-                :width="15"
-                class="mb-4"
-              >
-                <template v-slot:default>
-                  {{ isReplayLoading ? replayDownloadProgress : replayParsingProgress }} %
-                </template>
-              </v-progress-circular>
-              <div class="mt-2 text-h6">
-                {{ isReplayLoading ? 'Downloading replay...' : 'Parsing MCAP file...' }}
-              </div>
+
+              <v-card-text v-if="replayError" class="d-flex flex-column align-center justify-center pa-6">
+                <v-icon size="64" color="error" class="mb-4">mdi-file-alert-outline</v-icon>
+                <div class="text-subtitle-1 font-weight-medium mb-2">Failed to Load File</div>
+                <div class="text-body-2 text-medium-emphasis text-center mb-6" style="word-break: break-word;">
+                  {{ replayError }}
+                </div>
+              </v-card-text>
+
+              <v-card-text v-else class="d-flex flex-column align-center justify-center pa-6">
+                <v-progress-circular
+                  :model-value="isReplayLoading ? replayDownloadProgress : replayParsingProgress"
+                  color="primary"
+                  :size="100"
+                  :width="15"
+                  class="mb-4"
+                >
+                  <template v-slot:default>
+                    {{ isReplayLoading ? replayDownloadProgress : replayParsingProgress }}%
+                  </template>
+                </v-progress-circular>
+                <div class="mt-2 text-subtitle-1 text-medium-emphasis">
+                  {{ isReplayLoading ? 'Downloading replay...' : 'Parsing MCAP file...' }}
+                </div>
+              </v-card-text>
             </v-card>
           </v-dialog>
 
@@ -53,6 +63,7 @@
                   @update:currentFrame="handleReplayFrame"
                   @loadedData="handleReplayDataLoaded"
                   @parsingProgress="handleReplayParsingProgress"
+                  @error="handleReplayError"
                 />
               </div>
             </div>
@@ -304,6 +315,7 @@ const isReplayLoading = ref(false);
 const isReplayParsing = ref(false);
 const replayDownloadProgress = ref(0);
 const replayParsingProgress = ref(0);
+const replayError = ref(null);
 let replayControlsTimeout = null;
 
 const menus = {
@@ -616,6 +628,7 @@ const playRecording = async (recording) => {
   isReplayParsing.value = false;
   isReplayActive.value = true;
   replayDownloadProgress.value = 0;
+  replayError.value = null;
 
   try {
     const response = await fetch(`${serverUrl.value}/recordings/download/${recording.fileName}`);
@@ -663,7 +676,7 @@ const playRecording = async (recording) => {
     console.error('Error loading recording for playback:', error);
     isReplayLoading.value = false;
     isReplayParsing.value = false;
-    isReplayActive.value = false;
+    replayError.value = error.message || 'Failed to download recording from server';
   }
 };
 
@@ -680,6 +693,7 @@ const loadLocalMcapFile = async (event) => {
   isReplayLoading.value = false;
   isReplayActive.value = true;
   replayParsingProgress.value = 0;
+  replayError.value = null;
 
   try {
     const arrayBuffer = await file.arrayBuffer();
@@ -704,7 +718,7 @@ const loadLocalMcapFile = async (event) => {
   } catch (error) {
     console.error('Error loading local MCAP file:', error);
     isReplayParsing.value = false;
-    isReplayActive.value = false;
+    replayError.value = error.message || 'Failed to read the selected file';
   } finally {
     if (mcapFileInput.value) {
       mcapFileInput.value.value = '';
@@ -805,6 +819,20 @@ const handleReplayDataLoaded = (data) => {
 
 const handleReplayParsingProgress = (progress) => {
   replayParsingProgress.value = progress;
+};
+
+const handleReplayError = (errorMessage) => {
+  replayError.value = errorMessage;
+  isReplayLoading.value = false;
+  isReplayParsing.value = false;
+};
+
+const closeFileLoaderDialog = () => {
+  isReplayActive.value = false;
+  isReplayLoading.value = false;
+  isReplayParsing.value = false;
+  replayData.value = null;
+  replayError.value = null;
 };
 
 const toggleTheme = () => {
@@ -1172,7 +1200,9 @@ provide('cleanupYawConnection', cleanupYawConnection);
 provide('wsManager', wsManager);
 provide('recordingSessions', recordingSessions);
 
-const isReplayProgressDialogOpen = computed(() => isReplayLoading.value || isReplayParsing.value);
+const isReplayProgressDialogOpen = computed(
+  () => isReplayLoading.value || isReplayParsing.value || !!replayError.value
+);
 </script>
 
 <style>
