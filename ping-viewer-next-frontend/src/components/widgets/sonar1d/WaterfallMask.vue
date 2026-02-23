@@ -16,7 +16,7 @@
 				</span>
 			</div>
 		</div>
-		<div class="depth-arrow absolute right-0 w-0 h-0 border-solid border-transparent border-l-8" :style="{
+		<div class="depth-arrow absolute right-0 w-0 h-0 border-solid border-transparent border-l-[16px] border-y-[8px]" :style="{
 			top: `${arrowPosition}%`,
 			borderLeftColor: depthArrowColor,
 			transform: 'translateY(-50%)',
