@@ -1,11 +1,11 @@
 <template>
-	<div class="waterfall-display relative w-full h-full">
+	<div class="waterfall-display relative w-full h-full" style="padding-right: 50px;">
 		<WaterfallShader ref="waterfallShader" :width="width" :height="height" :max-depth="maxDepth"
 			:min-depth="minDepth" :column-count="columnCount" :sensor-data="sensorData" :color-palette="colorPalette"
 			:get-color-from-palette="getColorFromPalette" @update:columnCount="$emit('update:columnCount', $event)"
 			@mousemove="handleMouseMove" @mouseleave="handleMouseLeave" />
-		<canvas ref="overlayCanvas" class="absolute top-0 left-0 w-full h-full pointer-events-none"></canvas>
-		<div class="depth-line absolute top-0 right-0 h-full w-px" :style="{ backgroundColor: depthLineColor }">
+		<canvas ref="overlayCanvas" class="overlay-canvas absolute top-0 left-0 h-full pointer-events-none"></canvas>
+		<div class="depth-line absolute top-0 h-full w-px" :style="{ right: '50px', backgroundColor: depthLineColor }">
 			<div v-for="tick in depthTicks" :key="tick" class="tick absolute right-0 w-2 h-px" :style="{
 				top: `${tickPosition(tick)}%`,
 				backgroundColor: depthLineColor,
@@ -16,65 +16,68 @@
 				</span>
 			</div>
 		</div>
-		<div class="absolute right-0 w-0 h-0 border-solid border-transparent border-l-[16px] border-y-[8px]" :style="{
+		<div class="absolute w-0 h-0 border-solid border-transparent border-l-[16px] border-y-[8px]" :style="{
 			top: `${arrowPosition}%`,
+			right: '50px',
 			borderLeftColor: depthArrowColor,
 			transform: 'translateY(-50%)',
 		}"/>
+		<AScanLine
+			class="absolute top-0 right-0 h-full"
+			:sensor-data="sensorData"
+			:max-depth="maxDepth"
+			:min-depth="minDepth"
+			:virtual-max-depth="virtualMaxDepth"
+			:width="50"
+		/>
 
-    <vue-draggable-resizable
-      :x="boxPosition.x"
-      :y="boxPosition.y"
-      :w="boxPosition.w"
-      :h="boxPosition.h"
-      :min-width="130"
-      :min-height="40"
-      :parent="true"
-      :resizable="true"
-      :lock-aspect-ratio="true"
-      :disableUserSelect="true"
-      class="measurements-box"
-      :style="{
-        backgroundColor: 'rgba(0, 0, 0, 0.10)',
-        color: 'rgba(255, 255, 255, 1)',
-        border: '1px solid rgba(255, 255, 255, 0.15)',
-        backdropFilter: 'blur(25px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        boxShadow: '0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016'
-      }"
-      @resizing="onResize"
-      @dragging="onDrag"
-      @dblclick="resetPosition"
-    >
-      <div class="measurements-content text-sm px-1 rounded" :style="{ fontSize: `${fontSize}px` }">
+		<vue-draggable-resizable
+			:x="boxPosition.x"
+			:y="boxPosition.y"
+			:w="boxPosition.w"
+			:h="boxPosition.h"
+			:min-width="130"
+			:min-height="40"
+			:parent="true"
+			:resizable="true"
+			:lock-aspect-ratio="true"
+			:disableUserSelect="true"
+			class="measurements-box"
+			:style="{
+				backgroundColor: 'rgba(0, 0, 0, 0.10)',
+				color: 'rgba(255, 255, 255, 1)',
+				border: '1px solid rgba(255, 255, 255, 0.15)',
+				backdropFilter: 'blur(25px)',
+				WebkitBackdropFilter: 'blur(16px)',
+				boxShadow: '0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016'
+			}"
+			@resizing="onResize"
+			@dragging="onDrag"
+			@dblclick="resetPosition"
+		>
+			<div class="measurements-content text-sm px-1 rounded" :style="{ fontSize: `${fontSize}px` }">
+				<div class="text-left" :style="{ color: '#FFFFFF' }">
+					Depth: {{ currentDepth.toFixed(2) }}m
+				</div>
+				<div class="text-left" :style="{ color: '#FFFFFF' }">
+					Confidence: {{ confidence }}%
+				</div>
+			</div>
+		</vue-draggable-resizable>
 
-        <div class="text-left" :style="{ color: '#FFFFFF' }">
-          Depth: {{ currentDepth.toFixed(2) }}m
-        </div>
-        <div class="text-left" :style="{ color: '#FFFFFF' }">
-          Confidence: {{ confidence }}%
-        </div>
-      </div>
-    </vue-draggable-resizable>
-
-    <div v-if="hoveredColumn !== null && mousePosition"
-      class="hovered-column-info px-2 py-1 rounded flex flex-col space-y-1 absolute" :style="{
-        backgroundColor: textBackground,
-        fontSize: `${fontSize}px`,
-        ...getHoveredBoxPosition()
-      }">
-      <div class="flex flex-col" :style="{
-        color: currentDepthColor
-      }">
-        <span :style="{ fontSize: `${fontSize * 0.4}px` }">Depth</span>
-        <span>{{ historicalData[hoveredColumn]?.depth.toFixed(2) }}m</span>
-      </div>
-
-      <div class="flex flex-col" :style="{
-        color: confidenceColor
-      }">
-        <span :style="{ fontSize: `${fontSize * 0.4}px` }">Confidence</span>
-        <span>{{ historicalData[hoveredColumn]?.confidence }}%</span>
+		<div v-if="hoveredColumn !== null && mousePosition"
+			class="hovered-column-info px-2 py-1 rounded flex flex-col space-y-1 absolute" :style="{
+				backgroundColor: textBackground,
+				fontSize: `${fontSize}px`,
+				...getHoveredBoxPosition()
+			}">
+			<div class="flex flex-col" :style="{ color: currentDepthColor }">
+				<span :style="{ fontSize: `${fontSize * 0.4}px` }">Depth</span>
+				<span>{{ historicalData[hoveredColumn]?.depth.toFixed(2) }}m</span>
+			</div>
+			<div class="flex flex-col" :style="{ color: confidenceColor }">
+				<span :style="{ fontSize: `${fontSize * 0.4}px` }">Confidence</span>
+				<span>{{ historicalData[hoveredColumn]?.confidence }}%</span>
 			</div>
 		</div>
 	</div>
@@ -83,6 +86,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import VueDraggableResizable from 'vue-draggable-resizable';
+import AScanLine from './AScanLine.vue';
 import WaterfallShader from './WaterfallShader.vue';
 
 const props = defineProps({
@@ -328,6 +332,11 @@ onUnmounted(() => {
 <style scoped>
 .waterfall-display {
 	position: relative;
+	box-sizing: border-box;
+}
+
+.overlay-canvas {
+	width: calc(100% - 50px);
 }
 
 .measurements-box {
