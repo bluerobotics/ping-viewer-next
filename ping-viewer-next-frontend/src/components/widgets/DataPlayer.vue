@@ -58,7 +58,7 @@ let playTimer = null;
 let startTime = 0;
 let baseTimestamp = 0;
 
-const emit = defineEmits(['update:currentFrame', 'loadedData', 'parsingProgress']);
+const emit = defineEmits(['update:currentFrame', 'loadedData', 'parsingProgress', 'error']);
 
 const loadMcapFromBuffer = async (arrayBuffer) => {
   try {
@@ -211,8 +211,7 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
   } catch (error) {
     console.error('Detailed error loading MCAP file:', error);
     console.error('Error stack:', error.stack);
-    const errorMessage = error.message;
-    alert(`Error loading MCAP file: ${errorMessage}\nCheck console for details.`);
+    emit('error', error.message || 'Unknown error while parsing MCAP file');
   }
 };
 
