@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full bg-transparent p-4" ref="containerRef">
+  <div class="flex flex-col h-full bg-transparent py-2" ref="containerRef">
     <WaterfallDisplay
       :width="width"
       :height="height"
