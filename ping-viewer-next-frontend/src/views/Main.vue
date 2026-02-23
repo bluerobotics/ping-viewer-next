@@ -41,9 +41,9 @@
               variant="text"
             />
             <div class="replay-controls-panel" :class="{ 'glass': glass }">
-              <div class="replay-controls-header">
-                <span>Replay Menu</span>
-                <v-btn icon="mdi-close" variant="text" @click="closeReplay" class="close-replay-btn" />
+              <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+                <div class="text-h6 text-center w-full ml-6">Replay Menu</div>
+                <v-btn icon="mdi-close" variant="text" @click="closeReplay" />
               </div>
               <div class="replay-player-horizontal" :class="{ 'glass-inner disable-hover': glass }">
                 <DataPlayer
@@ -1620,7 +1620,7 @@ const isReplayProgressDialogOpen = computed(() => isReplayLoading.value || isRep
   transition: all 0.3s cubic-bezier(.4,0,.2,1);
   transition-delay: 0.1s;
   border-radius: var(--border-radius);
-  padding: 1.5rem 2rem;
+  padding: 0;
   background: rgb(var(--v-theme-background));
   box-shadow: 0px 4px 24px 0px rgba(0,0,0,0.25);
   display: flex;
@@ -1636,25 +1636,13 @@ const isReplayProgressDialogOpen = computed(() => isReplayLoading.value || isRep
   transition-delay: 0s;
 }
 
-.replay-controls-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(var(--v-border-color), 0.12);
-}
-
-.close-replay-btn {
-  margin-left: 1rem;
-}
-
 .replay-player-horizontal {
   width: 100%;
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 2rem;
+  padding: 0.75rem 1.5rem 1rem;
 }
 
 @media (max-width: 900px) {
