@@ -1480,7 +1480,7 @@ const isReplayProgressDialogOpen = computed(
 }
 
 .device-viewer {
-  padding: 0 3.5rem 0 3.5rem;
+  padding: 0;
   position: fixed;
   top: 0;
   left: 0;
