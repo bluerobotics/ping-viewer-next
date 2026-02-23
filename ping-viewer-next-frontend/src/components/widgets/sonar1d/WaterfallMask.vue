@@ -20,7 +20,7 @@
 			top: `${arrowPosition}%`,
 			borderLeftColor: depthArrowColor,
 			transform: 'translateY(-50%)',
-		}"></div>
+		}"/>
 
     <vue-draggable-resizable
       :x="boxPosition.x"
