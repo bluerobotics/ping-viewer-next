@@ -37,7 +37,7 @@
 import { BlobReadable } from '@mcap/browser';
 import { McapIndexedReader } from '@mcap/core';
 import { loadDecompressHandlers } from '@mcap/support';
-import { ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
   mcapData: {
@@ -311,6 +311,31 @@ watch(playbackSpeed, () => {
   if (isPlaying.value) {
     pause();
     play();
+  }
+});
+
+let wasPlayingBeforeHidden = false;
+
+const handleVisibilityChange = () => {
+  if (document.hidden) {
+    if (isPlaying.value) {
+      wasPlayingBeforeHidden = true;
+      pause();
+    }
+  } else if (wasPlayingBeforeHidden) {
+    wasPlayingBeforeHidden = false;
+    play();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
+  if (playTimer) {
+    clearTimeout(playTimer);
   }
 });
 
