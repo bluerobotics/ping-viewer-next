@@ -109,7 +109,6 @@ const props = defineProps({
 
 const emit = defineEmits(['update:columnCount']);
 
-const waterfallShader = ref(null);
 const overlayCanvas = ref(null);
 const ctx = ref(null);
 const virtualMaxDepth = ref(props.maxDepth);
