@@ -42,15 +42,7 @@
 			:resizable="true"
 			:lock-aspect-ratio="true"
 			:disableUserSelect="true"
-			class="measurements-box"
-			:style="{
-				backgroundColor: 'rgba(0, 0, 0, 0.10)',
-				color: 'rgba(255, 255, 255, 1)',
-				border: '1px solid rgba(255, 255, 255, 0.15)',
-				backdropFilter: 'blur(25px)',
-				WebkitBackdropFilter: 'blur(16px)',
-				boxShadow: '0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016'
-			}"
+			class="measurements-box glass-panel"
 			@resizing="onResize"
 			@dragging="onDrag"
 			@dblclick="resetPosition"
@@ -66,8 +58,7 @@
 		</vue-draggable-resizable>
 
 		<div v-if="hoveredColumn !== null && mousePosition"
-			class="hovered-column-info px-2 py-1 rounded flex flex-col space-y-1 absolute" :style="{
-				backgroundColor: textBackground,
+			class="hovered-column-info glass-panel px-2 py-1 rounded flex flex-col space-y-1 absolute" :style="{
 				fontSize: `${fontSize}px`,
 				...getHoveredBoxPosition()
 			}">
@@ -363,5 +354,14 @@ onUnmounted(() => {
 
 .shader-container {
 	z-index: 10;
+}
+
+.glass-panel {
+	background-color: rgba(0, 0, 0, 0.10);
+	color: rgba(255, 255, 255, 1);
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	backdrop-filter: blur(25px);
+	-webkit-backdrop-filter: blur(16px);
+	box-shadow: 0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016;
 }
 </style>
