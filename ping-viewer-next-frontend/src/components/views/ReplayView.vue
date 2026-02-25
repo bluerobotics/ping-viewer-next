@@ -1,5 +1,5 @@
 <template>
-  <div class="py-10 relative">
+  <div class="relative">
     <component v-if="isComponentReady" :is="deviceComponent" :device="currentDeviceData.device"
       v-bind="deviceSpecificProps" class="z-10"></component>
   </div>
