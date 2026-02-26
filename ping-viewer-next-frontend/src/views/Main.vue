@@ -111,35 +111,17 @@
             @reset="resetSettings" />
         </v-card>
 
-        <div class="middle-section" :class="{ 'menu-open': isMenuOpen }">
+        <div v-if="activeDevice" class="middle-section" :class="{ 'menu-open': isMenuOpen }">
           <v-btn v-if="!isMenuOpen" class="glassMenu middle-button square-button" :class="{ glass }" @click="toggleMenu">
             <v-icon icon="mdi-contactless-payment" :size="28" :color="iconColor" class="rotate-90" />
           </v-btn>
 
           <div class="glassMenu connection-menu" :class="{ 'glass disable-hover': glass }" v-show="isMenuOpen">
             <div :class="[{ 'glass-inner disable-hover': glass }]">
-              <!-- Dynamic Device Settings -->
-              <template v-if="activeDevice">
-                <component :class="['menu-content', { 'glass-inner disable-hover': glass }]"
-                  :is="getDeviceSettingsComponent" :server-url="serverUrl" :device-id="activeDevice.device.id"
-                  :initial-angles="currentDeviceAngles" :is-open="isMenuOpen" @update:angles="handleAngleUpdate"
-                  @rangeChange="debouncedSaveSettings" @close="isMenuOpen = false" />
-              </template>
-              <template v-else>
-
-                <div class="menu-content text-center pa-4 text-medium-emphasis">
-                  <div class="flex w-full justify-center">
-                    <div class="glassMenuBlack flex flex-col align-center justify-center py-2 px-3 rounded-lg opacity-70" >
-                      <v-icon size="34" class="my-1 ">mdi-devices</v-icon>
-                      <div>No device selected</div>
-                    </div>
-                  </div>
-                    <v-btn variant="elevated" @click="isConnectionMenuOpen = true" class="glassButton mt-4">
-                      <v-icon start>mdi-connection</v-icon>
-                      Device Management
-                    </v-btn>
-                </div>
-              </template>
+              <component :class="['menu-content', { 'glass-inner disable-hover': glass }]"
+                :is="getDeviceSettingsComponent" :server-url="serverUrl" :device-id="activeDevice.device.id"
+                :initial-angles="currentDeviceAngles" :is-open="isMenuOpen" @update:angles="handleAngleUpdate"
+                @rangeChange="debouncedSaveSettings" @close="isMenuOpen = false" />
             </div>
           </div>
         </div>
@@ -1119,6 +1101,12 @@ const formatFileSize = (bytes) => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 };
+
+watch(activeDevice, (device) => {
+  if (!device) {
+    isMenuOpen.value = false;
+  }
+});
 
 watch(isSpeedDialOpen, (open) => {
   if (!open) {
