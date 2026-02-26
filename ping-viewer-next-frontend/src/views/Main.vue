@@ -102,13 +102,12 @@
             <v-btn icon="mdi-close" variant="text" @click="showSettings = false" />
           </div>
           <VisualSettings :is-open="showSettings" :glass="glass"
-            :ping1DSettings="ping1DSettings" :ping360Settings="ping360Settings" :is-dark-mode="isDarkMode"
-            :is-glass-mode="isGlassMode" :server-url="serverUrl" :yaw-connection-status="yawConnectionStatus"
+            :display-settings="displaySettings" :is-dark-mode="isDarkMode"
+            :server-url="serverUrl" :yaw-connection-status="yawConnectionStatus"
             @update:isOpen="showSettings = $event"
-            @update:ping1DSettings="updatePing1DSettings" @update:ping360Settings="updatePing360Settings"
-            @update:isDarkMode="updateDarkMode" @update:isGlassMode="updateGlassMode"
-            @update:serverUrl="handleServerUrlUpdate" @updateMavlink="handleMavlinkUpdate" @save="saveSettings"
-            @reset="resetSettings" />
+            @update:displaySettings="updateDisplaySettings"
+            @update:isDarkMode="updateDarkMode"
+            @update:serverUrl="handleServerUrlUpdate" @updateMavlink="handleMavlinkUpdate" @save="saveSettings" />
         </v-card>
 
         <div class="middle-section" :class="{ 'menu-open': isMenuOpen }">
@@ -335,6 +334,12 @@ let reconnectTimeout = null;
 
 const commonSettings = reactive({});
 
+const displaySettings = reactive({
+  units: 'Metric',
+  aScan: true,
+  colorPalette: 'Thermal Blue',
+});
+
 const ping1DSettings = reactive({
   columnCount: 500,
   tickCount: 5,
@@ -374,6 +379,8 @@ const deviceSettings = computed(() => {
     ...settings,
     width: activeDevice.value?.width || window.innerWidth,
     height: activeDevice.value?.height || window.innerHeight,
+    aScan: displaySettings.aScan,
+    units: displaySettings.units,
   };
 });
 
@@ -534,6 +541,7 @@ const loadSettings = () => {
     const savedCommon = localStorage.getItem('common-settings');
     const savedPing1D = localStorage.getItem('ping1d-settings');
     const savedPing360 = localStorage.getItem('ping360-settings');
+    const savedDisplay = localStorage.getItem('display-settings');
     const savedCustomPalette = localStorage.getItem('customColorPalette');
     const savedGlassMode = localStorage.getItem('glassMode');
 
@@ -543,6 +551,12 @@ const loadSettings = () => {
     if (savedCommon) Object.assign(commonSettings, JSON.parse(savedCommon));
     if (savedPing1D) Object.assign(ping1DSettings, JSON.parse(savedPing1D));
     if (savedPing360) Object.assign(ping360Settings, JSON.parse(savedPing360));
+    if (savedDisplay) {
+      const parsed = JSON.parse(savedDisplay);
+      Object.assign(displaySettings, parsed);
+      ping1DSettings.colorPalette = parsed.colorPalette ?? ping1DSettings.colorPalette;
+      ping360Settings.colorPalette = parsed.colorPalette ?? ping360Settings.colorPalette;
+    }
     if (savedCustomPalette) {
       commonSettings.customPalette = JSON.parse(savedCustomPalette);
     }
@@ -556,6 +570,7 @@ const saveSettings = () => {
     localStorage.setItem('common-settings', JSON.stringify(commonSettings));
     localStorage.setItem('ping1d-settings', JSON.stringify(ping1DSettings));
     localStorage.setItem('ping360-settings', JSON.stringify(ping360Settings));
+    localStorage.setItem('display-settings', JSON.stringify(displaySettings));
     localStorage.setItem('glassMode', isGlassMode.value.toString());
     if (commonSettings.customPalette?.length > 0) {
       localStorage.setItem('customColorPalette', JSON.stringify(commonSettings.customPalette));
@@ -566,54 +581,10 @@ const saveSettings = () => {
   }
 };
 
-const resetSettings = () => {
-  Object.assign(commonSettings, {});
-
-  Object.assign(ping1DSettings, {
-    columnCount: 100,
-    tickCount: 5,
-    depthLineColor: '#00FF00',
-    depthTextColor: '#00FF00',
-    currentDepthColor: '#00FF00',
-    confidenceColor: '#00FF00',
-    textBackground: 'rgba(0, 0, 0, 0.5)',
-    debug: false,
-    depthArrowColor: '#f44336',
-    colorPalette: 'Ocean',
-    customPalette: [],
-  });
-
-  Object.assign(ping360Settings, {
-    lineColor: '#00FF00',
-    lineWidth: 0.5,
-    maxDistance: 300,
-    numMarkers: 5,
-    showRadiusLines: true,
-    showMarkers: true,
-    radiusLineColor: '#00FF00',
-    markerColor: '#00FF00',
-    radiusLineWidth: 0.5,
-    debug: false,
-    colorPalette: 'Ocean',
-    customPalette: [],
-  });
-};
-
-const updateGlassMode = (value) => {
-  isGlassMode.value = value;
-  localStorage.setItem('glassMode', value.toString());
-};
-
-const updateCommonSettings = (newSettings) => {
-  Object.assign(commonSettings, newSettings);
-};
-
-const updatePing1DSettings = (newSettings) => {
-  Object.assign(ping1DSettings, newSettings);
-};
-
-const updatePing360Settings = (newSettings) => {
-  Object.assign(ping360Settings, newSettings);
+const updateDisplaySettings = (newSettings) => {
+  Object.assign(displaySettings, newSettings);
+  ping1DSettings.colorPalette = newSettings.colorPalette;
+  ping360Settings.colorPalette = newSettings.colorPalette;
 };
 
 const updateDarkMode = (value) => {
@@ -1186,6 +1157,7 @@ provide('deviceSettings', {
   commonSettings,
   ping1DSettings,
   ping360Settings,
+  displaySettings,
 });
 
 provide('recordings', {
