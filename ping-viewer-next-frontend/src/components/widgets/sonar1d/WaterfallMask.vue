@@ -114,21 +114,27 @@ const historicalData = ref([]);
 const mousePosition = ref(null);
 const containerHeight = ref(80);
 
-const DEFAULT_POSITION = {
-  x: 10,
-  y: 10,
-  w: 260,
-  h: 80,
-};
+const DEFAULT_BOX_SIZE = { w: 260, h: 80 };
+
+function getDefaultPosition() {
+  const container = document.querySelector('.waterfall-display');
+  const containerWidth = container ? container.clientWidth : 600;
+  return {
+    x: Math.max(0, Math.floor((containerWidth - DEFAULT_BOX_SIZE.w) / 2)),
+    y: 10,
+    ...DEFAULT_BOX_SIZE,
+  };
+}
 
 const boxPosition = ref(loadSavedPosition());
 
 function loadSavedPosition() {
   const saved = localStorage.getItem('waterfall-measurements-position');
-  const savedPosition = saved ? JSON.parse(saved) : { ...DEFAULT_POSITION };
+  const defaultPos = getDefaultPosition();
+  const savedPosition = saved ? JSON.parse(saved) : defaultPos;
   const container = document.querySelector('.waterfall-display');
   if (!container) {
-    return { ...DEFAULT_POSITION };
+    return defaultPos;
   }
 
   const containerWidth = container.clientWidth;
@@ -140,7 +146,7 @@ function loadSavedPosition() {
     savedPosition.x < 0 ||
     savedPosition.y < 0;
 
-  return isOutOfBounds ? { ...DEFAULT_POSITION } : savedPosition;
+  return isOutOfBounds ? defaultPos : savedPosition;
 }
 
 function savePosition(position) {
@@ -160,7 +166,7 @@ function onResize(x, y, width, height) {
 }
 
 function resetPosition() {
-  boxPosition.value = { ...DEFAULT_POSITION };
+  boxPosition.value = getDefaultPosition();
   savePosition(boxPosition.value);
 }
 
