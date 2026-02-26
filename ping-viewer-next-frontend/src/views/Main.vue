@@ -121,7 +121,7 @@
               <div>
                 <div class="pt-1 pb-2 px-3">
                   <input ref="mcapFileInput" type="file" accept=".mcap" style="display: none" @change="loadLocalMcapFile" />
-                  <v-btn block variant="tonal" color="primary" prepend-icon="mdi-folder-open" @click="mcapFileInput?.click()">
+                  <v-btn block class="glassButton" elevation="0" prepend-icon="mdi-folder-open" @click="mcapFileInput?.click()">
                     Load Local MCAP File
                   </v-btn>
                 </div>
