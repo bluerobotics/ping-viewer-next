@@ -1,11 +1,11 @@
 <template>
-	<div class="waterfall-display relative w-full h-full" style="padding-right: 50px;">
+	<div class="waterfall-display relative w-full h-full" :style="{ paddingRight: showAScan ? '50px' : '0' }">
 		<WaterfallShader ref="waterfallShader" :width="width" :height="height" :max-depth="maxDepth"
 			:min-depth="minDepth" :column-count="columnCount" :sensor-data="sensorData" :color-palette="colorPalette"
 			:get-color-from-palette="getColorFromPalette" @update:columnCount="$emit('update:columnCount', $event)"
 			@mousemove="handleMouseMove" @mouseleave="handleMouseLeave" />
-		<canvas ref="overlayCanvas" class="overlay-canvas absolute top-0 left-0 h-full pointer-events-none"></canvas>
-		<div class="depth-line absolute top-0 h-full w-px" :style="{ right: '50px', backgroundColor: depthLineColor }">
+		<canvas ref="overlayCanvas" class="absolute top-0 left-0 h-full pointer-events-none" :style="{ width: showAScan ? 'calc(100% - 50px)' : '100%' }"></canvas>
+		<div class="depth-line absolute top-0 h-full w-px" :style="{ right: showAScan ? '50px' : '0', backgroundColor: depthLineColor }">
 			<div v-for="tick in depthTicks" :key="tick" class="tick absolute right-0 w-2 h-px" :style="{
 				top: `${tickPosition(tick)}%`,
 				backgroundColor: depthLineColor,
@@ -18,11 +18,12 @@
 		</div>
 		<div class="absolute w-0 h-0 border-solid border-transparent border-l-[16px] border-y-[8px]" :style="{
 			top: `${arrowPosition}%`,
-			right: '50px',
+			right: showAScan ? '50px' : '0',
 			borderLeftColor: depthArrowColor,
 			transform: 'translateY(-50%)',
 		}"/>
 		<AScanLine
+			v-if="showAScan"
 			class="absolute top-0 right-0 h-full"
 			:sensor-data="sensorData"
 			:max-depth="maxDepth"
@@ -100,6 +101,7 @@ const props = defineProps({
   textBackground: { type: String, default: 'rgba(0, 0, 0, 0.8)' },
   depthArrowColor: { type: String, default: 'yellow' },
   tickCount: { type: Number, default: 5 },
+  showAScan: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(['update:columnCount']);
@@ -324,10 +326,6 @@ onUnmounted(() => {
 .waterfall-display {
 	position: relative;
 	box-sizing: border-box;
-}
-
-.overlay-canvas {
-	width: calc(100% - 50px);
 }
 
 .measurements-box {

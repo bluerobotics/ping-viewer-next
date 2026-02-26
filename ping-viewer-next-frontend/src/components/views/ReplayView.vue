@@ -11,7 +11,8 @@ import { calculateRange, gradiansToDegrees } from '../../ping-device/utils/ping3
 import Ping1D from '../widgets/sonar1d/Ping1D.vue';
 import Ping360 from '../widgets/sonar360/Ping360.vue';
 
-const { commonSettings, ping1DSettings, ping360Settings } = inject('deviceSettings');
+const { commonSettings, ping1DSettings, ping360Settings, displaySettings } =
+  inject('deviceSettings');
 
 const currentDeviceData = ref(null);
 const deviceView = ref(null);
@@ -73,6 +74,7 @@ const deviceSpecificProps = computed(() => {
     ...baseProps,
     ...commonSettings,
     ...ping1DSettings,
+    aScan: displaySettings?.aScan ?? true,
     sensorData: currentDeviceData.value.data.sensorData,
     currentDepth: currentDeviceData.value.data.currentDepth,
     minDepth: currentDeviceData.value.data.minDepth,

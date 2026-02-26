@@ -18,6 +18,7 @@
       :tickCount="tickCount"
       :columnCount="columnCount"
       :getColorFromPalette="getColorFromPalette"
+      :showAScan="aScan"
       class="flex-grow"
     />
     <div
@@ -51,6 +52,7 @@ const props = defineProps({
   accuracy: { type: Number, required: true },
   colorPalette: { type: String, required: true },
   debug: { type: Boolean, default: false },
+  aScan: { type: Boolean, default: true },
   depthLineColor: { type: String, default: 'yellow' },
   depthTextColor: { type: String, default: 'yellow' },
   currentDepthColor: { type: String, default: 'yellow' },

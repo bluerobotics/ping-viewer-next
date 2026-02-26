@@ -88,6 +88,10 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  aScan: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 const socket = ref(null);
