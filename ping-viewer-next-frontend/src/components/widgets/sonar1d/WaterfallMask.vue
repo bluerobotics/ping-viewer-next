@@ -5,23 +5,23 @@
 			:get-color-from-palette="getColorFromPalette" @update:columnCount="$emit('update:columnCount', $event)"
 			@mousemove="handleMouseMove" @mouseleave="handleMouseLeave" />
 		<canvas ref="overlayCanvas" class="absolute top-0 left-0 h-full pointer-events-none" :style="{ width: showAScan ? 'calc(100% - 50px)' : '100%' }"></canvas>
-		<div class="depth-line absolute top-0 h-full w-px" :style="{ right: showAScan ? '50px' : '0', backgroundColor: depthLineColor }">
-			<div v-for="tick in depthTicks" :key="tick" class="tick absolute right-0 w-2 h-px" :style="{
-				top: `${tickPosition(tick)}%`,
-				backgroundColor: depthLineColor,
-			}">
-				<span class="absolute right-3 transform -translate-y-1/2 text-xs px-1 rounded"
-					:style="{ color: depthTextColor, backgroundColor: textBackground }">
-					{{ depthValue(tick).toFixed(1) }}{{ depthUnit }}
-				</span>
-			</div>
+	<div v-if="hasValidMeasurement" class="depth-line absolute top-0 h-full w-px" :style="{ right: showAScan ? '50px' : '0', backgroundColor: depthLineColor }">
+		<div v-for="tick in depthTicks" :key="tick" class="tick absolute right-0 w-2 h-px" :style="{
+			top: `${tickPosition(tick)}%`,
+			backgroundColor: depthLineColor,
+		}">
+			<span class="absolute right-3 transform -translate-y-1/2 text-xs px-1 rounded"
+				:style="{ color: depthTextColor, backgroundColor: textBackground }">
+				{{ depthValue(tick).toFixed(1) }}{{ depthUnit }}
+			</span>
 		</div>
-		<div class="absolute w-0 h-0 border-solid border-transparent border-l-[16px] border-y-[8px]" :style="{
-			top: `${arrowPosition}%`,
-			right: showAScan ? '50px' : '0',
-			borderLeftColor: depthArrowColor,
-			transform: 'translateY(-50%)',
-		}"/>
+	</div>
+	<div v-if="hasValidMeasurement" class="absolute w-0 h-0 border-solid border-transparent border-l-[16px] border-y-[8px]" :style="{
+		top: `${arrowPosition}%`,
+		right: showAScan ? '50px' : '0',
+		borderLeftColor: depthArrowColor,
+		transform: 'translateY(-50%)',
+	}"/>
 		<AScanLine
 			v-if="showAScan"
 			class="absolute top-0 right-0 h-full"
@@ -32,46 +32,47 @@
 			:width="50"
 		/>
 
-		<vue-draggable-resizable
-			:x="boxPosition.x"
-			:y="boxPosition.y"
-			:w="boxPosition.w"
-			:h="boxPosition.h"
-			:min-width="130"
-			:min-height="40"
-			:parent="true"
-			:resizable="true"
-			:lock-aspect-ratio="true"
-			:disableUserSelect="true"
-			class="measurements-box glass-panel"
-			@resizing="onResize"
-			@dragging="onDrag"
-			@dblclick="resetPosition"
-		>
-			<div class="measurements-content text-sm px-1 rounded" :style="{ fontSize: `${fontSize}px` }">
-				<div class="text-left" :style="{ color: '#FFFFFF' }">
-					Depth: {{ formatDepth(currentDepth) }}
-				</div>
-				<div class="text-left" :style="{ color: '#FFFFFF' }">
-					Confidence: {{ confidence }}%
-				</div>
+	<vue-draggable-resizable
+		v-if="hasValidMeasurement"
+		:x="boxPosition.x"
+		:y="boxPosition.y"
+		:w="boxPosition.w"
+		:h="boxPosition.h"
+		:min-width="130"
+		:min-height="40"
+		:parent="true"
+		:resizable="true"
+		:lock-aspect-ratio="true"
+		:disableUserSelect="true"
+		class="measurements-box glass-panel"
+		@resizing="onResize"
+		@dragging="onDrag"
+		@dblclick="resetPosition"
+	>
+		<div class="measurements-content text-sm px-1 rounded" :style="{ fontSize: `${fontSize}px` }">
+			<div class="text-left" :style="{ color: '#FFFFFF' }">
+				Depth: {{ formatDepth(currentDepth) }}
 			</div>
-		</vue-draggable-resizable>
-
-		<div v-if="hoveredColumn !== null && mousePosition"
-			class="hovered-column-info glass-panel px-2 py-1 rounded flex flex-col space-y-1 absolute" :style="{
-				fontSize: `${fontSize}px`,
-				...getHoveredBoxPosition()
-			}">
-			<div class="flex flex-col" :style="{ color: currentDepthColor }">
-				<span :style="{ fontSize: `${fontSize * 0.4}px` }">Depth</span>
-				<span>{{ formatDepth(historicalData[hoveredColumn]?.depth) }}</span>
-			</div>
-			<div class="flex flex-col" :style="{ color: confidenceColor }">
-				<span :style="{ fontSize: `${fontSize * 0.4}px` }">Confidence</span>
-				<span>{{ historicalData[hoveredColumn]?.confidence }}%</span>
+			<div class="text-left" :style="{ color: '#FFFFFF' }">
+				Confidence: {{ confidence }}%
 			</div>
 		</div>
+	</vue-draggable-resizable>
+
+	<div v-if="hoveredColumn !== null && mousePosition && isValidColumnData(hoveredColumn)"
+		class="hovered-column-info glass-panel px-2 py-1 rounded flex flex-col space-y-1 absolute" :style="{
+			fontSize: `${fontSize}px`,
+			...getHoveredBoxPosition()
+		}">
+		<div class="flex flex-col" :style="{ color: currentDepthColor }">
+			<span :style="{ fontSize: `${fontSize * 0.4}px` }">Depth</span>
+			<span>{{ formatDepth(historicalData[hoveredColumn]?.depth) }}</span>
+		</div>
+		<div class="flex flex-col" :style="{ color: confidenceColor }">
+			<span :style="{ fontSize: `${fontSize * 0.4}px` }">Confidence</span>
+			<span>{{ historicalData[hoveredColumn]?.confidence }}%</span>
+		</div>
+	</div>
 	</div>
 </template>
 
@@ -172,6 +173,15 @@ function resetPosition() {
   boxPosition.value = getDefaultPosition();
   savePosition(boxPosition.value);
 }
+
+const hasValidMeasurement = computed(() => {
+  return Number.isFinite(props.currentDepth) && Number.isFinite(props.confidence);
+});
+
+const isValidColumnData = (column) => {
+  const data = historicalData.value[column];
+  return data && Number.isFinite(data.depth) && Number.isFinite(data.confidence);
+};
 
 const fontSize = computed(() => {
   const scale = containerHeight.value / 42;
@@ -279,11 +289,11 @@ const drawOverlay = () => {
     const columnWidth = overlayCanvas.value.width / props.columnCount;
     const x = (props.columnCount - 1 - hoveredColumn.value) * columnWidth;
 
-    ctx.value.strokeStyle = 'white';
-    ctx.value.lineWidth = 2;
-    ctx.value.strokeRect(x, 0, columnWidth, overlayCanvas.value.height);
+    if (isValidColumnData(hoveredColumn.value)) {
+      ctx.value.strokeStyle = 'white';
+      ctx.value.lineWidth = 2;
+      ctx.value.strokeRect(x, 0, columnWidth, overlayCanvas.value.height);
 
-    if (historicalData.value[hoveredColumn.value]) {
       const columnData = historicalData.value[hoveredColumn.value];
       const y =
         ((columnData.depth - props.minDepth) / (virtualMaxDepth.value - props.minDepth)) *
