@@ -265,7 +265,10 @@ import Ping360Loader from '../components/widgets/sonar360/Ping360Loader.vue';
 import Ping360Settings from '../components/widgets/sonar360/Ping360Settings.vue';
 import { useMenuCoordination } from '../composables/useMenuCoordination';
 import { wsManager } from '../composables/useRecordingSessions';
+import { useUnits } from '../composables/useUnits';
 import { useNotificationStore } from '../stores/notificationStore';
+
+const { formatDepth } = useUnits();
 
 const { name: breakpoint } = useDisplay();
 const theme = useTheme();
@@ -702,11 +705,11 @@ const formatRecordingDetails = (recording) => {
       details.push(`${recording.settings.startAngle}° - ${recording.settings.endAngle}°`);
     }
     if (recording.settings.currentRange) {
-      details.push(`${recording.settings.currentRange}m range`);
+      details.push(`${formatDepth(recording.settings.currentRange, 1)} range`);
     }
   } else {
     if (recording.settings.maxDepth) {
-      details.push(`${recording.settings.maxDepth}m depth`);
+      details.push(`${formatDepth(recording.settings.maxDepth, 1)} depth`);
     }
   }
   return details.join(' | ');

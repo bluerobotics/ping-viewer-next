@@ -25,7 +25,7 @@
 					color: markerColor,
 					backgroundColor: markerBackgroundColor
 				}">
-				{{ line.distance }}m
+				{{ depthValue(line.distance).toFixed(1) }}{{ depthUnit }}
 			</div>
 		</template>
 	</div>
@@ -33,6 +33,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useUnits } from '../../../composables/useUnits';
+
+const { depthValue, depthUnit } = useUnits();
 
 const props = defineProps<{
   angle: number;

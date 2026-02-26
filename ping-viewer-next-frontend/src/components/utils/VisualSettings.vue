@@ -19,13 +19,12 @@
             <div class="setting-row">
               <span class="setting-label">Units:</span>
               <v-select
-                v-model="localSettings.units"
-                :items="['Metric', 'Imperial']"
+                v-model="unitSystem"
+                :items="[{ title: 'Metric', value: 'metric' }, { title: 'Imperial', value: 'imperial' }]"
                 hide-details
                 density="compact"
                 variant="solo-filled"
                 class="setting-select"
-                disabled
               />
             </div>
 
@@ -141,6 +140,9 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { colorPalettes } from '../widgets/SonarColorOptions.vue';
+import { useUnits } from '../../composables/useUnits';
+
+const { unitSystem } = useUnits();
 
 const props = defineProps({
   isOpen: {
@@ -233,14 +235,12 @@ const saveSettings = () => {
   localStorage.setItem('autoConnectMavlink', serverSettings.autoConnectMavlink.toString());
 
   if (mavlinkStatus.value === 'Connected') {
-    // Reconnect with new settings if already connected
     emit('updateMavlink', {
       action: 'reconnect',
       url: serverSettings.mavlinkUrl,
       autoConnect: serverSettings.autoConnectMavlink,
     });
   } else if (serverSettings.autoConnectMavlink) {
-    // Connect if auto-connect is enabled
     emit('updateMavlink', {
       action: 'connect',
       url: serverSettings.mavlinkUrl,
@@ -278,7 +278,6 @@ watch(
 );
 
 onMounted(() => {
-  // Load saved settings
   if (serverSettings.autoConnectMavlink && mavlinkStatus.value === 'Disconnected') {
     toggleMavlinkConnection();
   }
