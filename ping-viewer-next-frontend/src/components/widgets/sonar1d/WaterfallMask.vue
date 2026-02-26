@@ -12,7 +12,7 @@
 			}">
 				<span class="absolute right-3 transform -translate-y-1/2 text-xs px-1 rounded"
 					:style="{ color: depthTextColor, backgroundColor: textBackground }">
-					{{ tick.toFixed(1) }}m
+					{{ depthValue(tick).toFixed(1) }}{{ depthUnit }}
 				</span>
 			</div>
 		</div>
@@ -50,7 +50,7 @@
 		>
 			<div class="measurements-content text-sm px-1 rounded" :style="{ fontSize: `${fontSize}px` }">
 				<div class="text-left" :style="{ color: '#FFFFFF' }">
-					Depth: {{ currentDepth.toFixed(2) }}m
+					Depth: {{ formatDepth(currentDepth) }}
 				</div>
 				<div class="text-left" :style="{ color: '#FFFFFF' }">
 					Confidence: {{ confidence }}%
@@ -65,7 +65,7 @@
 			}">
 			<div class="flex flex-col" :style="{ color: currentDepthColor }">
 				<span :style="{ fontSize: `${fontSize * 0.4}px` }">Depth</span>
-				<span>{{ historicalData[hoveredColumn]?.depth.toFixed(2) }}m</span>
+				<span>{{ formatDepth(historicalData[hoveredColumn]?.depth) }}</span>
 			</div>
 			<div class="flex flex-col" :style="{ color: confidenceColor }">
 				<span :style="{ fontSize: `${fontSize * 0.4}px` }">Confidence</span>
@@ -78,8 +78,11 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import VueDraggableResizable from 'vue-draggable-resizable';
+import { useUnits } from '../../../composables/useUnits';
 import AScanLine from './AScanLine.vue';
 import WaterfallShader from './WaterfallShader.vue';
+
+const { formatDepth, depthValue, depthUnit } = useUnits();
 
 const props = defineProps({
   width: { type: Number, required: true },

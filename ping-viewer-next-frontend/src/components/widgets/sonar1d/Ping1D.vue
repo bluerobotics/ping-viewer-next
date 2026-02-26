@@ -25,11 +25,11 @@
       v-if="debug"
       class="mt-2 bg-black bg-opacity-50 text-white p-2 text-xs"
     >
-      <p>Current Depth: {{ currentDepth.toFixed(2) }} m</p>
-      <p>Min Depth: {{ minDepth.toFixed(2) }} m</p>
-      <p>Max Depth: {{ maxDepth.toFixed(2) }} m</p>
+      <p>Current Depth: {{ formatDepth(currentDepth) }}</p>
+      <p>Min Depth: {{ formatDepth(minDepth) }}</p>
+      <p>Max Depth: {{ formatDepth(maxDepth) }}</p>
       <p>Confidence: {{ confidence }}%</p>
-      <p>Accuracy: {{ accuracy.toFixed(2) }} m</p>
+      <p>Accuracy: {{ formatDepth(accuracy) }}</p>
       <p>Data Points: {{ sensorData.length }}</p>
       <p>Width: {{ width }}px, Height: {{ height }}px</p>
     </div>
@@ -39,7 +39,10 @@
 <script setup>
 import { ref } from 'vue';
 import { getColorFromPalette } from '../SonarColorOptions';
+import { useUnits } from '../../../composables/useUnits';
 import WaterfallDisplay from './WaterfallMask.vue';
+
+const { formatDepth } = useUnits();
 
 const props = defineProps({
   width: { type: Number, required: true },
