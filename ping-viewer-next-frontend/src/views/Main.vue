@@ -43,31 +43,6 @@
             </v-card>
           </v-dialog>
 
-          <div class="replay-controls-container center-bottom" :class="{ 'show-panel': showReplayControlsPanel }">
-            <v-btn
-              class="replay-controls-trigger square-button"
-              :class="{ glass }"
-              icon="mdi-play-box-outline"
-              variant="text"
-            />
-            <div class="replay-controls-panel" :class="{ 'glass': glass }">
-              <div class="windowHeader flex justify-between items-center pl-4 pt-0">
-                <div class="text-h6 text-center w-full ml-6">Replay Menu</div>
-                <v-btn icon="mdi-close" variant="text" @click="closeReplay" />
-              </div>
-              <div class="replay-player-horizontal" :class="{ 'glass-inner disable-hover': glass }">
-                <DataPlayer
-                  ref="dataPlayer"
-                  :mcap-data="replayData?.data"
-                  :auto-play="true"
-                  @update:currentFrame="handleReplayFrame"
-                  @loadedData="handleReplayDataLoaded"
-                  @parsingProgress="handleReplayParsingProgress"
-                  @error="handleReplayError"
-                />
-              </div>
-            </div>
-          </div>
           <ReplayView ref="replayViewRef" class="device-content" v-bind="deviceSettings" />
         </div>
 
@@ -125,82 +100,130 @@
           </div>
         </div>
 
-        <v-card class="glassMenu recordings-menu-wrapper" :class="{ 'glass': glass }" v-if="showRecordingsMenu">
+        <v-card class="glassMenu recordings-menu-wrapper" :class="{ 'glass': glass }"
+          v-if="showRecordingsMenu || isReplayActive" v-show="showRecordingsMenu">
           <div :class="['menu-content pa-0', { 'glass-inner disable-hover': glass }]">
-           <div class="windowHeader flex justify-between items-center pl-4 pt-0">
-             <div class="text-h6 text-center w-full ml-6">Recordings</div>
+            <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+              <div class="text-h6 text-center w-full ml-6">Recordings</div>
               <v-btn icon="mdi-close" variant="text" @click="showRecordingsMenu = false" />
             </div>
 
-            <div class="pa-3">
-              <input ref="mcapFileInput" type="file" accept=".mcap" style="display: none" @change="loadLocalMcapFile" />
-              <v-btn block variant="tonal" color="primary" prepend-icon="mdi-folder-open" @click="mcapFileInput?.click()">
-                Load Local MCAP File
-              </v-btn>
+            <div class="section-header" @click="recordingsPanel = recordingsPanel === 'files' ? null : 'files'">
+              <v-icon class="mr-2" size="small">mdi-folder-open</v-icon>
+              <span>Files</span>
+              <v-chip v-if="recordings.length" size="x-small" color="primary" variant="tonal" class="ml-2">
+                {{ recordings.length }}
+              </v-chip>
+              <v-spacer />
+              <v-icon size="small" class="section-chevron" :class="{ open: recordingsPanel === 'files' }">mdi-chevron-down</v-icon>
+            </div>
+            <div class="section-body" :class="{ open: recordingsPanel === 'files' }">
+              <div>
+                <div class="pt-1 pb-2 px-3">
+                  <input ref="mcapFileInput" type="file" accept=".mcap" style="display: none" @change="loadLocalMcapFile" />
+                  <v-btn block variant="tonal" color="primary" prepend-icon="mdi-folder-open" @click="mcapFileInput?.click()">
+                    Load Local MCAP File
+                  </v-btn>
+                </div>
+
+                <v-divider v-if="serverUrl" />
+
+                <template v-if="serverUrl">
+                  <div v-if="isLoadingRecordings" class="text-center pa-4">
+                    <v-progress-circular indeterminate color="primary" />
+                    <div class="mt-2">Loading recordings...</div>
+                  </div>
+
+                  <div v-else-if="recordings.length === 0" class="text-center pa-4 text-medium-emphasis">
+                    <v-icon size="48" class="mb-2">mdi-video-off</v-icon>
+                    <div>No server recordings available</div>
+                    <div class="text-caption mt-2">
+                      MCAP recordings will appear here when you capture data from devices
+                    </div>
+                  </div>
+
+                  <v-list v-else :class="{ 'glass-inner': glass }">
+                    <v-list-item v-for="recording in recordings" :key="recording.id"
+                      :class="{ 'new-recording': !recording.downloaded }">
+                      <template v-slot:prepend>
+                        <v-icon :icon="recording.deviceType === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'" />
+                      </template>
+
+                      <v-list-item-title class="text-truncate">
+                        {{ recording.fileName }}
+                      </v-list-item-title>
+
+                      <v-list-item-subtitle>
+                        {{ formatRecordingDate(recording.timestamp) }}
+                      </v-list-item-subtitle>
+
+                      <v-list-item-subtitle class="text-caption">
+                        {{ formatRecordingDetails(recording) }}
+                      </v-list-item-subtitle>
+
+                      <template v-slot:append>
+                        <div class="d-flex gap-2">
+                          <v-tooltip location="top" text="Play Recording">
+                            <template v-slot:activator="{ props }">
+                              <v-btn v-bind="props" icon="mdi-play" variant="text" size="small"
+                                @click="playRecording(recording)" />
+                            </template>
+                          </v-tooltip>
+
+                          <v-tooltip location="top" text="Download Recording">
+                            <template v-slot:activator="{ props }">
+                              <v-btn v-bind="props" icon="mdi-download" variant="text" size="small"
+                                @click="downloadRecording(recording)" />
+                            </template>
+                          </v-tooltip>
+
+                          <v-tooltip location="top" text="Delete Recording">
+                            <template v-slot:activator="{ props }">
+                              <v-btn v-bind="props" icon="mdi-delete" variant="text" size="small"
+                                color="error" @click="deleteRecording(recording)" />
+                            </template>
+                          </v-tooltip>
+                        </div>
+                      </template>
+                    </v-list-item>
+                  </v-list>
+                </template>
+              </div>
             </div>
 
-            <v-divider v-if="serverUrl" />
-
-            <template v-if="serverUrl">
-              <div v-if="isLoadingRecordings" class="text-center pa-4">
-                <v-progress-circular indeterminate color="primary" />
-                <div class="mt-2">Loading recordings...</div>
-              </div>
-
-              <div v-else-if="recordings.length === 0" class="text-center pa-4 text-medium-emphasis">
-                <v-icon size="48" class="mb-2">mdi-video-off</v-icon>
-                <div>No server recordings available</div>
-                <div class="text-caption mt-2">
-                  MCAP recordings will appear here when you capture data from devices
+            <div class="section-header" @click="recordingsPanel = recordingsPanel === 'playback' ? null : 'playback'">
+              <v-icon class="mr-2" size="small">mdi-play-circle-outline</v-icon>
+              <span>Playback</span>
+              <v-spacer />
+              <v-icon size="small" class="section-chevron" :class="{ open: recordingsPanel === 'playback' }">mdi-chevron-down</v-icon>
+            </div>
+            <div class="section-body" :class="{ open: recordingsPanel === 'playback' }">
+              <div>
+                <template v-if="isReplayActive">
+                  <div class="replay-player-section pa-3">
+                    <DataPlayer
+                      ref="dataPlayer"
+                      :mcap-data="replayData?.data"
+                      :auto-play="true"
+                      @update:currentFrame="handleReplayFrame"
+                      @loadedData="handleReplayDataLoaded"
+                      @parsingProgress="handleReplayParsingProgress"
+                      @error="handleReplayError"
+                    />
+                    <v-btn block variant="tonal" color="error" prepend-icon="mdi-stop" class="mt-3" @click="closeReplay">
+                      Stop Playback
+                    </v-btn>
+                  </div>
+                </template>
+                <div v-else class="text-center pa-4 text-medium-emphasis">
+                  <v-icon size="48" class="mb-2">mdi-play-circle-outline</v-icon>
+                  <div>No active playback</div>
+                  <div class="text-caption mt-2">
+                    Play a recording or load a file to start
+                  </div>
                 </div>
               </div>
-
-              <v-list v-else :class="{ 'glass-inner': glass }">
-                <v-list-item v-for="recording in recordings" :key="recording.id"
-                  :class="{ 'new-recording': !recording.downloaded }">
-                  <template v-slot:prepend>
-                    <v-icon :icon="recording.deviceType === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'" />
-                  </template>
-
-                  <v-list-item-title class="text-truncate">
-                    {{ recording.fileName }}
-                  </v-list-item-title>
-
-                  <v-list-item-subtitle>
-                    {{ formatRecordingDate(recording.timestamp) }}
-                  </v-list-item-subtitle>
-
-                  <v-list-item-subtitle class="text-caption">
-                    {{ formatRecordingDetails(recording) }}
-                  </v-list-item-subtitle>
-
-                  <template v-slot:append>
-                    <div class="d-flex gap-2">
-                      <v-tooltip location="top" text="Play Recording">
-                        <template v-slot:activator="{ props }">
-                          <v-btn v-bind="props" icon="mdi-play" variant="text" size="small"
-                            @click="playRecording(recording)" />
-                        </template>
-                      </v-tooltip>
-
-                      <v-tooltip location="top" text="Download Recording">
-                        <template v-slot:activator="{ props }">
-                          <v-btn v-bind="props" icon="mdi-download" variant="text" size="small"
-                            @click="downloadRecording(recording)" />
-                        </template>
-                      </v-tooltip>
-
-                      <v-tooltip location="top" text="Delete Recording">
-                        <template v-slot:activator="{ props }">
-                          <v-btn v-bind="props" icon="mdi-delete" variant="text" size="small"
-                            color="error" @click="deleteRecording(recording)" />
-                        </template>
-                      </v-tooltip>
-                    </div>
-                  </template>
-                </v-list-item>
-              </v-list>
-            </template>
+            </div>
           </div>
         </v-card>
 
@@ -293,15 +316,13 @@ const isReplayActive = ref(false);
 const replayViewRef = ref(null);
 const dataPlayer = ref(null);
 const isLoadingRecordings = ref(false);
-const showReplayControlsPanel = ref(false);
+const recordingsPanel = ref('files');
 const mcapFileInput = ref(null);
 const isReplayLoading = ref(false);
 const isReplayParsing = ref(false);
 const replayDownloadProgress = ref(0);
 const replayParsingProgress = ref(0);
 const replayError = ref(null);
-let replayControlsTimeout = null;
-
 const menus = {
   connection: isConnectionMenuOpen,
   middle: isMenuOpen,
@@ -493,7 +514,7 @@ const handleDeviceSelection = (device) => {
   if (isReplayActive.value) {
     isReplayActive.value = false;
     replayData.value = null;
-    showReplayControlsPanel.value = false;
+    recordingsPanel.value = 'files';
   }
   selectDevice(device);
   isConnectionMenuOpen.value = false;
@@ -613,7 +634,7 @@ const playRecording = async (recording) => {
     isReplayLoading.value = false;
     isReplayParsing.value = true;
 
-    showRecordingsMenu.value = false;
+    recordingsPanel.value = 'playback';
 
     if (dataPlayer.value && isReplayActive.value) {
       await nextTick();
@@ -654,7 +675,7 @@ const loadLocalMcapFile = async (event) => {
   try {
     const arrayBuffer = await file.arrayBuffer();
 
-    showRecordingsMenu.value = false;
+    recordingsPanel.value = 'playback';
 
     if (dataPlayer.value && isReplayActive.value) {
       await nextTick();
@@ -685,7 +706,7 @@ const loadLocalMcapFile = async (event) => {
 const closeReplay = () => {
   isReplayActive.value = false;
   replayData.value = null;
-  showReplayControlsPanel.value = false;
+  recordingsPanel.value = 'files';
 };
 
 const formatRecordingDate = (timestamp) => {
@@ -766,11 +787,8 @@ const handleReplayFrame = (frame) => {
 const handleReplayDataLoaded = (data) => {
   isReplayParsing.value = false;
   replayViewRef.value?.onDataLoaded(data);
-  showReplayControlsPanel.value = true;
-  if (replayControlsTimeout) clearTimeout(replayControlsTimeout);
-  replayControlsTimeout = setTimeout(() => {
-    showReplayControlsPanel.value = false;
-  }, 3000);
+  recordingsPanel.value = 'playback';
+  showRecordingsMenu.value = true;
 };
 
 const handleReplayParsingProgress = (progress) => {
@@ -1580,81 +1598,52 @@ const isReplayProgressDialogOpen = computed(
   }
 }
 
-.replay-controls-container.center-bottom {
-  position: fixed;
-  left: 50%;
-  bottom: 0;
-  top: unset;
-  right: unset;
-  transform: translateX(-50%);
-  z-index: 1000;
+.section-header {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  background-color: rgba(255, 255, 255, 0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background-color 0.2s ease;
+}
+
+.section-header:first-child {
+  border-top: none;
+}
+
+.section-header:hover {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+
+.section-chevron {
+  transform: rotate(180deg);
+  transition: transform 0.3s ease;
+}
+
+.section-chevron.open {
+  transform: rotate(0deg);
+}
+
+.section-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
+}
+
+.section-body.open {
+  grid-template-rows: 1fr;
+}
+
+.section-body > div {
+  overflow: hidden;
+}
+
+.replay-player-section {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--button-gap);
-}
-
-.replay-controls-trigger {
-  border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
-  border-bottom: none !important;
-}
-
-.replay-controls-panel {
-  position: absolute;
-  left: 50%;
-  bottom: calc(var(--button-size) + var(--button-gap));
-  top: unset;
-  right: unset;
-  transform: translate(-50%, 20px);
-  opacity: 0;
-  visibility: hidden;
-  min-width: 600px;
-  max-width: 900px;
-  transition: all 0.3s cubic-bezier(.4,0,.2,1);
-  transition-delay: 0.1s;
-  border-radius: var(--border-radius);
-  padding: 0;
-  background: rgb(var(--v-theme-background));
-  box-shadow: 0px 4px 24px 0px rgba(0,0,0,0.25);
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.replay-controls-container.center-bottom:hover .replay-controls-panel,
-.replay-controls-container.center-bottom:focus-within .replay-controls-panel {
-  opacity: 1;
-  visibility: visible;
-  transform: translate(-50%, 0);
-  transition-delay: 0s;
-}
-
-.replay-player-horizontal {
-  width: 100%;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 2rem;
-  padding: 0.75rem 1.5rem 1rem;
-}
-
-@media (max-width: 900px) {
-  .replay-controls-panel {
-    min-width: 90vw;
-    max-width: 98vw;
-    padding: 1rem;
-  }
-  .replay-player-horizontal {
-    flex-direction: column;
-    gap: 1rem;
-  }
-}
-
-.replay-controls-container.center-bottom.show-panel .replay-controls-panel {
-  opacity: 1;
-  visibility: visible;
-  transform: translate(-50%, 0);
-  transition-delay: 0s;
+  gap: 0.5rem;
 }
 
 .replay-loading-overlay {
