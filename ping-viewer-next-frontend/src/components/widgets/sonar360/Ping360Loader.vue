@@ -2,7 +2,7 @@
   <div class="flex flex-col h-full">
     <div class="flex-1 mx-10 my-10 min-h-0">
       <FloatingControls v-if="showControls" :is-recording="isRecording">
-        <DataRecorder ref="dataRecorder" :device="device" @recording-complete="handleRecordingComplete"
+        <DataRecorder :device="device" :server-url="serverUrl"
           @recording-started="handleRecordingStarted" @recording-stopped="handleRecordingStopped" />
         <v-btn icon :color="isFreeze ? 'error' : 'primary'" @click="toggleFreeze" class="elevation-4" size="large">
           <v-icon>{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
@@ -12,7 +12,7 @@
         </v-btn>
         <v-dialog v-model="isSettingsOpen" max-width="300px">
 
-          <Ping360Settings ref="settingsRef" :server-url="getServerUrl(websocketUrl)" :device-id="device.id"
+          <Ping360Settings ref="settingsRef" :server-url="serverUrl" :device-id="device.id"
             :initial-angles="{ startAngle, endAngle }" :isOpen="isSettingsOpen" @update:angles="handleAngleUpdate"
             @rangeChange="handleRangeChange" />
         </v-dialog>
@@ -29,7 +29,7 @@
 </template>
 
 <script setup>
-import { inject, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import DataRecorder from '../DataRecorder.vue';
 import FloatingControls from '../FloatingControls.vue';
 import Ping360 from './Ping360.vue';
@@ -106,25 +106,29 @@ const currentRange = ref(props.maxDistance);
 const startAngle = ref(0);
 const endAngle = ref(360);
 const connectionStatus = ref('Disconnected');
-const dataRecorder = ref(null);
 const socket = ref(null);
 const settingsRef = ref(null);
 const isFreeze = ref(false);
-const isRecording = ref(false);
 const isSettingsOpen = ref(false);
+
+const recordingSessions = inject('recordingSessions', ref(new Map()));
+const isRecording = computed(() => {
+  const session = recordingSessions.value.get(props.device.id);
+  return session?.is_active ?? false;
+});
 const offset = ref(0);
 
 const yawAngle = inject('yawAngle', ref(0));
 
-const getServerUrl = (wsUrl) => {
+const serverUrl = computed(() => {
   try {
-    const url = new URL(wsUrl);
+    const url = new URL(props.websocketUrl);
     return `http${url.protocol === 'wss:' ? 's' : ''}://${url.host}`;
   } catch (error) {
     console.error('Error parsing WebSocket URL:', error);
     return '';
   }
-};
+});
 
 const toggleFreeze = () => {
   isFreeze.value = !isFreeze.value;
@@ -134,32 +138,8 @@ const toggleFreeze = () => {
   }
 };
 
-const notifyRecording = inject('recordings', {
-  handleRecordingComplete: null,
-})?.handleRecordingComplete;
-
-const handleRecordingComplete = (recordingData) => {
-  if (notifyRecording) {
-    const recordingWithSettings = {
-      ...recordingData,
-      settings: {
-        startAngle: startAngle.value,
-        endAngle: endAngle.value,
-        currentRange: currentRange.value,
-        yawAngle: yawAngle.value,
-      },
-    };
-    notifyRecording(recordingWithSettings);
-  }
-};
-
-const handleRecordingStarted = () => {
-  isRecording.value = true;
-};
-
-const handleRecordingStopped = () => {
-  isRecording.value = false;
-};
+const handleRecordingStarted = () => {};
+const handleRecordingStopped = () => {};
 
 function gradiansToDegrees(gradians) {
   if (gradians === 399) {
@@ -245,11 +225,6 @@ const connectWebSocket = () => {
         displayMeasurement.value = liveMeasurement.value;
         displayAngle.value = liveAngle.value;
       }
-
-      dataRecorder.value?.recordData({
-        angle: messageData.angle,
-        data: new Uint8Array(messageData.data),
-      });
 
       if (props.debug) {
         console.debug('Processed Ping360 data:', messageData);

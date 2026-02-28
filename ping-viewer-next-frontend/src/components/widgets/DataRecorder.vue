@@ -1,90 +1,94 @@
 <template>
-	<div class="data-recorder">
-	  <v-btn
-		:color="isRecording ? 'error' : 'primary'"
-		:class="{ 'pulse': isRecording }"
-		icon
-		elevation="2"
-		size="large"
-		@click="toggleRecording"
-	  >
-		<v-icon :class="{ 'rotate': isRecording }" size="large">
-		  {{ isRecording ? 'mdi-movie' : 'mdi-movie-outline' }}
-		</v-icon>
-	  </v-btn>
-	</div>
-  </template>
+  <div class="data-recorder">
+    <v-btn
+      :color="isRecording ? 'error' : 'primary'"
+      :class="{ 'pulse': isRecording }"
+      icon
+      elevation="2"
+      size="large"
+      :loading="isLoading"
+      @click="toggleRecording"
+    >
+      <v-icon :class="{ 'rotate': isRecording }" size="large">
+        {{ isRecording ? 'mdi-movie' : 'mdi-movie-outline' }}
+      </v-icon>
+    </v-btn>
+  </div>
+</template>
 
-  <script setup>
-import { ref } from 'vue';
+<script setup>
+import { computed, inject, ref } from 'vue';
 
 const props = defineProps({
   device: {
     type: Object,
     required: true,
   },
+  serverUrl: {
+    type: String,
+    required: true,
+  },
 });
 
-const emit = defineEmits(['recording-complete']);
+const emit = defineEmits(['recording-started', 'recording-stopped']);
 
-const isRecording = ref(false);
-const recordedData = ref([]);
-const recordingStartTime = ref(null);
+const recordingSessions = inject('recordingSessions', ref(new Map()));
+const isLoading = ref(false);
 
-const toggleRecording = () => {
-  if (!isRecording.value) {
-    startRecording();
-  } else {
-    stopRecording();
-  }
-};
+const isRecording = computed(() => {
+  const session = recordingSessions.value.get(props.device.id);
+  return session?.is_active ?? false;
+});
 
-const startRecording = () => {
-  isRecording.value = true;
-  recordedData.value = [];
-  recordingStartTime.value = Date.now();
-};
-
-const stopRecording = () => {
-  if (recordedData.value.length === 0) {
-    isRecording.value = false;
-    return;
-  }
-
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const fileName = `recorded_data_${props.device.device_type}_${props.device.id}_${timestamp}.json`;
-
-  const recordingData = {
-    id: Date.now(),
-    fileName,
-    timestamp: new Date().toISOString(),
-    deviceType: props.device.device_type,
-    deviceId: props.device.id,
-    data: recordedData.value,
-    downloaded: false,
-  };
-
-  emit('recording-complete', recordingData);
-  isRecording.value = false;
-  recordedData.value = [];
-};
-
-const recordData = (data) => {
+const toggleRecording = async () => {
   if (isRecording.value) {
-    const frame = {
-      timestamp: new Date().toISOString(),
-      device: {
-        id: props.device.id,
-        device_type: props.device.device_type,
-        source: props.device.source,
-      },
-      data: data,
-    };
-    recordedData.value.push(frame);
+    await stopRecording();
+  } else {
+    await startRecording();
   }
 };
 
-defineExpose({ recordData });
+const startRecording = async () => {
+  isLoading.value = true;
+  try {
+    const response = await fetch(
+      `${props.serverUrl}/v1/recordings_manager/${props.device.id}/StartRecording`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to start recording');
+    }
+    emit('recording-started');
+  } catch (err) {
+    console.error('Error starting recording:', err);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const stopRecording = async () => {
+  isLoading.value = true;
+  try {
+    const response = await fetch(
+      `${props.serverUrl}/v1/recordings_manager/${props.device.id}/StopRecording`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to stop recording');
+    }
+    emit('recording-stopped');
+  } catch (err) {
+    console.error('Error stopping recording:', err);
+  } finally {
+    isLoading.value = false;
+  }
+};
 </script>
 
   <style scoped>
