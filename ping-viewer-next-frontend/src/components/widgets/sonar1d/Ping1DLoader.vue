@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col h-full relative">
     <FloatingControls v-if="showControls" :is-recording="isRecording">
-      <DataRecorder ref="dataRecorder" :device="device" @recording-complete="handleRecordingComplete"
+      <DataRecorder :device="device" :server-url="serverUrl"
         @recording-started="handleRecordingStarted" @recording-stopped="handleRecordingStopped" />
       <v-btn icon :color="isFreeze ? 'error' : 'primary'" @click="toggleFreeze" class="elevation-4" size="large">
         <v-icon>{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
@@ -10,7 +10,7 @@
         <v-icon>mdi-cog</v-icon>
       </v-btn>
       <v-dialog v-model="isSettingsOpen" max-width="300px">
-        <Ping1DSettings :isOpen="isSettingsOpen" :server-url="getServerUrl(websocketUrl)" :device-id="device.id" />
+        <Ping1DSettings :isOpen="isSettingsOpen" :server-url="serverUrl" :device-id="device.id" />
       </v-dialog>
     </FloatingControls>
 
@@ -21,7 +21,7 @@
 </template>
 
 <script setup>
-import { inject, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import DataRecorder from '../DataRecorder.vue';
 import FloatingControls from '../FloatingControls.vue';
 import Ping1D from './Ping1D.vue';
@@ -95,10 +95,14 @@ const props = defineProps({
 });
 
 const socket = ref(null);
-const dataRecorder = ref(null);
-const isRecording = ref(false);
 const isFreeze = ref(false);
 const isSettingsOpen = ref(false);
+
+const recordingSessions = inject('recordingSessions', ref(new Map()));
+const isRecording = computed(() => {
+  const session = recordingSessions.value.get(props.device.id);
+  return session?.is_active ?? false;
+});
 
 const liveData = ref({
   sensorData: [],
@@ -118,33 +122,18 @@ const displayData = ref({
   accuracy: 0,
 });
 
-const getServerUrl = (wsUrl) => {
+const serverUrl = computed(() => {
   try {
-    const url = new URL(wsUrl);
+    const url = new URL(props.websocketUrl);
     return `http${url.protocol === 'wss:' ? 's' : ''}://${url.host}`;
   } catch (error) {
     console.error('Error parsing WebSocket URL:', error);
     return '';
   }
-};
-
-const { handleRecordingComplete: notifyRecording } = inject('recordings', {
-  handleRecordingComplete: null,
 });
 
-const handleRecordingComplete = (recordingData) => {
-  if (notifyRecording) {
-    notifyRecording(recordingData);
-  }
-};
-
-const handleRecordingStarted = () => {
-  isRecording.value = true;
-};
-
-const handleRecordingStopped = () => {
-  isRecording.value = false;
-};
+const handleRecordingStarted = () => {};
+const handleRecordingStopped = () => {};
 
 const toggleFreeze = () => {
   isFreeze.value = !isFreeze.value;
@@ -183,8 +172,6 @@ const connectWebSocket = () => {
         };
 
         liveData.value = newData;
-
-        dataRecorder.value?.recordData(newData);
 
         if (!isFreeze.value) {
           displayData.value = { ...newData };
