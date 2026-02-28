@@ -237,6 +237,14 @@
             @update:is-open="showNotifications = $event"
           />
         </v-card>
+
+        <DebugPanel
+          v-if="displaySettings.debugMode"
+          :active-device="activeDevice"
+          :device-data="deviceData"
+          :server-url="serverUrl"
+          :websocket-status="websocketStatus"
+        />
 </template>
 
 <script setup>
@@ -255,6 +263,7 @@ import {
 import { useDisplay, useTheme } from 'vuetify';
 
 import ConnectionManager from '../components/utils/ConnectionManager.vue';
+import DebugPanel from '../components/utils/DebugPanel.vue';
 import NotificationMenu from '../components/utils/NotificationMenu.vue';
 import ServerConnection from '../components/utils/ServerConnection.vue';
 import VisualSettings from '../components/utils/VisualSettings.vue';
@@ -323,6 +332,7 @@ const displaySettings = reactive({
   units: 'Metric',
   aScan: true,
   colorPalette: 'Thermal Blue',
+  debugMode: false,
 });
 
 const ping1DSettings = reactive({
