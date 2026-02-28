@@ -990,6 +990,8 @@ const debouncedSaveSettings = () => {
 
 watchOnce(serverUrl, (newUrl) => {
   if (newUrl) {
+    fetchRecordings();
+
     const autoSelectSingleDevice = async () => {
       try {
         const response = await fetch(`${newUrl}/device_manager/request`, {
