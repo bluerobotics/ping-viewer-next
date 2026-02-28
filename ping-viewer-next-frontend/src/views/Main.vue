@@ -814,6 +814,7 @@ const onServerConnected = (url) => {
   serverUrl.value = url;
   wsManager.connect(url);
   wsManager.addListener((data) => {
+    if (data === undefined) return;
     if (data.device_id) {
       const sessionData = data.RecordingStatus || data;
       const existingSession = recordingSessions.value.get(sessionData.device_id);
