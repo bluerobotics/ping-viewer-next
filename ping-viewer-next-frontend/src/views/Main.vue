@@ -117,7 +117,7 @@
               <v-spacer />
               <v-icon size="small" class="section-chevron" :class="{ open: recordingsPanel === 'files' }">mdi-chevron-down</v-icon>
             </div>
-            <div class="section-body" :class="{ open: recordingsPanel === 'files' }">
+            <div class="section-body files-section-body" :class="{ open: recordingsPanel === 'files' }">
               <div>
                 <div class="pt-1 pb-2 px-3">
                   <input ref="mcapFileInput" type="file" accept=".mcap" style="display: none" @change="loadLocalMcapFile" />
@@ -142,7 +142,7 @@
                     </div>
                   </div>
 
-                  <v-list v-else :class="{ 'glass-inner': glass }">
+                  <v-list v-else class="recordings-file-list" :class="{ 'glass-inner': glass }">
                     <v-list-item v-for="recording in recordings" :key="recording.id"
                       :class="{ 'new-recording': !recording.downloaded }">
                       <template v-slot:prepend>
@@ -1528,7 +1528,6 @@ const isReplayProgressDialogOpen = computed(
 
 .v-list {
   overflow-y: auto;
-  height: 350px;
 }
 
 .menu-actions {
@@ -1640,6 +1639,30 @@ const isReplayProgressDialogOpen = computed(
 
 .section-body > div {
   overflow: hidden;
+}
+
+.recordings-file-list {
+  max-height: 300px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.recordings-file-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.recordings-file-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.recordings-file-list::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.recordings-file-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.5);
 }
 
 .replay-player-section {
