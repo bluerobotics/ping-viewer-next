@@ -53,6 +53,13 @@
               class="mt-4"
             />
 
+            <v-checkbox
+              v-model="localSettings.debugMode"
+              label="Debug Mode"
+              hide-details
+              density="compact"
+            />
+
             <v-divider class="my-3" />
 
             <div class="setting-row">
