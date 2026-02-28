@@ -6,12 +6,13 @@
       </v-col>
 
       <template v-if="loadedData.length > 0">
-        <v-col cols="2">
+        <v-col cols="auto" class="d-flex align-center justify-center">
           <v-btn
-            :color="isPlaying ? 'warning' : 'success'"
+            class="player-btn"
             @click="togglePlayPause"
             density="compact"
             icon
+            variant="outlined"
           >
             <v-icon>{{ isPlaying ? 'mdi-pause' : 'mdi-play' }}</v-icon>
           </v-btn>
@@ -340,3 +341,16 @@ onUnmounted(() => {
 
 defineExpose({ loadFile, play, pause, togglePlayPause });
 </script>
+
+<style scoped>
+.player-btn {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: inherit !important;
+}
+
+.player-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+</style>
