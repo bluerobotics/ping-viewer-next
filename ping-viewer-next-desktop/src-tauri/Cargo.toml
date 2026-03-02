@@ -13,7 +13,7 @@ license = "MIT"
 tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.2.5", features = [] }
+tauri = { version = "2.2.5", features = ["devtools"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ping-viewer-next = { path = "./../../", features = ["desktop-app"] }
