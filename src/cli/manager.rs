@@ -15,7 +15,7 @@ struct Args {
     reset: bool,
 
     /// Sets the address for the REST API server
-    #[arg(long, value_name = "IP>:<PORT", default_value = "0.0.0.0:8080")]
+    #[arg(long, value_name = "IP>:<PORT", default_value = "0.0.0.0:4936")]
     rest_server: String,
 
     /// Turns all log categories up to Debug, for more information check RUST_LOG env variable.

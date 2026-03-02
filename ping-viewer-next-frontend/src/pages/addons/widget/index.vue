@@ -60,7 +60,7 @@
 const commonParameters = [
   {
     name: 'server',
-    description: 'URL of the PingViewer server (e.g., http://localhost:8080)',
+    description: 'URL of the PingViewer server (e.g., http://localhost:4936)',
     required: false,
   },
   {
@@ -78,7 +78,7 @@ const widgetDefinitions = {
     description: 'Visualize Ping1D sonar data with depth information and waterfall display.',
     parameters: [...commonParameters],
     example: `<iframe
-    src="/addons/widget/ping1d?server=http://your-server:8080&device=device-id"
+    src="/addons/widget/ping1d?server=http://your-server:4936&device=device-id"
     width="800"
     height="600"
     frameborder="0"
@@ -92,7 +92,7 @@ const widgetDefinitions = {
     description: 'Display Ping360 scanning sonar data with real-time visualization.',
     parameters: [...commonParameters],
     example: `<iframe
-    src="/addons/widget/ping360?server=http://your-server:8080&device=device-id"
+    src="/addons/widget/ping360?server=http://your-server:4936&device=device-id"
     width="800"
     height="600"
     frameborder="0"

@@ -28,7 +28,7 @@
                 </div>
 
                 <div v-if="step === 4 && currentStep === 4" class="mt-4">
-                  <v-text-field v-model="remoteAddress" label="Server Address" placeholder="e.g. pingviewernext:8080" class="w-[95%] mt-[18px]"
+                  <v-text-field v-model="remoteAddress" label="Server Address" placeholder="e.g. pingviewernext:4936" class="w-[95%] mt-[18px]"
                     hint="Enter the server address to connect" persistent-hint @keyup.enter="connectToRemote" />
                   <v-btn block class="mt-6 -mb-4 -ml-4 glassButton" @click="connectToRemote" :loading="loading">
                     Connect to Remote Server
@@ -257,7 +257,7 @@ onMounted(async () => {
   proceedToNextStep();
 
   // Step 3: Try default remote server
-  const defaultServer = 'pingviewernext:8080';
+  const defaultServer = 'pingviewernext:4936';
   if (await tryConnect(getServerUrl(defaultServer))) {
     remoteAddress.value = defaultServer;
     return;
