@@ -4,11 +4,11 @@
       <FloatingControls v-if="showControls" :is-recording="isRecording">
         <DataRecorder :device="device" :server-url="serverUrl"
           @recording-started="handleRecordingStarted" @recording-stopped="handleRecordingStopped" />
-        <v-btn icon :color="isFreeze ? 'error' : 'primary'" @click="toggleFreeze" class="elevation-4" size="large">
-          <v-icon>{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
+        <v-btn icon @click="toggleFreeze" class="glass-button" size="x-large">
+          <v-icon :color="isFreeze ? '#ef4444' : '#ffffff'" size="36">{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
         </v-btn>
-        <v-btn icon color="primary" @click="openSettings" class="elevation-4" size="large">
-          <v-icon>mdi-cog</v-icon>
+        <v-btn icon @click="openSettings" class="glass-button" size="x-large">
+          <v-icon color="#ffffff" size="36">mdi-cog</v-icon>
         </v-btn>
         <v-dialog v-model="isSettingsOpen" max-width="300px">
 
@@ -304,5 +304,13 @@ onUnmounted(() => {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+.glass-button {
+  background-color: rgba(0, 0, 0, 0.10) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  backdrop-filter: blur(25px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  box-shadow: 0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016 !important;
 }
 </style>
