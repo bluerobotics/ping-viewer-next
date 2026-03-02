@@ -28,6 +28,9 @@ async fn run_tauri_app(
     tauri::Builder::default()
         .setup(|app: &mut tauri::App| {
             let window = app.get_webview_window("main").unwrap();
+            if cli::manager::is_debug() {
+                window.open_devtools();
+            }
 
             std::thread::spawn(move || {
                 run_from_tauri(&cli::manager::server_address(), handler, recordings_handler)
