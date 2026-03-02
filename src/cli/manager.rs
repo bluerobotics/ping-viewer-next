@@ -37,6 +37,10 @@ struct Args {
     /// Turns on the Tracy tool integration.
     #[arg(long)]
     enable_tracy: bool,
+
+    /// Turns on the debug mode.
+    #[arg(long, default_value = "false")]
+    debug: bool,
 }
 
 #[derive(Debug)]
@@ -59,6 +63,10 @@ impl Manager {
 // Construct our manager, should be done inside main
 pub fn init() {
     MANAGER.as_ref();
+}
+
+pub fn is_debug() -> bool {
+    MANAGER.clap_matches.debug
 }
 
 // Check if the verbosity parameter was used
