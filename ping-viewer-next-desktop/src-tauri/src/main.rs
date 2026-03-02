@@ -32,7 +32,18 @@ async fn run_tauri_app(handler: device::manager::ManagerActorHandler, recordings
 
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(6));
-                window.eval("window.location.replace('http://127.0.0.1:8080')").unwrap();
+                let port = cli::manager::server_address()
+                    .split(":")
+                    .nth(1)
+                    .unwrap()
+                    .parse::<u16>()
+                    .unwrap();
+                window
+                    .eval(&format!(
+                        "window.location.replace('http://127.0.0.1:{}')",
+                        port
+                    ))
+                    .unwrap();
             });
 
             Ok(())
