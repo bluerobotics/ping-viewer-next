@@ -10,11 +10,11 @@
           <v-btn
             class="player-btn"
             @click="togglePlayPause"
-            density="compact"
             icon
             variant="outlined"
+            size="48"
           >
-            <v-icon>{{ isPlaying ? 'mdi-pause' : 'mdi-play' }}</v-icon>
+            <v-icon size="24">{{ isPlaying ? 'mdi-pause' : 'mdi-play' }}</v-icon>
           </v-btn>
         </v-col>
 
