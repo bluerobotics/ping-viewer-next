@@ -86,7 +86,7 @@
               <v-text-field
                 v-model="serverSettings.url"
                 label="Server URL"
-                placeholder="http://localhost:8080"
+                placeholder="http://localhost:4936"
                 hint="Enter the server URL"
                 persistent-hint
                 class="mb-4"
