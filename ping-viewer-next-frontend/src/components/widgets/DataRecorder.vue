@@ -1,15 +1,15 @@
 <template>
   <div class="data-recorder">
     <v-btn
-      :color="isRecording ? 'error' : 'primary'"
+      class="glass-button"
       :class="{ 'pulse': isRecording }"
       icon
-      elevation="2"
-      size="large"
+      variant="flat"
+      size="x-large"
       :loading="isLoading"
       @click="toggleRecording"
     >
-      <v-icon :class="{ 'rotate': isRecording }" size="large">
+      <v-icon :class="{ 'rotate': isRecording }" size="36">
         {{ isRecording ? 'mdi-movie' : 'mdi-movie-outline' }}
       </v-icon>
     </v-btn>
@@ -92,6 +92,14 @@ const stopRecording = async () => {
 </script>
 
   <style scoped>
+  .glass-button {
+	background-color: rgba(0, 0, 0, 0.10) !important;
+	border: 1px solid rgba(255, 255, 255, 0.15) !important;
+	backdrop-filter: blur(25px) !important;
+	-webkit-backdrop-filter: blur(16px) !important;
+	box-shadow: 0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016 !important;
+  }
+
   .pulse {
 	animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
