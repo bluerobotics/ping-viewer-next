@@ -26,6 +26,7 @@ async fn run_tauri_app(
     recordings_handler: device::recording::RecordingsManagerHandler,
 ) {
     tauri::Builder::default()
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app: &mut tauri::App| {
             let window = app.get_webview_window("main").unwrap();
             if cli::manager::is_debug() {
