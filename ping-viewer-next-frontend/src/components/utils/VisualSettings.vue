@@ -23,7 +23,6 @@
                 :items="[{ title: 'Metric', value: 'metric' }, { title: 'Imperial', value: 'imperial' }]"
                 hide-details
                 density="compact"
-                variant="solo-filled"
                 class="setting-select"
               />
             </div>
@@ -37,7 +36,6 @@
                 :items="['Light', 'Dark']"
                 hide-details
                 density="compact"
-                variant="solo-filled"
                 class="setting-select"
                 @update:model-value="handleThemeChange"
               />
@@ -69,7 +67,6 @@
                 :items="paletteOptions"
                 hide-details
                 density="compact"
-                variant="solo-filled"
                 class="setting-select"
               />
             </div>
