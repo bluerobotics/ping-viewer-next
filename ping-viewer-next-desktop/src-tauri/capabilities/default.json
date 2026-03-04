@@ -1,0 +1,9 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for the desktop app",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "window-state:default"
+  ]
+}
