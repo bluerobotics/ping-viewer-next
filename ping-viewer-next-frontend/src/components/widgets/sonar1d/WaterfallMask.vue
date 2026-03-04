@@ -64,11 +64,11 @@
 			fontSize: `${fontSize}px`,
 			...getHoveredBoxPosition()
 		}">
-		<div class="flex flex-col" :style="{ color: currentDepthColor }">
+		<div class="flex flex-col" :style="{ color: '#FFFFFF' }">
 			<span :style="{ fontSize: `${fontSize * 0.4}px` }">Depth</span>
 			<span>{{ formatDepth(historicalData[hoveredColumn]?.depth) }}</span>
 		</div>
-		<div class="flex flex-col" :style="{ color: confidenceColor }">
+		<div class="flex flex-col" :style="{ color: '#FFFFFF' }">
 			<span :style="{ fontSize: `${fontSize * 0.4}px` }">Confidence</span>
 			<span>{{ historicalData[hoveredColumn]?.confidence }}%</span>
 		</div>
