@@ -13,7 +13,7 @@
           <v-tooltip text="Enable automatic parameter adjustment" location="left">
             <template v-slot:activator="{ props }">
               <span v-bind="props" class="text-[20px] text-medium-emphasis">
-                Auto Mode
+                Auto Gain
               </span>
             </template>
           </v-tooltip>
