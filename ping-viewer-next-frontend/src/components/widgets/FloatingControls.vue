@@ -55,14 +55,14 @@ const handleHideControls = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(var(--v-theme-background), 0.1) !important;
-  backdrop-filter: blur(1px) !important;
+  background-color: rgba(var(--v-theme-background), 0.5) !important;
+  backdrop-filter: blur(25px) !important;
   border: 1px solid rgba(203, 203, 203, 0.25);
   box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.3), 0px 8px 12px 6px rgba(0, 0, 0, 0.15);
 }
 
 .square-button-container:hover {
-  background-color: rgba(var(--v-theme-background), 0.3) !important;
+  background-color: rgba(var(--v-theme-background), 0.6) !important;
 }
 
 .square-button-container.expanded {
