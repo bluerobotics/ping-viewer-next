@@ -5,7 +5,7 @@
 </template>
 
 <script>
-import { onKeyStroke } from '@vueuse/core';
+import { onKeyStroke, useDebounceFn } from '@vueuse/core';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 export default {
@@ -31,6 +31,11 @@ export default {
     let textureCoordBuffer;
     let texture;
     let textureData;
+    let textureWidth = 0;
+    let textureHeight = 0;
+    let colorLUT = null;
+    let colorLUT32 = null;
+    let colorLUTPalette = null;
 
     const measurementHistory = ref([]);
     const virtualMaxDepth = ref(props.maxDepth);
@@ -113,24 +118,25 @@ export default {
       const newWidth = effectiveWidth.value;
       const newHeight = props.height;
 
-      const oldTextureData = textureData ? new Uint8Array(textureData) : null;
-      const oldWidth = textureData ? Math.floor(textureData.length / (newHeight * 4)) : 0;
+      if (newWidth === textureWidth && newHeight === textureHeight) return;
+
+      const oldData = textureData;
+      const oldWidth = textureWidth;
+      const oldHeight = textureHeight;
 
       textureData = new Uint8Array(newWidth * newHeight * 4);
 
-      if (oldTextureData) {
-        const copyWidth = Math.min(oldWidth, newWidth);
-        for (let y = 0; y < newHeight; y++) {
-          for (let x = 0; x < copyWidth; x++) {
-            const newIndex = (y * newWidth + x) * 4;
-            const oldIndex = (y * oldWidth + x) * 4;
-            textureData[newIndex] = oldTextureData[oldIndex];
-            textureData[newIndex + 1] = oldTextureData[oldIndex + 1];
-            textureData[newIndex + 2] = oldTextureData[oldIndex + 2];
-            textureData[newIndex + 3] = oldTextureData[oldIndex + 3];
-          }
+      if (oldData && oldWidth > 0 && oldHeight > 0) {
+        const copyBytes = Math.min(oldWidth, newWidth) * 4;
+        const copyRows = Math.min(oldHeight, newHeight);
+        for (let y = 0; y < copyRows; y++) {
+          const oldRowStart = y * oldWidth * 4;
+          textureData.set(oldData.subarray(oldRowStart, oldRowStart + copyBytes), y * newWidth * 4);
         }
       }
+
+      textureWidth = newWidth;
+      textureHeight = newHeight;
 
       gl.bindTexture(gl.TEXTURE_2D, texture);
       gl.texImage2D(
@@ -146,53 +152,68 @@ export default {
       );
     }
 
-    function createYCoordMapping(newHeight, dataLength, scaleRatio) {
-      if (!props.antialiasing) {
-        // Simple mapping without interpolation
-        const mapping = new Array(newHeight);
-        for (let y = 0; y < newHeight; y++) {
-          const normalizedY = y / newHeight;
-          const scaledY = normalizedY * scaleRatio * dataLength;
-          const index = Math.floor(scaledY);
-          mapping[y] = [index, index];
-        }
-        return { mapping, weights: new Array(newHeight).fill(0) };
+    function buildColorLUT(palette) {
+      if (colorLUTPalette === palette && colorLUT) return;
+      const getColor = props.getColorFromPalette;
+      colorLUT = new Uint8Array(256 * 4);
+      for (let i = 0; i < 256; i++) {
+        const color = getColor(i, palette);
+        const off = i * 4;
+        colorLUT[off] = color[0];
+        colorLUT[off + 1] = color[1];
+        colorLUT[off + 2] = color[2];
+        colorLUT[off + 3] = color[3] !== undefined ? color[3] : 255;
       }
-
-      // Enhanced antialiased mapping with improved interpolation
-      const mapping = new Array(newHeight);
-      const weights = new Array(newHeight);
-
-      for (let y = 0; y < newHeight; y++) {
-        const normalizedY = y / newHeight;
-        const scaledY = normalizedY * scaleRatio * dataLength;
-
-        const baseIndex = Math.floor(scaledY);
-        const nextIndex = Math.min(baseIndex + 1, dataLength - 1);
-
-        const fraction = scaledY - baseIndex;
-        const smoothFraction = fraction * fraction * (3 - 2 * fraction);
-
-        mapping[y] = [baseIndex, nextIndex];
-        weights[y] = smoothFraction;
-      }
-
-      return { mapping, weights };
+      colorLUT32 = new Uint32Array(colorLUT.buffer);
+      colorLUTPalette = palette;
     }
 
-    function getInterpolatedValue(data, index1, index2, fraction) {
-      if (!props.antialiasing) {
-        return data[index1];
+    function createYCoordMapping(newHeight, dataLength, scaleRatio) {
+      const indices1 = new Int32Array(newHeight);
+      const indices2 = new Int32Array(newHeight);
+      const weights = new Float32Array(newHeight);
+      const aa = props.antialiasing;
+
+      for (let y = 0; y < newHeight; y++) {
+        const scaledY = (y / newHeight) * scaleRatio * dataLength;
+        const baseIndex = Math.floor(scaledY);
+        indices1[y] = baseIndex;
+        if (aa) {
+          indices2[y] = Math.min(baseIndex + 1, dataLength - 1);
+          const f = scaledY - baseIndex;
+          weights[y] = f * f * (3 - 2 * f);
+        } else {
+          indices2[y] = baseIndex;
+        }
       }
 
-      const value1 = data[index1];
-      const value2 = data[index2];
+      return { indices1, indices2, weights };
+    }
 
-      const t = fraction;
-      const t2 = t * t;
-      const t3 = t2 * t;
+    function fillColumn(td32, x, newWidth, newHeight, data, dataLength) {
+      const { indices1, indices2, weights: w } = yCoordCache;
+      const lut32 = colorLUT32;
+      const aa = props.antialiasing;
 
-      return value1 * (1 - 3 * t2 + 2 * t3) + value2 * (3 * t2 - 2 * t3);
+      for (let y = 0; y < newHeight; y++) {
+        const i1 = indices1[y];
+        if (i1 >= dataLength) continue;
+
+        let value;
+        if (aa) {
+          const v1 = data[i1];
+          const v2 = data[indices2[y]];
+          const t = w[y];
+          const t2 = t * t;
+          const t3 = t2 * t;
+          value = v1 * (1 - 3 * t2 + 2 * t3) + v2 * (3 * t2 - 2 * t3);
+        } else {
+          value = data[i1];
+        }
+
+        const lutIdx = value <= 0 ? 0 : value >= 255 ? 255 : (value + 0.5) | 0;
+        td32[y * newWidth + x] = lut32[lutIdx];
+      }
     }
 
     function updateTexture(redrawAll = false) {
@@ -200,92 +221,55 @@ export default {
 
       const newWidth = effectiveWidth.value;
       const newHeight = props.height;
+      const minDepth = props.minDepth;
+      const vMaxDepth = virtualMaxDepth.value;
+
+      buildColorLUT(props.colorPalette);
+      const td32 = new Uint32Array(textureData.buffer);
 
       if (redrawAll) {
         textureData.fill(0);
 
-        for (const [columnIndex, measurement] of measurementHistory.value.entries()) {
-          if (columnIndex >= newWidth) return;
+        const history = measurementHistory.value;
+        for (let col = 0; col < history.length; col++) {
+          if (col >= newWidth) break;
 
-          const x = newWidth - 1 - columnIndex;
-          const dataLength = measurement.data.length;
-          const scaleRatio =
-            (virtualMaxDepth.value - props.minDepth) /
-            (measurement.maxDepth - measurement.minDepth);
+          const measurement = history[col];
+          const x = newWidth - 1 - col;
+          const data = measurement.data;
+          const dataLength = data.length;
+          const scaleRatio = (vMaxDepth - minDepth) / (measurement.maxDepth - measurement.minDepth);
 
           if (scaleRatio !== lastScaleRatio) {
             yCoordCache = createYCoordMapping(newHeight, dataLength, scaleRatio);
             lastScaleRatio = scaleRatio;
           }
 
-          for (let y = 0; y < newHeight; y++) {
-            const [index1, index2] = yCoordCache.mapping[y];
-            const fraction = yCoordCache.weights[y];
-
-            if (index1 < dataLength) {
-              const interpolatedValue = getInterpolatedValue(
-                measurement.data,
-                index1,
-                index2,
-                fraction
-              );
-
-              const color = props.getColorFromPalette(interpolatedValue, props.colorPalette);
-              const index = (y * newWidth + x) * 4;
-
-              textureData[index] = color[0];
-              textureData[index + 1] = color[1];
-              textureData[index + 2] = color[2];
-              textureData[index + 3] = color[3] !== undefined ? color[3] : 255;
-            }
-          }
+          fillColumn(td32, x, newWidth, newHeight, data, dataLength);
         }
       } else {
-        // Just shift existing data
         for (let y = 0; y < newHeight; y++) {
           const rowOffset = y * newWidth * 4;
           textureData.copyWithin(rowOffset, rowOffset + 4, rowOffset + newWidth * 4);
         }
 
-        // Clear last column
+        const lastCol = newWidth - 1;
         for (let y = 0; y < newHeight; y++) {
-          const index = (y * newWidth + newWidth - 1) * 4;
-          textureData.fill(0, index, index + 4);
+          td32[y * newWidth + lastCol] = 0;
         }
 
         while (pendingUpdates.value.length > 0) {
           const measurement = pendingUpdates.value.shift();
-          const dataLength = measurement.data.length;
-          const scaleRatio =
-            (virtualMaxDepth.value - props.minDepth) /
-            (measurement.maxDepth - measurement.minDepth);
+          const data = measurement.data;
+          const dataLength = data.length;
+          const scaleRatio = (vMaxDepth - minDepth) / (measurement.maxDepth - measurement.minDepth);
 
           if (scaleRatio !== lastScaleRatio) {
             yCoordCache = createYCoordMapping(newHeight, dataLength, scaleRatio);
             lastScaleRatio = scaleRatio;
           }
 
-          for (let y = 0; y < newHeight; y++) {
-            const [index1, index2] = yCoordCache.mapping[y];
-            const fraction = yCoordCache.weights[y];
-
-            if (index1 < dataLength) {
-              const interpolatedValue = getInterpolatedValue(
-                measurement.data,
-                index1,
-                index2,
-                fraction
-              );
-
-              const color = props.getColorFromPalette(interpolatedValue, props.colorPalette);
-              const index = (y * newWidth + newWidth - 1) * 4;
-
-              textureData[index] = color[0];
-              textureData[index + 1] = color[1];
-              textureData[index + 2] = color[2];
-              textureData[index + 3] = color[3] !== undefined ? color[3] : 255;
-            }
-          }
+          fillColumn(td32, lastCol, newWidth, newHeight, data, dataLength);
         }
       }
 
@@ -337,8 +321,11 @@ export default {
         }
 
         if (measurementHistory.value.length > 0) {
-          const maxHistoricalDepth = Math.max(...measurementHistory.value.map((m) => m.maxDepth));
-          virtualMaxDepth.value = Math.max(props.maxDepth, maxHistoricalDepth);
+          let maxHistoricalDepth = props.maxDepth;
+          for (const m of measurementHistory.value) {
+            if (m.maxDepth > maxHistoricalDepth) maxHistoricalDepth = m.maxDepth;
+          }
+          virtualMaxDepth.value = maxHistoricalDepth;
         }
 
         // If virtualMaxDepth changed, redraw everything
@@ -406,6 +393,14 @@ export default {
       return program;
     }
 
+    const debouncedRebuildTexture = useDebounceFn(() => {
+      if (!gl) return;
+      updateTextureSize();
+      yCoordCache = null;
+      lastScaleRatio = 0;
+      updateTexture(true);
+    }, 100);
+
     function resizeCanvas() {
       if (!waterfallCanvas.value) return;
 
@@ -414,8 +409,8 @@ export default {
       waterfallCanvas.value.height = rect.height;
 
       if (gl) {
-        updateTextureSize();
         render();
+        debouncedRebuildTexture();
       }
     }
 
@@ -451,12 +446,17 @@ export default {
     });
 
     watch(() => props.sensorData, updateWaterfall, { deep: true });
-    watch(() => props.colorPalette, updateWaterfall);
+    watch(
+      () => props.colorPalette,
+      () => {
+        colorLUTPalette = null;
+        updateTexture(true);
+      }
+    );
     watch(
       () => effectiveWidth.value,
       () => {
-        updateTextureSize();
-        updateWaterfall();
+        debouncedRebuildTexture();
       }
     );
 
