@@ -501,7 +501,9 @@ const disableContinuousMode = async (deviceId) => {
 };
 
 onMounted(() => {
-  isLoading.value = true;
+  if (devices.value.length > 0) {
+    isLoading.value = true;
+  }
   fetchDevices().finally(() => {
     isLoading.value = false;
   });
