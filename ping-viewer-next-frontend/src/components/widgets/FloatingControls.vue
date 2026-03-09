@@ -1,12 +1,12 @@
 <template>
   <div class="absolute bottom-5 left-1/2 -translate-x-1/2 z-10">
-    <div class="square-button-container" :class="{ 'expanded': isExpanded, 'glass': true }"
+    <div class="pill-container" :class="{ expanded: isExpanded }"
       @mouseenter="handleShowControls" @mouseleave="handleHideControls">
-      <div class="button-content" :class="{ 'expanded': isExpanded }">
+      <div class="pill-content" :class="{ expanded: isExpanded }">
         <slot></slot>
       </div>
 
-      <div class="expand-icon" :class="{ 'hidden': isExpanded }">
+      <div class="pill-hint" :class="{ hidden: isExpanded }">
         <v-icon size="small">mdi-chevron-up</v-icon>
       </div>
 
@@ -41,59 +41,50 @@ const handleHideControls = () => {
 </script>
 
 <style scoped>
-.square-button-container {
-  --button-size: 3.25rem;
-  --button-gap: 0.5rem;
-  --border-radius: 0.5rem;
-
-  width: var(--button-size);
-  height: var(--button-size);
-  border-radius: var(--border-radius);
+.pill-container {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 9999px;
   position: relative;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(var(--v-theme-background), 0.5) !important;
-  backdrop-filter: blur(25px) !important;
-  border: 1px solid rgba(203, 203, 203, 0.25);
-  box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.3), 0px 8px 12px 6px rgba(0, 0, 0, 0.15);
+  background-color: rgba(32, 33, 36, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
 }
 
-.square-button-container:hover {
-  background-color: rgba(var(--v-theme-background), 0.6) !important;
-}
-
-.square-button-container.expanded {
+.pill-container.expanded {
   width: auto;
   height: auto;
   padding: 0.375rem;
 }
 
-.button-content {
+.pill-content {
   display: flex;
   align-items: center;
-  gap: var(--button-gap);
+  gap: 0.5rem;
   opacity: 0;
   width: 0;
   overflow: hidden;
   transition: all 0.3s ease;
 }
 
-.button-content.expanded {
+.pill-content.expanded {
   opacity: 1;
   width: auto;
   overflow: visible;
 }
 
-.expand-icon {
+.pill-hint {
   position: absolute;
   transition: all 0.3s ease;
-  color: rgba(var(--v-theme-on-surface), 0.7);
+  color: rgba(255, 255, 255, 0.7);
 }
 
-.expand-icon.hidden {
+.pill-hint.hidden {
   opacity: 0;
   transform: scale(0);
 }
