@@ -33,7 +33,7 @@
         <div class="text-sm">
           <strong>Status:</strong>
           <v-chip :color="getStatusColor(device.status)" size="small" class="ml-2">
-            {{ device.status }}
+            {{ getStatusLabel(device.status) }}
           </v-chip>
         </div>
       </div>
@@ -80,11 +80,22 @@ const emit = defineEmits(['click', 'dblclick', 'toggle']);
 const getStatusColor = (status) => {
   const statusColors = {
     Running: 'success',
-    Stopped: 'error',
-    ContinuousMode: 'info',
+    ContinuousMode: 'success',
     Error: 'error',
   };
   return statusColors[status] || 'warning';
+};
+
+const getStatusLabel = (status) => {
+  switch (status) {
+    case 'ContinuousMode':
+    case 'Running':
+      return 'Connected';
+    case 'Error':
+      return 'Error';
+    default:
+      return 'Available';
+  }
 };
 
 const handleClick = (event) => {

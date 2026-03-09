@@ -89,7 +89,7 @@
 							</td>
 							<td>
 								<v-chip :color="getStatusColor(device.status)" size="small">
-									{{ device.status }}
+									{{ getStatusLabel(device.status) }}
 								</v-chip>
 							</td>
 							<td>
@@ -285,13 +285,24 @@ const newDevice = ref({
 const getStatusColor = (status) => {
   switch (status) {
     case 'ContinuousMode':
-      return 'success';
     case 'Running':
-      return 'info';
+      return 'success';
     case 'Error':
       return 'error';
     default:
       return 'warning';
+  }
+};
+
+const getStatusLabel = (status) => {
+  switch (status) {
+    case 'ContinuousMode':
+    case 'Running':
+      return 'Connected';
+    case 'Error':
+      return 'Error';
+    default:
+      return 'Available';
   }
 };
 

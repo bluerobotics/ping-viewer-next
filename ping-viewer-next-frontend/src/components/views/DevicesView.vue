@@ -27,7 +27,7 @@
               <span class="text-gray-400 ml-2">{{ selectedDevice.id }}</span>
             </div>
             <v-chip :color="getStatusColor(selectedDevice.status)" size="small">
-              {{ selectedDevice.status }}
+              {{ getStatusLabel(selectedDevice.status) }}
             </v-chip>
           </div>
         </div>
@@ -107,13 +107,24 @@ const containerStyle = computed(() => ({
 const getStatusColor = (status) => {
   switch (status) {
     case 'ContinuousMode':
-      return 'success';
     case 'Running':
-      return 'info';
+      return 'success';
     case 'Error':
       return 'error';
     default:
       return 'warning';
+  }
+};
+
+const getStatusLabel = (status) => {
+  switch (status) {
+    case 'ContinuousMode':
+    case 'Running':
+      return 'Connected';
+    case 'Error':
+      return 'Error';
+    default:
+      return 'Available';
   }
 };
 
