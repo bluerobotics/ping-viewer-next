@@ -257,9 +257,9 @@ const fetchCurrentSettings = async () => {
   isInitializing.value = true;
   try {
     const settingsToFetch = ['ModeAuto', 'Range', 'GainSetting', 'SpeedOfSound', 'PingInterval'];
-
-    for (const setting of settingsToFetch) {
-      const response = await sendCommand(setting);
+    const responses = await Promise.all(settingsToFetch.map((setting) => sendCommand(setting)));
+    responses.forEach((response, idx) => {
+      const setting = settingsToFetch[idx];
       if (response?.DeviceMessage?.PingMessage?.Ping1D) {
         const data = response.DeviceMessage.PingMessage.Ping1D[setting];
 
@@ -282,7 +282,7 @@ const fetchCurrentSettings = async () => {
             break;
         }
       }
-    }
+    });
   } catch (error) {
     console.error('Error fetching settings:', error);
   } finally {
