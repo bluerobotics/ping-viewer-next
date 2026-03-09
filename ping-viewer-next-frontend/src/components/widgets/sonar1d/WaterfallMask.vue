@@ -1,24 +1,26 @@
 <template>
-	<div class="waterfall-display relative w-full h-full" :style="{ paddingRight: showAScan ? '50px' : '0' }">
+	<div class="waterfall-display relative w-full h-full" :style="{ paddingRight: `${rightOffset}px` }">
 		<WaterfallShader ref="waterfallShader" :width="width" :height="height" :max-depth="maxDepth"
 			:min-depth="minDepth" :column-count="columnCount" :sensor-data="sensorData" :color-palette="colorPalette"
 			:get-color-from-palette="getColorFromPalette" @update:columnCount="$emit('update:columnCount', $event)"
 			@mousemove="handleMouseMove" @mouseleave="handleMouseLeave" />
-		<canvas ref="overlayCanvas" class="absolute top-0 left-0 h-full pointer-events-none" :style="{ width: showAScan ? 'calc(100% - 50px)' : '100%' }"></canvas>
-	<div v-if="hasValidMeasurement" class="depth-line absolute top-0 h-full w-px" :style="{ right: showAScan ? '50px' : '0', backgroundColor: depthLineColor }">
-		<div v-for="tick in depthTicks" :key="tick" class="tick absolute right-0 w-2 h-px" :style="{
-			top: `${tickPosition(tick)}%`,
-			backgroundColor: depthLineColor,
-		}">
-			<span class="absolute right-3 transform -translate-y-1/2 text-xs px-1 rounded"
-				:style="{ color: depthTextColor, backgroundColor: textBackground }">
-				{{ depthValue(tick).toFixed(1) }}{{ depthUnit }}
-			</span>
-		</div>
+		<canvas ref="overlayCanvas" class="absolute top-0 left-0 h-full pointer-events-none" :style="{ width: `calc(100% - ${rightOffset}px)` }"></canvas>
+	<div class="depth-ruler absolute top-0 h-full pointer-events-none" :style="{
+		right: showAScan ? '50px' : '0',
+		width: `${RULER_WIDTH}px`,
+	}">
+		<template v-for="tick in depthTicks" :key="tick.value">
+			<div class="absolute right-0 w-3 h-px bg-white/70" :style="{ top: `${tick.position}%` }"></div>
+			<span class="absolute text-xl font-medium text-white whitespace-nowrap depth-label" :style="{
+				right: '6px',
+				top: `${tick.position}%`,
+				transform: 'translateY(-100%)',
+			}">{{ tick.label }}</span>
+		</template>
 	</div>
 	<div v-if="hasValidMeasurement" class="absolute w-0 h-0 border-solid border-transparent border-l-[16px] border-y-[8px]" :style="{
 		top: `${arrowPosition}%`,
-		right: showAScan ? '50px' : '0',
+		right: `${rightOffset}px`,
 		borderLeftColor: depthArrowColor,
 		transform: 'translateY(-50%)',
 	}"/>
@@ -85,6 +87,8 @@ import WaterfallShader from './WaterfallShader.vue';
 
 const { formatDepth, depthValue, depthUnit } = useUnits();
 
+const RULER_WIDTH = 70;
+
 const props = defineProps({
   width: { type: Number, required: true },
   height: { type: Number, required: true },
@@ -109,6 +113,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:columnCount']);
+
+const rightOffset = computed(() => (props.showAScan ? 50 : 0));
 
 const overlayCanvas = ref(null);
 const ctx = ref(null);
@@ -243,12 +249,48 @@ watch(
   { deep: true }
 );
 
+const niceInterval = computed(() => {
+  const minD = depthValue(props.minDepth);
+  const maxD = depthValue(virtualMaxDepth.value);
+  const range = maxD - minD;
+  if (range <= 0) return 1;
+  const roughInterval = range / 12;
+  const mag = 10 ** Math.floor(Math.log10(roughInterval));
+  const norm = roughInterval / mag;
+  if (norm <= 1) return mag;
+  if (norm <= 2) return 2 * mag;
+  if (norm <= 5) return 5 * mag;
+  return 10 * mag;
+});
+
 const depthTicks = computed(() => {
-  const depthRange = virtualMaxDepth.value - props.minDepth;
-  return Array.from(
-    { length: props.tickCount },
-    (_, i) => props.minDepth + (i / (props.tickCount - 1)) * depthRange
-  );
+  const interval = niceInterval.value;
+  const minD = depthValue(props.minDepth);
+  const maxD = depthValue(virtualMaxDepth.value);
+  const range = maxD - minD;
+  if (range <= 0) return [];
+
+  const ticks = [];
+  const start = Math.ceil(minD / interval) * interval;
+  for (let d = start; d <= maxD + interval * 0.01; d += interval) {
+    if (d <= minD) continue;
+    ticks.push({
+      value: d,
+      label: Math.abs(d - Math.round(d)) < 0.01 ? Math.round(d).toString() : d.toFixed(1),
+      position: ((d - minD) / range) * 100,
+    });
+  }
+
+  const lastTick = ticks.length > 0 ? ticks[ticks.length - 1] : null;
+  if (!lastTick || maxD - lastTick.value > interval * 0.3) {
+    ticks.push({
+      value: maxD,
+      label: maxD.toFixed(1),
+      position: 100,
+    });
+  }
+
+  return ticks;
 });
 
 const arrowPosition = computed(() => {
@@ -256,12 +298,6 @@ const arrowPosition = computed(() => {
   const relativeDepth = props.currentDepth - props.minDepth;
   return (relativeDepth / depthRange) * 100;
 });
-
-const tickPosition = (depth) => {
-  const depthRange = virtualMaxDepth.value - props.minDepth;
-  const relativeDepth = depth - props.minDepth;
-  return (relativeDepth / depthRange) * 100;
-};
 
 const handleMouseMove = (event) => {
   const rect = event.target.getBoundingClientRect();
@@ -345,6 +381,15 @@ onUnmounted(() => {
 .waterfall-display {
 	position: relative;
 	box-sizing: border-box;
+}
+
+.depth-ruler {
+	z-index: 5;
+}
+
+.depth-label {
+	-webkit-text-stroke: 1px rgba(0, 0, 0, 0.7);
+	paint-order: stroke fill;
 }
 
 .measurements-box {
