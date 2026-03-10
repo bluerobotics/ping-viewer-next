@@ -5,10 +5,10 @@
         <DataRecorder :device="device" :server-url="serverUrl"
           @recording-started="handleRecordingStarted" @recording-stopped="handleRecordingStopped" />
         <v-btn icon @click="toggleFreeze" class="glass-button" size="x-large">
-          <v-icon :color="isFreeze ? '#ef4444' : '#ffffff'" size="36">{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
+          <v-icon :color="isFreeze ? '#ef4444' : undefined" size="36">{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
         </v-btn>
         <v-btn icon @click="openSettings" class="glass-button" size="x-large">
-          <v-icon color="#ffffff" size="36">mdi-cog</v-icon>
+          <v-icon size="36">mdi-cog</v-icon>
         </v-btn>
         <v-dialog v-model="isSettingsOpen" max-width="300px">
 
@@ -307,10 +307,10 @@ onUnmounted(() => {
 }
 
 .glass-button {
-  background-color: rgba(0, 0, 0, 0.10) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  background-color: rgba(var(--v-theme-surface), 0.10) !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.15) !important;
   backdrop-filter: blur(25px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  box-shadow: 0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016 !important;
+  -webkit-backdrop-filter: blur(25px) !important;
+  box-shadow: 0px 8px 8px 0px rgba(0, 0, 0, 0.2), 0px 8px 12px 6px rgba(0, 0, 0, 0.09) !important;
 }
 </style>
