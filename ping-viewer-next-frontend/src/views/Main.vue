@@ -1187,6 +1187,7 @@ provide('recordings', {
   fetchRecordings,
 });
 
+provide('glass', glass);
 provide('yawAngle', yawAngle);
 provide('yawConnectionStatus', yawConnectionStatus);
 provide('connectYawWebSocket', connectYawWebSocket);
