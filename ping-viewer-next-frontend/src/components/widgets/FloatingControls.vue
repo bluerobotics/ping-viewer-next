@@ -1,6 +1,6 @@
 <template>
   <div class="absolute bottom-5 left-1/2 -translate-x-1/2 z-10">
-    <div class="pill-container" :class="{ expanded: isExpanded }"
+    <div class="pill-container" :class="{ expanded: isExpanded, glass: isGlass }"
       @mouseenter="handleShowControls" @mouseleave="handleHideControls">
       <div class="pill-content" :class="{ expanded: isExpanded }">
         <slot></slot>
@@ -16,7 +16,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { computed, inject, ref } from 'vue';
 
 defineProps({
   isRecording: {
@@ -24,6 +24,9 @@ defineProps({
     default: false,
   },
 });
+
+const glass = inject('glass', ref(false));
+const isGlass = computed(() => glass.value);
 
 const isExpanded = ref(false);
 const expansionTimeout = ref(null);
@@ -51,9 +54,15 @@ const handleHideControls = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(32, 33, 36, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
+}
+
+.pill-container.glass {
+  background-color: rgba(var(--v-theme-background), 0.5) !important;
+  backdrop-filter: blur(25px) !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .pill-container.expanded {
@@ -81,7 +90,7 @@ const handleHideControls = () => {
 .pill-hint {
   position: absolute;
   transition: all 0.3s ease;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
 .pill-hint.hidden {
