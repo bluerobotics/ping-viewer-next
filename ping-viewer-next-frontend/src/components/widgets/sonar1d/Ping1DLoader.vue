@@ -10,7 +10,7 @@
         <v-icon size="36">mdi-cog</v-icon>
       </v-btn>
       <v-dialog v-model="isSettingsOpen" max-width="300px">
-        <Ping1DSettings :isOpen="isSettingsOpen" :server-url="serverUrl" :device-id="device.id" />
+        <Ping1DSettings :isOpen="isSettingsOpen" :server-url="serverUrl" :device-id="device.id" @close="isSettingsOpen = false" />
       </v-dialog>
     </FloatingControls>
 
