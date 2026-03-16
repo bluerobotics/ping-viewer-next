@@ -80,6 +80,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { onKeyStroke } from '@vueuse/core';
 import VueDraggableResizable from 'vue-draggable-resizable';
 import { useUnits } from '../../../composables/useUnits';
 import AScanLine from './AScanLine.vue';
@@ -240,6 +241,12 @@ watch(
     drawOverlay();
   }
 );
+
+onKeyStroke(['r', 'R'], () => {
+  historicalData.value = [];
+  updateVirtualMaxDepth();
+  drawOverlay();
+});
 
 watch(
   () => historicalData.value,
