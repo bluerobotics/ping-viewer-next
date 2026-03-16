@@ -1,19 +1,13 @@
 <template>
-  <div class="data-recorder">
-    <v-btn
-      class="glass-button"
-      :class="{ 'pulse': isRecording }"
-      icon
-      variant="flat"
-      size="x-large"
-      :loading="isLoading"
-      @click="toggleRecording"
-    >
-      <v-icon :class="{ 'rotate': isRecording }" size="36">
-        {{ isRecording ? 'mdi-movie' : 'mdi-movie-outline' }}
-      </v-icon>
-    </v-btn>
-  </div>
+  <button
+    class="rec-pill"
+    :class="{ 'rec-pill--active': isRecording, 'rec-pill--loading': isLoading }"
+    :disabled="isLoading"
+    @click="toggleRecording"
+  >
+    <span class="rec-pill__label">REC</span>
+    <span class="rec-pill__dot" :class="{ 'rec-pill__dot--active': isRecording }"></span>
+  </button>
 </template>
 
 <script setup>
@@ -91,38 +85,79 @@ const stopRecording = async () => {
 };
 </script>
 
-  <style scoped>
-  .glass-button {
-	background-color: rgba(0, 0, 0, 0.10) !important;
-	border: 1px solid rgba(255, 255, 255, 0.15) !important;
-	backdrop-filter: blur(25px) !important;
-	-webkit-backdrop-filter: blur(16px) !important;
-	box-shadow: 0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016 !important;
-  }
+<style scoped>
+.rec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  height: 64px;
+  padding: 0 1rem;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-color: rgba(var(--v-theme-surface), 0.10);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  box-shadow: 0px 8px 8px 0px rgba(0, 0, 0, 0.2), 0px 8px 12px 6px rgba(0, 0, 0, 0.09);
+  cursor: pointer;
+  transition: border-color 0.3s ease, background-color 0.3s ease;
+  outline: none;
+  user-select: none;
+  white-space: nowrap;
+}
 
-  .pulse {
-	animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
+.rec-pill:hover {
+  border-color: rgba(239, 68, 68, 0.6);
+  background-color: rgba(var(--v-theme-surface), 0.2);
+}
 
-  @keyframes pulse {
-	0%, 100% {
-	  opacity: 1;
-	}
-	50% {
-	  opacity: 0.7;
-	}
-  }
+.rec-pill--active {
+  border-color: #ef4444;
+  animation: pill-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
 
-  .rotate {
-	animation: rotate 2s linear infinite;
-  }
+.rec-pill--loading {
+  opacity: 0.5;
+  cursor: wait;
+}
 
-  @keyframes rotate {
-	from {
-	  transform: rotate(0deg);
-	}
-	to {
-	  transform: rotate(360deg);
-	}
+.rec-pill__label {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: rgba(var(--v-theme-on-surface), 0.9);
+  line-height: 1;
+}
+
+.rec-pill__dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background-color: rgba(var(--v-theme-on-surface), 0.35);
+  transition: background-color 0.3s ease;
+  flex-shrink: 0;
+}
+
+.rec-pill__dot--active {
+  background-color: #ef4444;
+  animation: dot-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pill-pulse {
+  0%, 100% {
+    border-color: #ef4444;
   }
-  </style>
+  50% {
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+}
+
+@keyframes dot-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+</style>
