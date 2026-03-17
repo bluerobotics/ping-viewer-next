@@ -5,7 +5,7 @@
         <div class="flex justify-between">
           <v-icon start icon="mdi-connection" size="30" class="mr-2" />
           <p class="-ml-4">Ping Viewer Next</p>
-          <div></div>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="closeDialog" />
         </div>
       </v-card-title>
 
@@ -59,6 +59,11 @@ const remoteAddress = ref('');
 const autoConfirmCountdown = ref(0);
 const showSplashScreen = ref(true);
 let countdownTimer = null;
+
+const closeDialog = () => {
+  dialog.value = false;
+  showSplashScreen.value = false;
+};
 
 const CACHE_KEY = 'pingviewer-server';
 
