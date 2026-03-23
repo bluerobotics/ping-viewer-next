@@ -37,9 +37,9 @@
           <span class="text-caption text-medium-emphasis mr-1">{{ distanceLabel }}</span>
         </div>
         <div class="d-flex align-center gap-2">
-          <v-slider v-model="range" :min="1.8" :max="60" :step="0.1" density="compact" hide-details class="flex-grow-1"
+          <v-slider v-model="range" :min="2" :max="60" :step="1" density="compact" hide-details class="flex-grow-1"
             @update:modelValue="handleRangeChange" />
-          <v-text-field v-model.number="range" type="number" :min="1.8" :max="60" :step="0.1" density="compact"
+          <v-text-field v-model.number="range" type="number" :min="2" :max="60" :step="1" density="compact"
             hide-details style="width: 82px !important; flex: 0 0 auto" @update:modelValue="handleRangeChange" />
         </div>
 
@@ -52,8 +52,8 @@
           <span class="text-caption text-medium-emphasis mr-1">degrees</span>
         </div>
         <div class="d-flex align-center gap-2">
-          <v-slider v-model="width" :min="0" :max="360" step="30" show-ticks="always" tick-size="4" thumb-label
-            :ticks="{ 0: '0', 180: '180', 360: '360' }" density="compact" hide-details class="flex-grow-1"
+          <v-slider v-model="width" :min="90" :max="360" step="90" show-ticks="always" tick-size="4" thumb-label
+            :ticks="{ 90: '90', 180: '180', 270: '270', 360: '360' }" density="compact" hide-details class="flex-grow-1"
             @update:modelValue="handleWidthChange" />
         </div>
 
@@ -391,7 +391,8 @@ const fetchCurrentSettings = async () => {
       const stopAngleDegrees = gradiansToDegrees(config.stop_angle);
 
       centerAngle.value = (startAngleDegrees + stopAngleDegrees) / 2;
-      width.value = stopAngleDegrees - startAngleDegrees;
+      const rawWidth = stopAngleDegrees - startAngleDegrees;
+      width.value = Math.max(90, Math.round(rawWidth / 90) * 90);
 
       angleRange.value = [startAngleDegrees, stopAngleDegrees];
 
@@ -412,11 +413,8 @@ defineExpose({ fetchCurrentSettings });
 
 function calculateRange() {
   const samplePeriod = settings.value.sample_period * SAMPLE_PERIOD_TICK_DURATION;
-  return (
-    Math.round(
-      ((samplePeriod * settings.value.number_of_samples * settings.value.speed_of_sound) / 2) * 10
-    ) / 10
-  );
+  const raw = (samplePeriod * settings.value.number_of_samples * settings.value.speed_of_sound) / 2;
+  return Math.max(2, Math.round(raw));
 }
 
 function calculateSamplePeriod(desiredRange) {
@@ -463,7 +461,7 @@ const handleAngleChange = (newAngles) => {
 };
 const handleRangeChange = (newRange) => {
   if (!autoMode.value) {
-    range.value = Number(newRange.toFixed(1));
+    range.value = Math.round(newRange);
     return;
   }
 
@@ -492,9 +490,9 @@ const handleRangeChange = (newRange) => {
   }
 
   adjustTransmitDuration();
-  range.value = Number(newRange.toFixed(1));
-  emit('rangeChange', newRange);
-  emit('update:range', newRange);
+  range.value = Math.round(newRange);
+  emit('rangeChange', range.value);
+  emit('update:range', range.value);
 
   debouncedSaveSettings({ ...settings.value });
 };
