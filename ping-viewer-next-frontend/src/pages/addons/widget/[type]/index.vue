@@ -189,9 +189,9 @@ export default defineComponent({
       numMarkers: 5,
       showRadiusLines: true,
       showMarkers: true,
-      radiusLineColor: '#4caf50',
-      markerColor: '#4caf50',
-      radiusLineWidth: 0.5,
+      radiusLineColor: 'rgba(255, 255, 255, 0.7)',
+      markerColor: 'white',
+      radiusLineWidth: 1,
     };
 
     const ping1DProps = {

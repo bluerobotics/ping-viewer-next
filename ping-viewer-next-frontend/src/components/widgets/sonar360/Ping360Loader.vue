@@ -74,11 +74,11 @@ const props = defineProps({
   },
   radiusLineColor: {
     type: String,
-    default: 'green',
+    default: 'rgba(255, 255, 255, 0.7)',
   },
   markerColor: {
     type: String,
-    default: 'green',
+    default: 'white',
   },
   markerBackgroundColor: {
     type: String,
@@ -86,7 +86,7 @@ const props = defineProps({
   },
   radiusLineWidth: {
     type: Number,
-    default: 0.5,
+    default: 1,
   },
   debug: {
     type: Boolean,

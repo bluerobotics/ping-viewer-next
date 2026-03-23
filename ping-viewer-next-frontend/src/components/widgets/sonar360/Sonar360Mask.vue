@@ -6,24 +6,44 @@
 
 		<svg class="absolute top-0 left-0 w-full h-full pointer-events-none" viewBox="0 0 100 100"
 			preserveAspectRatio="xMidYMid meet">
-			<path v-if="!isFullCircle" :d="sectorPath" fill="none" :stroke="radiusLineColor" :stroke-width="radiusLineWidth" />
+			<defs>
+				<linearGradient :id="sweepGradientId" gradientUnits="userSpaceOnUse"
+					x1="50" y1="50"
+					:x2="50 + maxRadius * Math.cos(adjustedAngleRad)"
+					:y2="50 + maxRadius * Math.sin(adjustedAngleRad)">
+					<stop offset="0%" stop-color="white" stop-opacity="0" />
+					<stop offset="100%" stop-color="white" stop-opacity="0.9" />
+				</linearGradient>
+			</defs>
+
+			<path v-if="!isFullCircle" :d="sectorPath" fill="none" :stroke="radiusLineColor"
+				:stroke-width="radiusLineWidth" vector-effect="non-scaling-stroke" />
 
 			<g v-if="showRadiusLines">
 				<path v-for="line in radiusLines" :key="line.distance" :d="getRadiusLinePath(line.radius)"
-					:stroke="radiusLineColor" :stroke-width="radiusLineWidth" fill="none" />
+					:stroke="radiusLineColor" :stroke-width="radiusLineWidth" fill="none"
+					vector-effect="non-scaling-stroke" />
 			</g>
 
-			<line x1="50" y1="50" :x2="50 + 50 * Math.cos(adjustedAngleRad)" :y2="50 + 50 * Math.sin(adjustedAngleRad)"
-				:stroke="lineColor" :stroke-width="lineWidth" />
+			<line v-for="deg in angleLines" :key="deg"
+				x1="50" y1="50"
+				:x2="50 + maxRadius * Math.cos((deg - 90) * Math.PI / 180)"
+				:y2="50 + maxRadius * Math.sin((deg - 90) * Math.PI / 180)"
+				:stroke="radiusLineColor" :stroke-width="radiusLineWidth"
+				vector-effect="non-scaling-stroke" />
+
+			<line x1="50" y1="50"
+				:x2="50 + maxRadius * Math.cos(adjustedAngleRad)"
+				:y2="50 + maxRadius * Math.sin(adjustedAngleRad)"
+				:stroke="`url(#${sweepGradientId})`" stroke-width="2"
+				vector-effect="non-scaling-stroke" />
 		</svg>
 
 		<template v-if="showMarkers">
 			<div v-for="line in radiusLines" :key="line.distance"
-				class="absolute text-xs px-1 rounded transform -translate-x-1/2 -translate-y-1/2" :style="{
-					left: `${getMarkerPositionPercent(line.radius).x}%`,
+				class="absolute text-4xl font-medium text-white depth-label transform -translate-x-1/2 -translate-y-1/2" :style="{
+					left: `calc(${getMarkerPositionPercent(line.radius).x}% + 50px)`,
 					top: `${getMarkerPositionPercent(line.radius).y}%`,
-					color: markerColor,
-					backgroundColor: markerBackgroundColor
 				}">
 				{{ depthValue(line.distance).toFixed(1) }}{{ depthUnit }}
 			</div>
@@ -32,8 +52,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useUnits } from '../../../composables/useUnits';
+
+const instanceId = ref(Math.random().toString(36).slice(2, 8));
+const sweepGradientId = computed(() => `sweep-grad-${instanceId.value}`);
 
 const { depthValue, depthUnit } = useUnits();
 
@@ -57,10 +80,23 @@ const isFullCircle = computed(() => {
   return props.startAngle === 0 && props.endAngle === 360;
 });
 
+const angleLines = computed(() => {
+  const all = [0, 45, 90, 135, 180, 225, 270, 315];
+  if (isFullCircle.value) return all;
+  return all.filter((deg) => {
+    if (props.startAngle <= props.endAngle) {
+      return deg >= props.startAngle && deg <= props.endAngle;
+    }
+    return deg >= props.startAngle || deg <= props.endAngle;
+  });
+});
+
 const adjustedAngleRad = computed(() => {
-  const normalizedAngle = (props.angle / 400) * 360;
+  const normalizedAngle = ((props.angle + 1) / 400) * 360;
   return ((normalizedAngle + 90) * Math.PI) / 180;
 });
+
+const maxRadius = computed(() => 50 - props.lineWidth / 2);
 
 const radiusLines = computed(() => {
   const lines = [];
@@ -82,11 +118,7 @@ const sectorPath = computed(() => {
   const endX = 50 + 50 * Math.cos(endRad);
   const endY = 50 + 50 * Math.sin(endRad);
 
-  const angleDifference = (props.endAngle - props.startAngle + 360) % 360;
-  const largeArcFlag = angleDifference > 180 ? 1 : 0;
-  const sweepFlag = 1;
-
-  return `M 50 50 L ${startX} ${startY} A 50 50 0 ${largeArcFlag} ${sweepFlag} ${endX} ${endY} Z`;
+  return `M 50 50 L ${startX} ${startY} M 50 50 L ${endX} ${endY}`;
 });
 
 const getRadiusLinePath = (radius: number) => {
@@ -117,15 +149,7 @@ const getRadiusLinePath = (radius: number) => {
 };
 
 const getMarkerPositionPercent = (radius: number) => {
-  let angle: number;
-  if (isFullCircle.value) {
-    angle = 0;
-  } else if (props.startAngle <= props.endAngle) {
-    angle = (props.startAngle + props.endAngle) / 2;
-  } else {
-    angle = (props.startAngle + props.endAngle + 360) / 2;
-    if (angle >= 360) angle -= 360;
-  }
+  const angle = 45;
   const rad = (angle - 90) * (Math.PI / 180);
   return {
     x: 50 + radius * Math.cos(rad),
@@ -133,3 +157,10 @@ const getMarkerPositionPercent = (radius: number) => {
   };
 };
 </script>
+
+<style scoped>
+.depth-label {
+	-webkit-text-stroke: 1px rgba(0, 0, 0, 0.7);
+	paint-order: stroke fill;
+}
+</style>

@@ -377,9 +377,9 @@ const ping360Settings = reactive({
   numMarkers: 5,
   showRadiusLines: true,
   showMarkers: true,
-  radiusLineColor: '#4caf50',
-  markerColor: '#4caf50',
-  radiusLineWidth: 0.5,
+  radiusLineColor: 'rgba(255, 255, 255, 0.7)',
+  markerColor: 'white',
+  radiusLineWidth: 1,
   debug: false,
   colorPalette: 'Thermal Blue',
   customPalette: [],
@@ -566,7 +566,15 @@ const loadSettings = () => {
     }
     if (savedCommon) Object.assign(commonSettings, JSON.parse(savedCommon));
     if (savedPing1D) Object.assign(ping1DSettings, JSON.parse(savedPing1D));
-    if (savedPing360) Object.assign(ping360Settings, JSON.parse(savedPing360));
+    if (savedPing360) {
+      const {
+        radiusLineColor: _,
+        markerColor: __,
+        radiusLineWidth: ___,
+        ...parsed360
+      } = JSON.parse(savedPing360);
+      Object.assign(ping360Settings, parsed360);
+    }
     if (savedDisplay) {
       const parsed = JSON.parse(savedDisplay);
       Object.assign(displaySettings, parsed);
