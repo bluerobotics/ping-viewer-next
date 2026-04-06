@@ -231,7 +231,7 @@ export default defineComponent({
         ...ping1DProps,
         width: dimensions.value.width,
         height: dimensions.value.height,
-        columnCount: Math.floor(dimensions.value.width / 20),
+        columnCount: 1200,
       };
     });
 
