@@ -1268,6 +1268,7 @@ export default defineComponent({
   height: 100%;
   overflow: visible;
   z-index: 20;
+  pointer-events: none;
 }
 
 .mask-overlay {
@@ -1276,7 +1277,7 @@ export default defineComponent({
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: all;
+  pointer-events: none;
   z-index: 10;
 }
 

@@ -708,7 +708,7 @@ body {
 }
 
 .widget-mask {
-  pointer-events: auto !important;
+  pointer-events: none;
 }
 
 * {
