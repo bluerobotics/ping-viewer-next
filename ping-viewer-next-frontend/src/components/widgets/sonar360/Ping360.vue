@@ -1,5 +1,5 @@
 <template>
-  <div ref="containerRef" class="w-full h-full flex items-center justify-center bg-transparent p-4">
+  <div ref="containerRef" class="w-full h-full flex items-center justify-center bg-transparent p-4 overflow-hidden">
     <div class="relative" :style="containerStyle">
 			<Sonar360Mask :angle="angle" :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="maxDistance"
 				:numMarkers="numMarkers" :showRadiusLines="showRadiusLines" :showMarkers="showMarkers"
@@ -106,8 +106,55 @@ const props = defineProps({
 const containerRef = ref(null);
 const size = ref(300);
 
+const sectorWidth = computed(() => {
+  const diff = props.endAngle - props.startAngle;
+  return diff >= 0 ? diff : diff + 360;
+});
+
 const isHalfCircleView = computed(() => {
+  if (sectorWidth.value <= 180) return false;
   return props.startAngle >= 270 && props.endAngle <= 90;
+});
+
+function isAngleInSector(angle, start, end) {
+  if (start <= end) {
+    return angle >= start && angle <= end;
+  }
+  return angle >= start || angle <= end;
+}
+
+const sectorBoundingBox = computed(() => {
+  if (sectorWidth.value >= 360 || sectorWidth.value === 0) {
+    return { minX: 0, maxX: 1, minY: 0, maxY: 1 };
+  }
+
+  const toRad = (angle) => ((angle - 90) * Math.PI) / 180;
+  const points = [{ x: 0.5, y: 0.5 }];
+
+  points.push({
+    x: 0.5 + 0.5 * Math.cos(toRad(props.startAngle)),
+    y: 0.5 + 0.5 * Math.sin(toRad(props.startAngle)),
+  });
+  points.push({
+    x: 0.5 + 0.5 * Math.cos(toRad(props.endAngle)),
+    y: 0.5 + 0.5 * Math.sin(toRad(props.endAngle)),
+  });
+
+  for (const cardinal of [0, 90, 180, 270]) {
+    if (isAngleInSector(cardinal, props.startAngle, props.endAngle)) {
+      points.push({
+        x: 0.5 + 0.5 * Math.cos(toRad(cardinal)),
+        y: 0.5 + 0.5 * Math.sin(toRad(cardinal)),
+      });
+    }
+  }
+
+  return {
+    minX: Math.min(...points.map((p) => p.x)),
+    maxX: Math.max(...points.map((p) => p.x)),
+    minY: Math.min(...points.map((p) => p.y)),
+    maxY: Math.max(...points.map((p) => p.y)),
+  };
 });
 
 const containerStyle = computed(() => {
@@ -121,17 +168,29 @@ const containerStyle = computed(() => {
       bottom: '0',
     };
   }
-  return {
+
+  const bb = sectorBoundingBox.value;
+  const bbCenterX = (bb.minX + bb.maxX) / 2;
+  const bbCenterY = (bb.minY + bb.maxY) / 2;
+  const offsetX = (0.5 - bbCenterX) * size.value;
+  const offsetY = (0.5 - bbCenterY) * size.value;
+
+  const style = {
     width: `${size.value}px`,
     height: `${size.value}px`,
   };
+
+  if (offsetX !== 0 || offsetY !== 0) {
+    style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+  }
+
+  return style;
 });
 
 const updateSize = () => {
   if (!containerRef.value) return;
   const rect = containerRef.value.getBoundingClientRect();
   if (isHalfCircleView.value) {
-    // For half-circle view, use half the container height
     size.value = Math.min(rect.width, rect.height * 2);
   } else {
     size.value = Math.min(rect.width, rect.height);
