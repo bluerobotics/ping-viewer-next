@@ -52,8 +52,8 @@
           <span class="text-caption text-medium-emphasis mr-1">degrees</span>
         </div>
         <div class="d-flex align-center gap-2">
-          <v-slider v-model="width" :min="0" :max="360" step="30" show-ticks="always" tick-size="4" thumb-label
-            :ticks="{ 0: '0', 180: '180', 360: '360' }" density="compact" hide-details class="flex-grow-1"
+          <v-slider v-model="width" :min="60" :max="360" step="30" show-ticks="always" tick-size="4" thumb-label
+            :ticks="{ 60: '60' , 210: '210', 360: '360' }" density="compact" hide-details class="flex-grow-1"
             @update:modelValue="handleWidthChange" />
         </div>
 
