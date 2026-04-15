@@ -6,7 +6,7 @@
   </template>
   <template v-else>
     <v-app>
-      <v-main class="bg-[radial-gradient(ellipse_at_50%_40%,#005C84,#00223A)]">
+      <v-main class="app-main-bg">
         <MainView />
       </v-main>
     </v-app>
@@ -30,3 +30,13 @@ watchEffect(() => {
   }
 });
 </script>
+
+<style>
+:root {
+  --app-bg: radial-gradient(ellipse at 50% 40%, #005C84, #00223A);
+}
+
+.app-main-bg {
+  background: var(--app-bg) !important;
+}
+</style>

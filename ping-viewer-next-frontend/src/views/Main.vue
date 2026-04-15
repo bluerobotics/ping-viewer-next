@@ -354,6 +354,8 @@ const displaySettings = reactive({
   aScan: true,
   colorPalette: 'Thermal Blue',
   debugMode: false,
+  backgroundMode: 'gradient',
+  backgroundColor: '#001a2e',
 });
 
 const ping1DSettings = reactive({
@@ -1194,6 +1196,23 @@ provide('recordings', {
   recordings,
   fetchRecordings,
 });
+
+const updateAppBackground = () => {
+  if (displaySettings.backgroundMode === 'custom' && displaySettings.backgroundColor) {
+    document.documentElement.style.setProperty('--app-bg', displaySettings.backgroundColor);
+  } else {
+    document.documentElement.style.setProperty(
+      '--app-bg',
+      'radial-gradient(ellipse at 50% 40%, #005C84, #00223A)'
+    );
+  }
+};
+
+watch(
+  () => [displaySettings.backgroundMode, displaySettings.backgroundColor],
+  updateAppBackground,
+  { immediate: true }
+);
 
 provide('glass', glass);
 provide('yawAngle', yawAngle);

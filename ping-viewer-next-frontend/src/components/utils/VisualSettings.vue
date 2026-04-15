@@ -71,6 +71,33 @@
               />
             </div>
 
+            <v-divider class="my-3" />
+
+            <v-checkbox
+              v-model="useGradientBackground"
+              label="Gradient background"
+              hide-details
+              density="compact"
+            />
+
+            <div class="custom-bg-wrapper">
+              <v-checkbox
+                :model-value="!useGradientBackground"
+                label="Custom background"
+                hide-details
+                density="compact"
+                :disabled="useGradientBackground"
+                readonly
+                class="custom-bg-checkbox"
+              />
+              <input
+                type="color"
+                v-model="localSettings.backgroundColor"
+                :disabled="useGradientBackground"
+                class="custom-bg-swatch"
+              />
+            </div>
+
           </div>
         </v-window-item>
 
@@ -186,6 +213,13 @@ const emit = defineEmits([
 
 const activeTab = ref('display');
 const localSettings = reactive({ ...props.displaySettings });
+
+const useGradientBackground = computed({
+  get: () => localSettings.backgroundMode !== 'custom',
+  set: (val) => {
+    localSettings.backgroundMode = val ? 'gradient' : 'custom';
+  },
+});
 const mavlinkStatus = ref('Disconnected');
 
 const paletteOptions = Object.keys(colorPalettes);
@@ -313,5 +347,47 @@ onMounted(() => {
 .setting-select {
   flex: 1;
   max-width: 220px;
+}
+
+.custom-bg-wrapper {
+  position: relative;
+}
+
+.custom-bg-wrapper :deep(.v-selection-control__input) {
+  opacity: 0;
+}
+
+.custom-bg-wrapper :deep(.v-selection-control__wrapper) {
+  position: relative;
+}
+
+.custom-bg-swatch {
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  padding: 1px;
+  border: 2px solid rgba(var(--v-theme-on-surface), 0.6);
+  border-radius: 3px;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.custom-bg-swatch:disabled {
+  cursor: not-allowed;
+}
+
+.custom-bg-swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.custom-bg-swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 1px;
 }
 </style>
