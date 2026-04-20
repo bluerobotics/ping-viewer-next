@@ -74,6 +74,20 @@
           </div>
         </div>
 
+        <v-tooltip text="Used when the sonar is mounted upside down" location="left">
+          <template v-slot:activator="{ props }">
+            <div v-bind="props" style="display: inline-block">
+              <v-checkbox
+                v-model="sharedHeadDown"
+                label="Head-down"
+                hide-details
+                density="compact"
+                class="mt-2 mb-2"
+              />
+            </div>
+          </template>
+        </v-tooltip>
+
         <v-divider class="mb-4"></v-divider>
 
         <v-btn block variant="tonal" @click="showAdvanced = !showAdvanced" class="mb-4">
@@ -196,6 +210,7 @@
 import { useDebounceFn } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
 import { useUnits } from '../../../composables/useUnits';
+import { useHeadDown } from './useHeadDown';
 
 const { distanceLabel, speedUnit } = useUnits();
 
@@ -242,6 +257,7 @@ const showAdvanced = ref(false);
 const autoMode = ref(true);
 const range = ref(10);
 const centerAngle = ref(180);
+const sharedHeadDown = useHeadDown();
 const width = ref(180);
 const angleRange = ref([0, 360]);
 

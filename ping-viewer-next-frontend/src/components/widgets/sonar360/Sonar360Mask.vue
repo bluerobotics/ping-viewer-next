@@ -37,9 +37,15 @@
 				:y2="50 + maxRadius * Math.sin(adjustedAngleRad)"
 				:stroke="`url(#${sweepGradientId})`" stroke-width="2"
 				vector-effect="non-scaling-stroke" />
+
 		</svg>
 
-		<template v-if="showMarkers">
+		<!--
+			Intentional second scaleX(-1): the outer container in Ping360.vue is already
+			flipped when headDown is true. Re-flipping the markers here keeps their text
+			readable while the sonar itself remains mirrored.
+		-->
+		<div v-if="showMarkers" class="absolute inset-0" :style="headDown ? { transform: 'scaleX(-1)' } : {}">
 			<div v-for="line in radiusLines" :key="line.distance"
 				class="absolute text-4xl font-medium text-white depth-label transform -translate-x-1/2 -translate-y-1/2" :style="{
 					left: `calc(${getMarkerPositionPercent(line.radius).x}% + 50px)`,
@@ -47,18 +53,21 @@
 				}">
 				{{ depthValue(line.distance).toFixed(1) }}{{ depthUnit }}
 			</div>
-		</template>
+		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useUnits } from '../../../composables/useUnits';
+import { useHeadDown } from './useHeadDown';
 
 const instanceId = ref(Math.random().toString(36).slice(2, 8));
 const sweepGradientId = computed(() => `sweep-grad-${instanceId.value}`);
 
 const { depthValue, depthUnit } = useUnits();
+
+const headDown = useHeadDown();
 
 const props = defineProps<{
   angle: number;

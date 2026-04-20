@@ -31,6 +31,12 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { getColorFromPalette } from '../SonarColorOptions.vue';
 import Sonar360Mask from './Sonar360Mask.vue';
 import Sonar360Shader from './Sonar360Shader.vue';
+import { useHeadDown } from './useHeadDown';
+
+// When headDown is on we mirror the whole sonar container horizontally.
+// `Sonar360Mask` applies a second `scaleX(-1)` to its depth markers so their
+// text stays readable. Both flips must stay in sync.
+const headDown = useHeadDown();
 
 const props = defineProps({
   measurement: {
@@ -157,12 +163,16 @@ const sectorBoundingBox = computed(() => {
   };
 });
 
+const buildTransform = (...parts) => parts.filter(Boolean).join(' ');
+
 const containerStyle = computed(() => {
+  const flip = headDown.value ? 'scaleX(-1)' : '';
+
   if (isHalfCircleView.value) {
     return {
       width: `${size.value}px`,
       height: `${size.value}px`,
-      transform: 'translate(-50%, 48%)',
+      transform: buildTransform('translate(-50%, 48%)', flip),
       position: 'fixed',
       left: '50%',
       bottom: '0',
@@ -180,8 +190,10 @@ const containerStyle = computed(() => {
     height: `${size.value}px`,
   };
 
-  if (offsetX !== 0 || offsetY !== 0) {
-    style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+  const translate = offsetX !== 0 || offsetY !== 0 ? `translate(${offsetX}px, ${offsetY}px)` : '';
+  const transform = buildTransform(translate, flip);
+  if (transform) {
+    style.transform = transform;
   }
 
   return style;
