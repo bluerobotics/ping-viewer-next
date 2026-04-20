@@ -57,7 +57,7 @@
             @update:modelValue="handleWidthChange" />
         </div>
 
-        <div v-if="width < 360">
+        <div>
           <div class="d-flex align-center justify-space-between mb-1 mt-4">
             <v-tooltip text="Center angle of scanning sector" location="left">
               <template v-slot:activator="{ props }">
