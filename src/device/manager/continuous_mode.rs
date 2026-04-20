@@ -355,7 +355,7 @@ impl DeviceManager {
                 let mut angle = initial_settings.start_angle;
                 let step_size = initial_settings.num_steps as u16;
                 let is_full_circle =
-                    initial_settings.start_angle == 0 && initial_settings.stop_angle == 399;
+                    (initial_settings.stop_angle + 1) % 400 == initial_settings.start_angle % 400;
                 let mut direction = 1i16;
 
                 loop {
