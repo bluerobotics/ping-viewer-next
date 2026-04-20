@@ -255,33 +255,40 @@ const settings = ref({
 });
 
 function calculateSectorAngles() {
-  let startAngle = (centerAngle.value - width.value / 2) % 360;
-  let endAngle = centerAngle.value + width.value / 2;
-
-  if (startAngle < 0) {
-    startAngle = 0;
-    endAngle = width.value;
+  if (width.value >= 360) {
+    const startAngle = (((centerAngle.value - 180) % 360) + 360) % 360;
+    return { startAngle, endAngle: startAngle, isFullCircle: true };
   }
 
-  if (endAngle >= 360) {
-    startAngle = 360 - width.value;
-    endAngle = 360;
+  const halfWidth = width.value / 2;
+  const startAngle = (((centerAngle.value - halfWidth) % 360) + 360) % 360;
+  const endAngle = (((centerAngle.value + halfWidth) % 360) + 360) % 360;
+
+  return { startAngle, endAngle, isFullCircle: false };
+}
+
+function emitSectorToDisplay(sector) {
+  if (sector.isFullCircle) {
+    emit('update:angles', { startAngle: 0, endAngle: 360 });
+    return;
   }
 
-  return { startAngle, endAngle };
+  const halfWidth = width.value / 2;
+  emit('update:angles', {
+    startAngle: (((360 - halfWidth) % 360) + 360) % 360,
+    endAngle: halfWidth,
+  });
 }
 
 function handleCenterAngleChange(newCenter) {
   centerAngle.value = newCenter;
-  const { startAngle, endAngle } = calculateSectorAngles();
-  emit('update:angles', { startAngle, endAngle });
+  emitSectorToDisplay(calculateSectorAngles());
   debouncedSaveSettings({ ...settings.value });
 }
 
 function handleWidthChange(newWidth) {
   width.value = newWidth;
-  const { startAngle, endAngle } = calculateSectorAngles();
-  emit('update:angles', { startAngle, endAngle });
+  emitSectorToDisplay(calculateSectorAngles());
   debouncedSaveSettings({ ...settings.value });
 }
 
@@ -289,9 +296,16 @@ const debouncedSaveSettings = useDebounceFn(async (updatedSettings) => {
   if (isInitializing.value) return;
 
   try {
-    const { startAngle, endAngle } = calculateSectorAngles();
-    const startGradians = degreesToGradians(startAngle);
-    const endGradians = degreesToGradians(endAngle);
+    const sector = calculateSectorAngles();
+    let startGradians;
+    let endGradians;
+    if (sector.isFullCircle) {
+      startGradians = degreesToGradians(sector.startAngle) % 400;
+      endGradians = (startGradians + 399) % 400;
+    } else {
+      startGradians = degreesToGradians(sector.startAngle);
+      endGradians = degreesToGradians(sector.endAngle);
+    }
 
     const modifyCommand = {
       command: 'ModifyDevice',
@@ -387,16 +401,29 @@ const fetchCurrentSettings = async () => {
         speed_of_sound: 1500,
       };
 
-      const startAngleDegrees = gradiansToDegrees(config.start_angle);
-      const stopAngleDegrees = gradiansToDegrees(config.stop_angle);
+      const isFullCircleConfig = (config.stop_angle + 1) % 400 === config.start_angle % 400;
 
-      centerAngle.value = (startAngleDegrees + stopAngleDegrees) / 2;
-      const rawWidth = stopAngleDegrees - startAngleDegrees;
-      width.value = Math.max(90, Math.round(rawWidth / 90) * 90);
+      if (isFullCircleConfig) {
+        const startAngleDegrees = gradiansToDegrees(config.start_angle);
+        width.value = 360;
+        centerAngle.value = (((startAngleDegrees + 180) % 360) + 360) % 360;
+        if (centerAngle.value === 0) {
+          centerAngle.value = 360;
+        }
+        angleRange.value = [0, 360];
+      } else {
+        const startAngleDegrees = gradiansToDegrees(config.start_angle);
+        const stopAngleDegrees = gradiansToDegrees(config.stop_angle);
 
-      angleRange.value = [startAngleDegrees, stopAngleDegrees];
+        const rawWidth = (((stopAngleDegrees - startAngleDegrees) % 360) + 360) % 360;
+        width.value = Math.max(90, Math.round(rawWidth / 90) * 90);
+        const halfWidth = width.value / 2;
+        const rawCenter = (startAngleDegrees + halfWidth + 360) % 360;
+        centerAngle.value = Math.round(rawCenter / 5) * 5;
 
-      handleAngleChange(angleRange.value);
+        angleRange.value = [startAngleDegrees, stopAngleDegrees];
+      }
+      emitSectorToDisplay(calculateSectorAngles());
       range.value = calculateRange();
     }
   } catch (error) {

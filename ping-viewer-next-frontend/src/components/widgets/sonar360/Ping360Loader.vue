@@ -141,13 +141,6 @@ const toggleFreeze = () => {
 const handleRecordingStarted = () => {};
 const handleRecordingStopped = () => {};
 
-function gradiansToDegrees(gradians) {
-  if (gradians === 399) {
-    return 360;
-  }
-  return Math.round((gradians * 360) / 400);
-}
-
 const sendGetConfigRequest = () => {
   if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
     console.error('WebSocket is not connected');
@@ -196,13 +189,21 @@ const connectWebSocket = () => {
           (config.sample_period * SAMPLE_PERIOD_TICK_DURATION * config.number_of_samples * 1500) / 2
         );
 
-        if (config.start_angle === 0 && config.stop_angle === 399) {
+        const isFullCircle = (config.stop_angle + 1) % 400 === config.start_angle % 400;
+        let mechanicalCenterGrad;
+        if (isFullCircle) {
           startAngle.value = 0;
           endAngle.value = 360;
+          mechanicalCenterGrad = (config.start_angle + 200) % 400;
         } else {
-          startAngle.value = (gradiansToDegrees(config.start_angle) + 180) % 360;
-          endAngle.value = (gradiansToDegrees(config.stop_angle) + 180) % 360;
+          const sectorLenGrad = (((config.stop_angle - config.start_angle) % 400) + 400) % 400;
+          const widthDeg = Math.max(90, Math.round((sectorLenGrad * 360) / 400 / 90) * 90);
+          const halfWidth = widthDeg / 2;
+          startAngle.value = (((360 - halfWidth) % 360) + 360) % 360;
+          endAngle.value = halfWidth;
+          mechanicalCenterGrad = (config.start_angle + sectorLenGrad / 2) % 400;
         }
+        offset.value = (((200 - mechanicalCenterGrad) % 400) + 400) % 400;
 
         return;
       }
