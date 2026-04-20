@@ -430,18 +430,27 @@ impl DeviceManager {
             } else {
                 current_angle + step_size
             }
-        } else if *direction > 0 {
-            if current_angle + step_size > stop_angle {
-                *direction = -1;
-                stop_angle
-            } else {
-                current_angle + step_size
-            }
-        } else if (current_angle as i32 - step_size as i32) <= start_angle as i32 {
-            *direction = 1;
-            start_angle
         } else {
-            current_angle.wrapping_sub(step_size)
+            // Work in linear sector position so wrap-around sectors (start_angle > stop_angle) are
+            // handled identically to non-wrap ones. `current_linear` is 0 at start_angle and
+            // `sector_len` at stop_angle.
+            let sector_len = ((stop_angle as i32 - start_angle as i32) + 400) % 400;
+            let current_linear = ((current_angle as i32 - start_angle as i32) + 400) % 400;
+            let step = step_size as i32;
+
+            if *direction > 0 {
+                if current_linear + step > sector_len {
+                    *direction = -1;
+                    stop_angle
+                } else {
+                    ((start_angle as i32 + current_linear + step).rem_euclid(400)) as u16
+                }
+            } else if current_linear - step <= 0 {
+                *direction = 1;
+                start_angle
+            } else {
+                ((start_angle as i32 + current_linear - step).rem_euclid(400)) as u16
+            }
         }
     }
 }
