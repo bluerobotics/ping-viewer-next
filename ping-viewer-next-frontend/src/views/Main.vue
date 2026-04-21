@@ -1407,7 +1407,7 @@ const isReplayProgressDialogOpen = computed(
 }
 
 .menu-content {
-  width: 300px;
+  width: 100%;
   padding: 0;
 }
 
@@ -1539,11 +1539,6 @@ const isReplayProgressDialogOpen = computed(
   max-height: calc(100vh - 2 * (var(--button-size) + var(--button-gap)));
   overflow: hidden;
   user-select: none;
-}
-
-.menu-content {
-  width: 100%;
-  padding: 1rem;
 }
 
 .v-list {
