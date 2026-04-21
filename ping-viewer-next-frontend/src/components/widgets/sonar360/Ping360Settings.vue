@@ -88,7 +88,7 @@
           </template>
         </v-tooltip>
 
-        <v-divider class="mb-4 mt-4"></v-divider>
+        <v-divider class="mb-4 mt-4" />
 
         <v-btn block variant="tonal" @click="showAdvanced = !showAdvanced" class="mb-4">
           <v-icon :icon="showAdvanced ? 'mdi-chevron-up' : 'mdi-chevron-down'" class="mr-2"></v-icon>
