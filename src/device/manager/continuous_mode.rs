@@ -454,3 +454,63 @@ impl DeviceManager {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run_scan(start: u16, stop: u16, step: u16) -> Vec<u16> {
+        let is_full_circle = (stop + 1) % 400 == start % 400;
+        let mut dir: i16 = 1;
+        let mut angle = start;
+        let mut visited = Vec::new();
+        for _ in 0..1200 {
+            visited.push(angle);
+            angle = DeviceManager::calculate_next_angle(
+                angle,
+                step,
+                is_full_circle,
+                &mut dir,
+                start,
+                stop,
+            );
+        }
+        visited
+    }
+
+    #[test]
+    fn non_wrap_sector_is_bounded() {
+        let visited = run_scan(100, 300, 1);
+        let min = *visited.iter().min().unwrap();
+        let max = *visited.iter().max().unwrap();
+        assert_eq!(min, 100);
+        assert_eq!(max, 300);
+    }
+
+    #[test]
+    fn wrap_sector_only_covers_sector() {
+        let visited = run_scan(300, 100, 1);
+        for &a in &visited {
+            let in_sector = a >= 300 || a <= 100;
+            assert!(
+                in_sector,
+                "angle {a} is outside wrap sector [300..399]∪[0..100]"
+            );
+        }
+    }
+
+    #[test]
+    fn wrap_sector_does_not_touch_opposite_arc() {
+        let visited = run_scan(300, 100, 1);
+        for a in 101..=299u16 {
+            assert!(!visited.contains(&a), "angle {a} should never be visited");
+        }
+    }
+
+    #[test]
+    fn full_circle_sweeps_everything() {
+        let visited = run_scan(0, 399, 1);
+        let set: std::collections::HashSet<_> = visited.into_iter().collect();
+        assert_eq!(set.len(), 400);
+    }
+}
