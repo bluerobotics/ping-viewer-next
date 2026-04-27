@@ -25,6 +25,8 @@
       <component :is="widgetComponent" v-bind="widgetProps" class="h-full w-full bg-transparent" ref="widgetRef" />
       <SonarMask :width="dimensions.width" :height="dimensions.height" :type="widgetType" :polar_mode="polarMode" :isRecording="isRecording"
         class="widget-mask" @button-click="handleMaskButtonClick" />
+      <Ping360WidgetControls v-if="widgetType === 'ping360'" :is-recording="isRecording"
+        @button-click="handleMaskButtonClick" />
     </div>
   </div>
 </template>
@@ -36,12 +38,14 @@ import Ping1DLoader from '@components/widgets/sonar1d/Ping1DLoader.vue';
 import Ping360Loader from '@components/widgets/sonar360/Ping360Loader.vue';
 import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import Ping360WidgetControls from '../components/Ping360WidgetControls.vue';
 import SonarMask from '../components/SonarMask.vue';
 
 export default defineComponent({
   name: 'WidgetView',
   components: {
     SonarMask,
+    Ping360WidgetControls,
   },
   setup() {
     const route = useRoute();
@@ -363,6 +367,69 @@ export default defineComponent({
                 }
               } catch (err) {
                 console.error('Error adjusting sequence range:', err);
+              }
+            }
+            break;
+
+          case 'step_range':
+            if (widgetType.value === 'ping360' && deviceInstance.value.ping360) {
+              const rangeSequence = [2, 4, 6, 8, 10, 15, 20, 30, 40, 50];
+              const settings = await deviceInstance.value.ping360.getSettings();
+              if (settings) {
+                const currentRange = deviceInstance.value.ping360.calculateRange(settings);
+                const currentIndex = findClosestValueIndex(currentRange, rangeSequence);
+                const newIndex =
+                  value === 'up'
+                    ? Math.min(rangeSequence.length - 1, currentIndex + 1)
+                    : Math.max(0, currentIndex - 1);
+                if (newIndex !== currentIndex) {
+                  await deviceInstance.value.ping360.setRange(`${rangeSequence[newIndex]}m`);
+                }
+              }
+            }
+            break;
+
+          case 'step_sector':
+            if (widgetType.value === 'ping360' && deviceInstance.value.ping360) {
+              const sectorSequence = [90, 180, 360];
+              const settings = await deviceInstance.value.ping360.getSettings();
+              if (settings) {
+                const gradiansToDegrees = (g) => (g === 399 ? 360 : Math.round((g * 360) / 400));
+                const isFullCircle = (settings.stop_angle + 1) % 400 === settings.start_angle % 400;
+                let currentSector;
+                if (isFullCircle) {
+                  currentSector = 360;
+                } else {
+                  const startDeg = gradiansToDegrees(settings.start_angle);
+                  const stopDeg = gradiansToDegrees(settings.stop_angle);
+                  currentSector = (((stopDeg - startDeg) % 360) + 360) % 360;
+                  if (currentSector === 0) currentSector = 360;
+                }
+
+                const currentIndex = findClosestValueIndex(currentSector, sectorSequence);
+                const newIndex =
+                  value === 'up'
+                    ? Math.min(sectorSequence.length - 1, currentIndex + 1)
+                    : Math.max(0, currentIndex - 1);
+                if (newIndex !== currentIndex) {
+                  const newSector = sectorSequence[newIndex];
+                  const centerAngle = 180;
+                  const halfSector = newSector / 2;
+                  const startAngleDegrees = (centerAngle - halfSector + 360) % 360;
+                  const stopAngleDegrees = (centerAngle + halfSector) % 360;
+                  const startAngle =
+                    deviceInstance.value.ping360.degreesToGradians(startAngleDegrees);
+                  const stopAngle =
+                    stopAngleDegrees === 0
+                      ? 399
+                      : deviceInstance.value.ping360.degreesToGradians(stopAngleDegrees);
+
+                  await deviceInstance.value.ping360.setSettings({
+                    ...settings,
+                    start_angle: startAngle,
+                    stop_angle: stopAngle,
+                  });
+                }
               }
             }
             break;
