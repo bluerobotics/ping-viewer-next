@@ -691,10 +691,10 @@ export default defineComponent({
       }
 
       if (!isLoading.value && deviceData.value && deviceId.value) {
-        deviceInstance.value = pingDeviceStore.usePingDevice(deviceId.value);
-
         const wsHost = new URL(serverUrl.value).host;
         pingDeviceStore.setServerUrl(wsHost);
+
+        deviceInstance.value = pingDeviceStore.usePingDevice(deviceId.value);
 
         deviceInstance.value.common.connect();
       }
