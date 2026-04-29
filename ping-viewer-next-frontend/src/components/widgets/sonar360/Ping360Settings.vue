@@ -59,9 +59,9 @@
 
         <div>
           <div class="d-flex align-center justify-space-between mb-1 mt-4">
-            <v-tooltip text="Center angle of scanning sector" location="left">
+            <v-tooltip text="Mount offset of scanning sector" location="left">
               <template v-slot:activator="{ props }">
-                <span v-bind="props" class="text-body-2 text-medium-emphasis">Center Angle</span>
+                <span v-bind="props" class="text-body-2 text-medium-emphasis">Mount Offset</span>
               </template>
             </v-tooltip>
             <span class="text-caption text-medium-emphasis mr-1">degrees</span>
