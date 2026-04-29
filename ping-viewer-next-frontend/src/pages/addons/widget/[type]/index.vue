@@ -23,8 +23,6 @@
 
     <div v-else-if="widgetComponent && deviceData" class="widget-container h-full w-full">
       <component :is="widgetComponent" v-bind="widgetProps" class="h-full w-full bg-transparent" ref="widgetRef" />
-      <SonarMask :width="dimensions.width" :height="dimensions.height" :type="widgetType" :polar_mode="polarMode" :isRecording="isRecording"
-        class="widget-mask" @button-click="handleMaskButtonClick" />
       <Ping360WidgetControls v-if="widgetType === 'ping360'" :is-recording="isRecording"
         @button-click="handleMaskButtonClick" />
       <Ping1DWidgetControls v-if="widgetType === 'ping1d'" :is-recording="isRecording"
@@ -42,12 +40,10 @@ import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref } from
 import { useRoute } from 'vue-router';
 import Ping1DWidgetControls from '../components/Ping1DWidgetControls.vue';
 import Ping360WidgetControls from '../components/Ping360WidgetControls.vue';
-import SonarMask from '../components/SonarMask.vue';
 
 export default defineComponent({
   name: 'WidgetView',
   components: {
-    SonarMask,
     Ping360WidgetControls,
     Ping1DWidgetControls,
   },
@@ -803,10 +799,6 @@ body {
 .widget-container {
   position: relative;
   overflow: visible;
-}
-
-.widget-mask {
-  pointer-events: none;
 }
 
 * {
