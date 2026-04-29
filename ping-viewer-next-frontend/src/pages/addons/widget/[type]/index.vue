@@ -27,6 +27,8 @@
         class="widget-mask" @button-click="handleMaskButtonClick" />
       <Ping360WidgetControls v-if="widgetType === 'ping360'" :is-recording="isRecording"
         @button-click="handleMaskButtonClick" />
+      <Ping1DWidgetControls v-if="widgetType === 'ping1d'" :is-recording="isRecording"
+        :is-auto-gain="isAutoGain" @button-click="handleMaskButtonClick" />
     </div>
   </div>
 </template>
@@ -38,6 +40,7 @@ import Ping1DLoader from '@components/widgets/sonar1d/Ping1DLoader.vue';
 import Ping360Loader from '@components/widgets/sonar360/Ping360Loader.vue';
 import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import Ping1DWidgetControls from '../components/Ping1DWidgetControls.vue';
 import Ping360WidgetControls from '../components/Ping360WidgetControls.vue';
 import SonarMask from '../components/SonarMask.vue';
 
@@ -46,6 +49,7 @@ export default defineComponent({
   components: {
     SonarMask,
     Ping360WidgetControls,
+    Ping1DWidgetControls,
   },
   setup() {
     const route = useRoute();
@@ -386,6 +390,26 @@ export default defineComponent({
                   await deviceInstance.value.ping360.setRange(`${rangeSequence[newIndex]}m`);
                 }
               }
+            } else if (widgetType.value === 'ping1d' && deviceInstance.value.ping1D) {
+              const rangeSequence = [1, 2, 5, 10, 15, 20, 30, 40, 50, 60, 75];
+              const settings = await deviceInstance.value.ping1D.getSettings();
+              if (settings) {
+                if (settings.mode_auto === 1) {
+                  await deviceInstance.value.ping1D.setAutoMode(false);
+                }
+                const currentRange = settings.scan_length;
+                const currentIndex = findClosestValueIndex(currentRange, rangeSequence);
+                const newIndex =
+                  value === 'up'
+                    ? Math.min(rangeSequence.length - 1, currentIndex + 1)
+                    : Math.max(0, currentIndex - 1);
+                if (newIndex !== currentIndex) {
+                  await deviceInstance.value.ping1D.setRange(
+                    settings.scan_start,
+                    rangeSequence[newIndex]
+                  );
+                }
+              }
             }
             break;
 
@@ -533,6 +557,12 @@ export default defineComponent({
         console.error('Error handling button action:', err);
       }
     };
+
+    const isAutoGain = computed(() => {
+      if (widgetType.value !== 'ping1d') return false;
+      const settings = deviceInstance.value?.data?.ping1DSettings?.value;
+      return settings?.mode_auto === 1;
+    });
 
     const polarMode = computed(() => {
       if (deviceInstance.value && widgetType.value === 'ping360') {
@@ -750,6 +780,7 @@ export default defineComponent({
       handleMaskButtonClick,
       polarMode,
       isRecording,
+      isAutoGain,
     };
   },
 });

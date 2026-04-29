@@ -486,62 +486,9 @@ export default defineComponent({
     // so the SonarMask overlay starts with no default buttons for ping360.
     const ping360DefaultButtons = [];
 
-    const ping1dDefaultButtons = [
-      {
-        id: 'recording',
-        label: 'REC',
-        icon: 'mdi-record',
-        action: 'toggle_recording',
-        coordinate: {
-          type: 'standard',
-          x: 0.05,
-          y: 0.8,
-        },
-        size: { width: 40, height: 40 },
-        color: '#F44336',
-      },
-      {
-        id: 'range-increase-1',
-        label: '+1',
-        icon: 'mdi-plus',
-        action: 'increase_range',
-        value: '+1',
-        coordinate: {
-          type: 'standard',
-          x: 0.05,
-          y: 0.35,
-        },
-        size: { width: 40, height: 40 },
-        color: '#1976D2',
-      },
-      {
-        id: 'range-decrease-1',
-        label: '-1',
-        icon: 'mdi-minus',
-        action: 'decrease_range',
-        value: '-1',
-        coordinate: {
-          type: 'standard',
-          x: 0.05,
-          y: 0.5,
-        },
-        size: { width: 40, height: 40 },
-        color: '#1976D2',
-      },
-      {
-        id: 'auto-gain',
-        label: 'Auto',
-        icon: 'mdi-auto-fix',
-        action: 'toggle_auto_gain',
-        coordinate: {
-          type: 'standard',
-          x: 0.05,
-          y: 0.65,
-        },
-        size: { width: 40, height: 40 },
-        color: '#F44336',
-      },
-    ];
+    // Ping1D widget controls live in the dedicated Ping1DWidgetControls panel,
+    // so the SonarMask overlay starts with no default buttons for ping1d.
+    const ping1dDefaultButtons = [];
 
     const additionalButtons = [
       {
