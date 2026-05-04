@@ -27,7 +27,7 @@
     },
     "windows": [
       {
-        "title": "ping-viewer-next-desktop",
+        "title": "Ping Viewer",
         "width": 800,
         "height": 600,
         "useHttpsScheme": true
