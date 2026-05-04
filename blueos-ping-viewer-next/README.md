@@ -1,4 +1,4 @@
-# BlueOS's Ping Viewer Next Extension
+# BlueOS's Ping Viewer Extension
 
 ## Instructions
 
@@ -17,7 +17,7 @@ Parameters:
 ```shell
 bluerobotics.ping-viewer-next
 
-Ping Viewer Next
+Ping Viewer
 
 1.0.0-beta.6
 
