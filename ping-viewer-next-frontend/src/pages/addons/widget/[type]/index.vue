@@ -560,7 +560,7 @@ export default defineComponent({
 
     const isAutoGain = computed(() => {
       if (widgetType.value !== 'ping1d') return false;
-      const settings = deviceInstance.value?.data?.ping1DSettings?.value;
+      const settings = deviceInstance.value?.data?.ping1DSettings;
       return settings?.mode_auto === 1;
     });
 
