@@ -4,7 +4,7 @@
       class="max-w-4xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden"
     >
       <div class="bg-gray-800 text-white py-4 px-6">
-        <h1 class="text-2xl font-bold">Ping Viewer Next</h1>
+        <h1 class="text-2xl font-bold">Ping Viewer</h1>
       </div>
 
       <div class="p-6">
