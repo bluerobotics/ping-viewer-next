@@ -57,36 +57,45 @@
             @update:modelValue="handleWidthChange" />
         </div>
 
-        <div>
-          <div class="d-flex align-center justify-space-between mb-1 mt-4">
-            <v-tooltip text="Mount offset of scanning sector" location="left">
+        <v-btn block variant="tonal" @click="showMountOptions = !showMountOptions" class="mb-2 mt-4">
+          <v-icon :icon="showMountOptions ? 'mdi-chevron-up' : 'mdi-chevron-down'" class="mr-2"></v-icon>
+          {{ showMountOptions ? 'Hide Mount Options' : 'Show Mount Options' }}
+        </v-btn>
+
+        <v-expand-transition>
+          <div v-if="showMountOptions">
+            <div>
+              <div class="d-flex align-center justify-space-between mb-1 mt-2">
+                <v-tooltip text="Mount offset of scanning sector" location="left">
+                  <template v-slot:activator="{ props }">
+                    <span v-bind="props" class="text-body-2 text-medium-emphasis">Mount Offset</span>
+                  </template>
+                </v-tooltip>
+                <span class="text-caption text-medium-emphasis mr-1">degrees</span>
+              </div>
+
+              <div class="d-flex align-center gap-2">
+                <v-slider v-model="centerAngle" :min="0" :max="360" step="5" show-ticks="always" tick-size="4" thumb-label
+                  :ticks="{ 0: '0', 180: '180', 360: '360' }" density="compact" hide-details class="flex-grow-1"
+                  @update:modelValue="handleCenterAngleChange" />
+              </div>
+            </div>
+
+            <v-tooltip text="Used when the sonar is mounted upside down" location="left">
               <template v-slot:activator="{ props }">
-                <span v-bind="props" class="text-body-2 text-medium-emphasis">Mount Offset</span>
+                <div v-bind="props" style="display: inline-block">
+                  <v-checkbox
+                    v-model="sharedHeadDown"
+                    label="Head-down"
+                    hide-details
+                    density="compact"
+                    class="mt-2 mb-2"
+                  />
+                </div>
               </template>
             </v-tooltip>
-            <span class="text-caption text-medium-emphasis mr-1">degrees</span>
           </div>
-
-          <div class="d-flex align-center gap-2">
-            <v-slider v-model="centerAngle" :min="0" :max="360" step="5" show-ticks="always" tick-size="4" thumb-label
-              :ticks="{ 0: '0', 180: '180', 360: '360' }" density="compact" hide-details class="flex-grow-1"
-              @update:modelValue="handleCenterAngleChange" />
-          </div>
-        </div>
-
-        <v-tooltip text="Used when the sonar is mounted upside down" location="left">
-          <template v-slot:activator="{ props }">
-            <div v-bind="props" style="display: inline-block">
-              <v-checkbox
-                v-model="sharedHeadDown"
-                label="Head-down"
-                hide-details
-                density="compact"
-                class="mt-2 mb-2"
-              />
-            </div>
-          </template>
-        </v-tooltip>
+        </v-expand-transition>
 
         <v-divider class="mb-4 mt-4" />
 
@@ -254,6 +263,7 @@ const DEBOUNCE_VALUE_MS = 500;
 const isLoading = ref(false);
 const isInitializing = ref(true);
 const showAdvanced = ref(false);
+const showMountOptions = ref(false);
 const autoMode = ref(true);
 const range = ref(10);
 const centerAngle = ref(180);
