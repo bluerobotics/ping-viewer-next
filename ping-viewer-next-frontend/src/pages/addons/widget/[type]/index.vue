@@ -22,11 +22,14 @@
     </div>
 
     <div v-else-if="widgetComponent && deviceData" class="widget-container h-full w-full">
-      <component :is="widgetComponent" v-bind="widgetProps" class="h-full w-full bg-transparent" ref="widgetRef" />
+      <component :is="widgetComponent" v-bind="widgetProps" class="h-full w-full bg-transparent" ref="widgetRef"
+        @settings-change="handleWidgetSettingsChange" />
       <Ping360WidgetControls v-if="widgetType === 'ping360'" :is-recording="isRecording"
+        :range="ping360Range" :gain="ping360Gain" :sector="ping360Sector"
         @button-click="handleMaskButtonClick" />
       <Ping1DWidgetControls v-if="widgetType === 'ping1d'" :is-recording="isRecording"
-        :is-auto-gain="isAutoGain" @button-click="handleMaskButtonClick" />
+        :is-auto-gain="isAutoGain" :range="ping1DRange" :gain="ping1DGain"
+        @button-click="handleMaskButtonClick" />
     </div>
   </div>
 </template>
@@ -59,6 +62,15 @@ export default defineComponent({
     const dimensions = ref({ width: 0, height: 0 });
     const yawAngle = ref(0);
     const isRecording = ref(false);
+    const ping360WidgetSettings = ref({
+      range: null,
+      gain: null,
+      sector: null,
+    });
+    const ping1DWidgetSettings = ref({
+      range: null,
+      gain: null,
+    });
 
     let resizeObserver = null;
     let datalakeUnsubscribe = null;
@@ -560,6 +572,64 @@ export default defineComponent({
       return settings?.mode_auto === 1;
     });
 
+    const handleWidgetSettingsChange = (settings) => {
+      if (widgetType.value === 'ping360') {
+        ping360WidgetSettings.value = {
+          ...ping360WidgetSettings.value,
+          ...settings,
+        };
+        return;
+      }
+
+      if (widgetType.value === 'ping1d') {
+        ping1DWidgetSettings.value = {
+          ...ping1DWidgetSettings.value,
+          ...settings,
+        };
+      }
+    };
+
+    const ping1DRange = computed(() => {
+      if (ping1DWidgetSettings.value.range != null) return ping1DWidgetSettings.value.range;
+      const settings = deviceInstance.value?.data?.ping1DSettings?.value;
+      return settings?.scan_length ?? null;
+    });
+
+    const ping1DGain = computed(() => {
+      if (ping1DWidgetSettings.value.gain != null) return ping1DWidgetSettings.value.gain;
+      const settings = deviceInstance.value?.data?.ping1DSettings?.value;
+      return settings?.gain_setting ?? null;
+    });
+
+    const ping360Range = computed(() => {
+      if (ping360WidgetSettings.value.range != null) return ping360WidgetSettings.value.range;
+      const settings = deviceInstance.value?.data?.ping360Settings?.value;
+      if (!settings || !deviceInstance.value?.ping360) return null;
+      return deviceInstance.value.ping360.calculateRange(settings);
+    });
+
+    const ping360Gain = computed(() => {
+      if (ping360WidgetSettings.value.gain != null) return ping360WidgetSettings.value.gain;
+      const settings = deviceInstance.value?.data?.ping360Settings?.value;
+      return settings?.gain_setting ?? null;
+    });
+
+    const ping360Sector = computed(() => {
+      if (ping360WidgetSettings.value.sector != null) return ping360WidgetSettings.value.sector;
+      const settings = deviceInstance.value?.data?.ping360Settings?.value;
+      if (!settings) return null;
+
+      const isFullCircle = (settings.stop_angle + 1) % 400 === settings.start_angle % 400;
+      if (isFullCircle) return 360;
+
+      const startDeg =
+        settings.start_angle === 399 ? 360 : Math.round((settings.start_angle * 360) / 400);
+      const stopDeg =
+        settings.stop_angle === 399 ? 360 : Math.round((settings.stop_angle * 360) / 400);
+      const sector = (((stopDeg - startDeg) % 360) + 360) % 360;
+      return sector === 0 ? 360 : sector;
+    });
+
     const polarMode = computed(() => {
       if (deviceInstance.value && widgetType.value === 'ping360') {
         if (deviceInstance.value.data.polarMode) {
@@ -777,6 +847,12 @@ export default defineComponent({
       polarMode,
       isRecording,
       isAutoGain,
+      handleWidgetSettingsChange,
+      ping1DRange,
+      ping1DGain,
+      ping360Range,
+      ping360Gain,
+      ping360Sector,
     };
   },
 });
