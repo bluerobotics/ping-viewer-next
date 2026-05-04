@@ -16,12 +16,12 @@ onMounted(() => {
 
 <template>
   <div v-if="loading" class="preloader">
-    <h1>Ping Viewer Next</h1>
+    <h1>Ping Viewer</h1>
     <p>Creating a local server...</p>
   </div>
 
   <div v-else class="container">
-    <h1>Ping Viewer Next</h1>
+    <h1>Ping Viewer</h1>
     <p>Server is ready!</p>
   </div>
 </template>
