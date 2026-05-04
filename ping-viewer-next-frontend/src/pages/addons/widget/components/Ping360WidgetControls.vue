@@ -20,7 +20,10 @@
             aria-label="Decrease range" @click="emitAction('step_range', 'down')">
             <v-icon size="18">mdi-minus</v-icon>
           </v-btn>
-          <span class="pill-label">Range</span>
+          <span class="pill-content">
+            <span class="pill-label">Range</span>
+            <span class="pill-value">{{ rangeLabel }}</span>
+          </span>
           <v-btn class="pill-btn" icon variant="text" size="small"
             aria-label="Increase range" @click="emitAction('step_range', 'up')">
             <v-icon size="18">mdi-plus</v-icon>
@@ -32,7 +35,10 @@
             aria-label="Decrease sector" @click="emitAction('step_sector', 'down')">
             <v-icon size="18">mdi-minus</v-icon>
           </v-btn>
-          <span class="pill-label">Sector</span>
+          <span class="pill-content">
+            <span class="pill-label">Sector</span>
+            <span class="pill-value">{{ sectorLabel }}</span>
+          </span>
           <v-btn class="pill-btn" icon variant="text" size="small"
             aria-label="Increase sector" @click="emitAction('step_sector', 'up')">
             <v-icon size="18">mdi-plus</v-icon>
@@ -44,7 +50,10 @@
             aria-label="Decrease gain" @click="emitAction('decrease_gain')">
             <v-icon size="18">mdi-minus</v-icon>
           </v-btn>
-          <span class="pill-label">Gain</span>
+          <span class="pill-content">
+            <span class="pill-label">Gain</span>
+            <span class="pill-value">{{ gainLabel }}</span>
+          </span>
           <v-btn class="pill-btn" icon variant="text" size="small"
             aria-label="Increase gain" @click="emitAction('increase_gain')">
             <v-icon size="18">mdi-plus</v-icon>
@@ -77,18 +86,44 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useUnits } from '../../../../composables/useUnits';
 
-defineProps({
+const props = defineProps({
   isRecording: {
     type: Boolean,
     default: false,
+  },
+  range: {
+    type: Number,
+    default: null,
+  },
+  gain: {
+    type: Number,
+    default: null,
+  },
+  sector: {
+    type: Number,
+    default: null,
   },
 });
 
 const emit = defineEmits(['button-click']);
 
 const isOpen = ref(false);
+const { formatDepth } = useUnits();
+
+const gainValues = ['Low', 'Normal', 'High'];
+
+const rangeLabel = computed(() =>
+  props.range == null ? '--' : formatDepth(props.range, props.range >= 10 ? 0 : 1)
+);
+
+const gainLabel = computed(
+  () => gainValues[props.gain] ?? (props.gain == null ? '--' : props.gain)
+);
+
+const sectorLabel = computed(() => (props.sector == null ? '--' : `${props.sector}°`));
 
 const emitAction = (action, value) => {
   emit('button-click', { action, value, id: action });
@@ -200,15 +235,35 @@ const emitAction = (action, value) => {
   cursor: pointer;
 }
 
-.pill-label {
+.pill-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
   text-align: center;
-  font-size: 14px;
-  font-weight: 500;
   color: #fff;
   user-select: none;
-  letter-spacing: 0.4px;
   pointer-events: none;
+}
+
+.pill-label {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.pill-value {
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  letter-spacing: 0.2px;
 }
 
 .rec-pill {
