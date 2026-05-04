@@ -235,11 +235,6 @@ const emitAction = (action, value) => {
   cursor: pointer;
 }
 
-.status-pill.is-active {
-  background-color: rgba(76, 175, 80, 0.55) !important;
-  border-color: rgba(76, 175, 80, 0.85) !important;
-}
-
 .rec-pill.is-recording {
   background-color: rgba(244, 67, 54, 0.55) !important;
   border-color: rgba(244, 67, 54, 0.85) !important;
@@ -270,8 +265,8 @@ const emitAction = (action, value) => {
 }
 
 .status-pill.is-active .status-circle {
-  background-color: #fff;
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.85);
+  background-color: #4caf50;
+  box-shadow: 0 0 6px rgba(76, 175, 80, 0.85);
 }
 
 .rec-pill.is-recording .status-circle {
