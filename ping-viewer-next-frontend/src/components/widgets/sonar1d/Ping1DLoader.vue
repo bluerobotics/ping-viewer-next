@@ -159,16 +159,14 @@ const connectWebSocket = () => {
       const profile = parsedData?.DeviceMessage?.PingMessage?.Ping1D?.Profile;
 
       if (profile) {
+        const range = profile.scan_length / 1000;
         const newData = {
           sensorData: profile.profile_data,
           currentDepth: profile.distance / 1000,
           minDepth: profile.scan_start / 1000,
-          maxDepth: profile.scan_length / 1000,
+          maxDepth: range,
           confidence: profile.confidence,
-          accuracy:
-            ((100 - profile.confidence) / 100) *
-            (profile.scan_length / 1000 - profile.scan_start / 1000) *
-            0.1,
+          accuracy: ((100 - profile.confidence) / 100) * (range - profile.scan_start / 1000) * 0.1,
         };
 
         liveData.value = newData;
