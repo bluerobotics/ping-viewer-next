@@ -1,4 +1,4 @@
-# ping-viewer-next
+# Ping Viewer
 Project to replace current ping-viewer software
 
 ## Download
