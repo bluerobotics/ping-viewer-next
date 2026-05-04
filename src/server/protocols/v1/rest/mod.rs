@@ -300,7 +300,7 @@ pub struct CockpitWidget {
 impl Default for ServerMetadata {
     fn default() -> Self {
         Self {
-            name: "Ping Viewer Next",
+            name: "Ping Viewer",
             description: "A ping protocol extension for expose devices to web.",
             icon: "mdi-compass-outline",
             company: "BlueRobotics",
