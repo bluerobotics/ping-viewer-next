@@ -94,6 +94,8 @@ const props = defineProps({
   },
 });
 
+const emit = defineEmits(['settings-change']);
+
 const socket = ref(null);
 const isFreeze = ref(false);
 const isSettingsOpen = ref(false);
@@ -168,6 +170,11 @@ const connectWebSocket = () => {
           confidence: profile.confidence,
           accuracy: ((100 - profile.confidence) / 100) * (range - profile.scan_start / 1000) * 0.1,
         };
+
+        emit('settings-change', {
+          range,
+          gain: profile.gain_setting,
+        });
 
         liveData.value = newData;
 
