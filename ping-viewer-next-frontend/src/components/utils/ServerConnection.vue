@@ -4,7 +4,7 @@
       <v-card-title class="text-h5 pt-2 pl-2">
         <div class="flex justify-between">
           <v-icon start icon="mdi-connection" size="30" class="mr-2" />
-          <p class="-ml-4">Ping Viewer Next</p>
+          <p class="-ml-4">Ping Viewer</p>
           <v-btn icon="mdi-close" variant="text" size="small" @click="closeDialog" />
         </div>
       </v-card-title>
