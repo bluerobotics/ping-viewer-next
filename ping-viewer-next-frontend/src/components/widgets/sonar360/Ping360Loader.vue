@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col h-full">
-    <div class="flex-1 mx-10 my-10 min-h-0">
+    <div class="flex-1 min-h-0" :class="showControls ? 'mx-10 my-10' : ''">
       <FloatingControls v-if="showControls" :is-recording="isRecording">
         <DataRecorder :device="device" :server-url="serverUrl"
           @recording-started="handleRecordingStarted" @recording-stopped="handleRecordingStopped" />

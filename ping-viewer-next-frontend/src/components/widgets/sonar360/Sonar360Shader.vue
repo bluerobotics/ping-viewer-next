@@ -23,6 +23,10 @@ const props = withDefaults(
     startAngle: number;
     endAngle: number;
     yaw_angle: number;
+    // Maximum data radius in normalized 0..1 units. Should match
+    // `Sonar360Mask`'s `maxRadius / 50` so the rendered data ends exactly at
+    // the outermost depth arc instead of overshooting it by half a stroke.
+    maxRadius?: number;
   }>(),
   {
     lineLength: 1200,
@@ -30,6 +34,7 @@ const props = withDefaults(
     startAngle: 0,
     endAngle: 360,
     yaw_angle: 0,
+    maxRadius: 0.99,
   }
 );
 
@@ -61,6 +66,7 @@ const fsSource = `
   uniform sampler2D uSampler;
   uniform float uStartAngle;
   uniform float uEndAngle;
+  uniform float uMaxRadius;
 
   void main(void) {
     vec2 polar = vTextureCoord;
@@ -73,14 +79,14 @@ const fsSource = `
       ? (angleDegrees >= uStartAngle && angleDegrees <= uEndAngle)
       : (angleDegrees >= uStartAngle || angleDegrees <= uEndAngle);
 
-    if (radius > 1.0 || !inSector) {
+    if (radius > uMaxRadius || !inSector) {
       gl_FragColor = vec4(0.1, 0.1, 0.1, 0.0); // Transparent background
     } else {
       float texAngle = (angle + 3.14159) / (2.0 * 3.14159);
       if (texAngle > 1.0) {
         texAngle -= 1.0;
       }
-      gl_FragColor = texture2D(uSampler, vec2(radius, texAngle));
+      gl_FragColor = texture2D(uSampler, vec2(radius / uMaxRadius, texAngle));
     }
   }
 `;
@@ -260,6 +266,7 @@ const render = () => {
   gl.uniform1i(gl.getUniformLocation(shaderProgram, 'uSampler'), 0);
   gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uStartAngle'), props.startAngle);
   gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uEndAngle'), props.endAngle);
+  gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uMaxRadius'), props.maxRadius);
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 };
@@ -399,7 +406,7 @@ watch(
   { deep: true }
 );
 
-watch([() => props.startAngle, () => props.endAngle], () => {
+watch([() => props.startAngle, () => props.endAngle, () => props.maxRadius], () => {
   render();
 });
 </script>

@@ -1,6 +1,6 @@
 <template>
-  <div ref="containerRef" class="w-full h-full flex items-center justify-center bg-transparent p-4 overflow-hidden">
-    <div class="relative" :style="containerStyle">
+  <div ref="containerRef" class="w-full h-full flex items-center justify-center bg-transparent overflow-hidden">
+    <div class="relative shrink-0" :style="containerStyle">
 			<Sonar360Mask :angle="angle" :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="maxDistance"
 				:numMarkers="numMarkers" :showRadiusLines="showRadiusLines" :showMarkers="showMarkers"
 				:radiusLineColor="radiusLineColor" :markerColor="markerColor"
@@ -8,7 +8,7 @@
 				:startAngle="startAngle" :endAngle="endAngle">
 			<Sonar360Shader :measurement="measurement" :numLines="400"
 				:color-palette="colorPalette" :get-color-from-palette="getColorFromPalette" :startAngle="startAngle"
-				:endAngle="endAngle" :yaw_angle="yaw_angle" :debug=false />
+				:endAngle="endAngle" :yaw_angle="yaw_angle" :max-radius="shaderMaxRadius" :debug=false />
 			</Sonar360Mask>
 		</div>
 
@@ -112,6 +112,11 @@ const props = defineProps({
 const containerRef = ref(null);
 const size = ref(300);
 
+// Mirror of `Sonar360Mask`'s `maxRadius` (50 - lineWidth/2) but expressed in
+// the shader's normalized 0..1 space, so the WebGL data ends exactly at the
+// outermost depth arc instead of overshooting past it by half a stroke width.
+const shaderMaxRadius = computed(() => (50 - props.lineWidth / 2) / 50);
+
 const sectorWidth = computed(() => {
   const diff = props.endAngle - props.startAngle;
   return diff >= 0 ? diff : diff + 360;
@@ -204,18 +209,36 @@ const updateSize = () => {
   const rect = containerRef.value.getBoundingClientRect();
   if (isHalfCircleView.value) {
     size.value = Math.min(rect.width, rect.height * 2);
-  } else {
-    size.value = Math.min(rect.width, rect.height);
+    return;
   }
+  // Scale the sector proportionally (no distortion, no clipping) until the
+  // tighter of the two axes hits the container edge. The looser axis may
+  // have a small empty band when the sector's bbox aspect doesn't match
+  // the viewport aspect — that gap is geometrically unavoidable without
+  // either stretching the arc or clipping the sector ends.
+  const bb = sectorBoundingBox.value;
+  const bbWidth = Math.max(bb.maxX - bb.minX, 0.0001);
+  const bbHeight = Math.max(bb.maxY - bb.minY, 0.0001);
+  size.value = Math.min(rect.width / bbWidth, rect.height / bbHeight);
 };
+
+let resizeObserver = null;
 
 onMounted(() => {
   updateSize();
   window.addEventListener('resize', updateSize);
+  if (containerRef.value && typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => updateSize());
+    resizeObserver.observe(containerRef.value);
+  }
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateSize);
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
 });
 
 watch([() => props.startAngle, () => props.endAngle], () => {
