@@ -1,6 +1,6 @@
 #!/bin/bash
 set -m
-echo "Starting ping viewer next..."
+echo "Starting ping viewer..."
 cd app
 mkdir logs
 mkdir recordings
