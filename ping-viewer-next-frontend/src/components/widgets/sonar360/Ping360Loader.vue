@@ -98,6 +98,8 @@ const props = defineProps({
   },
 });
 
+const emit = defineEmits(['settings-change']);
+
 const liveMeasurement = ref(null);
 const liveAngle = ref(0);
 const displayMeasurement = ref(null);
@@ -191,6 +193,7 @@ const connectWebSocket = () => {
 
         const isFullCircle = (config.stop_angle + 1) % 400 === config.start_angle % 400;
         let mechanicalCenterGrad;
+        let sector = 360;
         if (isFullCircle) {
           startAngle.value = 0;
           endAngle.value = 360;
@@ -198,12 +201,18 @@ const connectWebSocket = () => {
         } else {
           const sectorLenGrad = (((config.stop_angle - config.start_angle) % 400) + 400) % 400;
           const widthDeg = Math.max(90, Math.round((sectorLenGrad * 360) / 400 / 90) * 90);
+          sector = widthDeg;
           const halfWidth = widthDeg / 2;
           startAngle.value = (((360 - halfWidth) % 360) + 360) % 360;
           endAngle.value = halfWidth;
           mechanicalCenterGrad = (config.start_angle + sectorLenGrad / 2) % 400;
         }
         offset.value = (((200 - mechanicalCenterGrad) % 400) + 400) % 400;
+        emit('settings-change', {
+          range: currentRange.value,
+          gain: config.gain_setting,
+          sector,
+        });
 
         return;
       }
