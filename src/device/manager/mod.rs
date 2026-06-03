@@ -371,7 +371,7 @@ impl DeviceManager {
 
         let mut discovery_rx = self.discovery_service.get_discovery_rx();
 
-        let mut status_check_interval = tokio::time::interval(std::time::Duration::from_secs(30));
+        let mut status_check_interval = tokio::time::interval(std::time::Duration::from_secs(10));
 
         loop {
             tokio::select! {
