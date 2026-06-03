@@ -697,7 +697,7 @@ export default defineComponent({
                   {
                     id: deviceId.value,
                     device_type: route.params.type?.toUpperCase() || 'Ping360',
-                    status: 'ContinuousMode',
+                    status: 'Available',
                     source: {
                       UdpStream: {
                         ip: new URL(serverUrl.value).hostname,
@@ -721,7 +721,7 @@ export default defineComponent({
           device = {
             id: deviceId.value,
             device_type: route.params.type.toUpperCase(),
-            status: 'ContinuousMode',
+            status: 'Available',
             source: {
               UdpStream: {
                 ip: new URL(serverUrl.value).hostname,
