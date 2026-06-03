@@ -292,6 +292,7 @@ watch(
   async (newValue) => {
     if (newValue) {
       await fetchInitialRecordingStatuses();
+      logWidgetUrls();
     }
   }
 );
@@ -352,6 +353,21 @@ const toggleManualCreate = () => {
   showManualCreate.value = !showManualCreate.value;
 };
 
+const getWidgetUrl = (device) => {
+  const widgetType = device.device_type?.toLowerCase();
+  if (widgetType === undefine) return null;
+  return `${window.location.origin}/addons/widget/${widgetType}/?server=${props.serverUrl}&uuid=${device.id}`;
+};
+
+const logWidgetUrls = () => {
+  for (const device of devices.value) {
+    const url = getWidgetUrl(device);
+    if (url) {
+      console.log(`Widget URL [${device.device_type} ${device.id}]: ${url}`);
+    }
+  }
+};
+
 const fetchDevices = async () => {
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
@@ -368,6 +384,7 @@ const fetchDevices = async () => {
     const data = await response.json();
     devices.value = data.DeviceInfo || [];
     error.value = null;
+    logWidgetUrls();
   } catch (err) {
     console.error('Error fetching devices:', err);
     error.value = `Failed to fetch devices: ${err.message}`;
