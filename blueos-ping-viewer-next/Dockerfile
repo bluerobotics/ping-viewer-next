@@ -28,7 +28,7 @@ LABEL permissions='{\
     "Privileged": true,\
     "NetworkMode": "host",\
     "Binds": [\
-       "/usr/blueos/extensions/ping-viewer-next/logs:/app/logs",\
+       "/var/logs/blueos/extensions/ping-viewer-next:/app/logs",\
        "/usr/blueos/extensions/ping-viewer-next/recordings:/app/recordings"\
     ]\
   }\
