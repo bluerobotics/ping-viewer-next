@@ -60,7 +60,7 @@
           </v-tooltip>
         </div>
         <div class="d-flex align-center gap-2 mb-4">
-          <v-slider color="white" v-model="pingsPerSecond" :min="0" :max="30" :step="1" density="compact" hide-details
+          <v-slider color="white" v-model="pingsPerSecond" :min="0" :max="50" :step="1" density="compact" hide-details
             class="flex-grow-1" @update:model-value="debouncedSaveSettings"></v-slider>
           <v-text-field v-if="pingsPerSecond != 0" v-model.number="pingsPerSecond" type="number" :min="0" :max="30" :step="1"
             density="compact" hide-details style="width: 10px" @update:model-value="debouncedSaveSettings"
