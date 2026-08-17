@@ -1,6 +1,6 @@
 use crate::device::manager::{ManagerActorHandler, Request, UuidWrapper};
 use crate::server::protocols::v1::errors::Error;
-use actix_web::Responder;
+use actix_web::{HttpRequest, Responder};
 use mime_guess::from_path;
 use paperclip::actix::{
     api_v2_operation, get, post,
@@ -325,6 +325,7 @@ impl Default for ServerMetadata {
 #[api_v2_operation]
 #[get("/cockpit_extras.json")]
 async fn cockpit_extras(
+    req: HttpRequest,
     manager_handler: web::Data<ManagerActorHandler>,
 ) -> Result<Json<CockpitExtras>, Error> {
     let devices = match manager_handler.send(Request::List).await {
@@ -343,6 +344,9 @@ async fn cockpit_extras(
         }
     };
 
+    let connection = req.connection_info();
+    let base = format!("{}://{}", connection.scheme(), connection.host());
+
     let widgets = devices
         .into_iter()
         .filter_map(|device| {
@@ -355,10 +359,10 @@ async fn cockpit_extras(
             Some(CockpitWidget {
                 name: name.to_string(),
                 config_iframe_url: None,
-                iframe_url: format!("/addons/widget/{}/?uuid={}", name, device.id),
-                iframe_icon: format!("/images/{}.png", name),
+                iframe_url: format!("{}/addons/widget/{}/?uuid={}", base, name, device.id),
+                iframe_icon: format!("{}/images/{}.png", base, name),
                 version: "1.0.0".to_string(),
-                use_extension_path_as_base_url: true,
+                use_extension_path_as_base_url: false,
             })
         })
         .collect();
