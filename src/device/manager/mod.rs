@@ -919,16 +919,12 @@ impl DeviceManager {
     }
 
     pub async fn continuous_mode(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
+        if let Ok(DeviceStatus::Available) = self.get_device_status(device_id) {
+            self.auto_create_device(device_id).await?;
+            trace!("Successfully created device in continuous_mode for {device_id:?}");
+        }
+
         match self.get_device_status(device_id) {
-            Ok(DeviceStatus::Available) => match self.auto_create_device(device_id).await {
-                Ok(Answer::DeviceInfo(info)) => {
-                    trace!("Successfully created device in continuous_mode for {device_id:?}");
-                    Ok(Answer::DeviceInfo(info))
-                }
-                unexpected => Err(ManagerError::Other(format!(
-                    "Unexpected response during auto create: {unexpected:?}, device: {device_id}"
-                ))),
-            },
             Ok(DeviceStatus::ContinuousMode) => {
                 let updated_device_info = self.get_device(device_id)?.info();
                 Ok(Answer::DeviceInfo(vec![updated_device_info]))
