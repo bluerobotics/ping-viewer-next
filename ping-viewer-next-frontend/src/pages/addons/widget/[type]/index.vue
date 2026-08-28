@@ -191,6 +191,32 @@ export default defineComponent({
       }
     };
 
+    const enableContinuousMode = async (attempts = 3) => {
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+          const response = await fetch(`${serverUrl.value}/device_manager/request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              command: 'EnableContinuousMode',
+              module: 'DeviceManager',
+              payload: { uuid: deviceId.value },
+            }),
+          });
+
+          if (response.ok) return true;
+          console.warn(`Failed to start device, attempt ${attempt}:`, response.statusText);
+        } catch (err) {
+          console.warn(`Failed to start device, attempt ${attempt}:`, err);
+        }
+
+        if (attempt < attempts) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+      return false;
+    };
+
     const commonProps = {
       width: window.innerWidth,
       height: window.innerHeight,
@@ -732,31 +758,8 @@ export default defineComponent({
         }
 
         if (device.status !== 'ContinuousMode') {
-          try {
-            const setContinuousModeResponse = await fetch(
-              `${serverUrl.value}/device_manager/request`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Accept: 'application/json',
-                  'Access-Control-Allow-Origin': '*',
-                },
-                body: JSON.stringify({
-                  command: 'EnableContinuousMode',
-                  module: 'DeviceManager',
-                  payload: { uuid: deviceId.value },
-                }),
-              }
-            );
-
-            if (!setContinuousModeResponse.ok) {
-              console.warn('Failed to set continuous mode:', setContinuousModeResponse.statusText);
-            } else {
-              device.status = 'ContinuousMode';
-            }
-          } catch (err) {
-            console.warn('Failed to set continuous mode:', err);
+          if (await enableContinuousMode()) {
+            device.status = 'ContinuousMode';
           }
         }
 
