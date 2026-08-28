@@ -382,6 +382,12 @@ impl DeviceManager {
                     match self.register_device(device_info.clone()).await {
                         Ok(_) => {
                             info!("New device available, registered with id {:?} : device_type: {:?}", device_info.id, device_info.device_type);
+
+                            if crate::cli::manager::is_enable_auto_create() {
+                                if let Err(err) = self.auto_create_device(device_info.id).await {
+                                    error!("Failed to auto create discovered device {:?}: {err:?}", device_info.id);
+                                }
+                            }
                         }
                         Err(err) => {
                             error!("Failed to register discovered device: {err:?}");
