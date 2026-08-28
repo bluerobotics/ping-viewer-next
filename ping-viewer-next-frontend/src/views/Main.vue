@@ -76,13 +76,12 @@
             <div class="text-h6 text-center w-full ml-6">Settings</div>
             <v-btn icon="mdi-close" variant="text" @click="showSettings = false" />
           </div>
-          <VisualSettings :is-open="showSettings" :glass="glass"
+          <VisualSettings :glass="glass"
             :display-settings="displaySettings" :is-dark-mode="isDarkMode"
             :server-url="serverUrl" :yaw-connection-status="yawConnectionStatus"
-            @update:isOpen="showSettings = $event"
             @update:displaySettings="updateDisplaySettings"
             @update:isDarkMode="updateDarkMode"
-            @update:serverUrl="handleServerUrlUpdate" @updateMavlink="handleMavlinkUpdate" @save="saveSettings" />
+            @update:serverUrl="handleServerUrlUpdate" @updateMavlink="handleMavlinkUpdate" />
         </v-card>
 
         <div v-if="activeDevice" class="middle-section" :class="{ 'menu-open': isMenuOpen }">
@@ -601,7 +600,6 @@ const saveSettings = () => {
     if (commonSettings.customPalette?.length > 0) {
       localStorage.setItem('customColorPalette', JSON.stringify(commonSettings.customPalette));
     }
-    showSettings.value = false;
   } catch (error) {
     console.error('Error saving settings:', error);
   }
@@ -611,6 +609,7 @@ const updateDisplaySettings = (newSettings) => {
   Object.assign(displaySettings, newSettings);
   ping1DSettings.colorPalette = newSettings.colorPalette;
   ping360Settings.colorPalette = newSettings.colorPalette;
+  localStorage.setItem('display-settings', JSON.stringify(displaySettings));
 };
 
 const updateDarkMode = (value) => {

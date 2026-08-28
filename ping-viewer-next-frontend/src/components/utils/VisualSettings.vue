@@ -114,6 +114,7 @@
                 hint="Enter the server URL"
                 persistent-hint
                 class="mb-4"
+                @blur="applyServerUrl"
               />
             </section>
 
@@ -127,6 +128,7 @@
                 hint="WebSocket URL for MAVLink connection"
                 persistent-hint
                 class="mb-4"
+                @blur="applyMavlinkUrl"
               />
 
               <div class="d-flex align-center mb-4">
@@ -156,14 +158,6 @@
           </div>
         </v-window-item>
       </v-window>
-
-      <v-divider class="my-2" />
-
-      <div class="d-flex justify-end pa-2">
-        <v-btn variant="tonal" @click="saveSettings" class="px-8">
-          SAVE
-        </v-btn>
-      </div>
     </div>
   </div>
 </template>
@@ -176,10 +170,6 @@ import { useUnits } from '../../composables/useUnits';
 const { unitSystem } = useUnits();
 
 const props = defineProps({
-  isOpen: {
-    type: Boolean,
-    required: true,
-  },
   glass: {
     type: Boolean,
     default: false,
@@ -203,12 +193,10 @@ const props = defineProps({
 });
 
 const emit = defineEmits([
-  'update:isOpen',
   'update:displaySettings',
   'update:isDarkMode',
   'update:serverUrl',
   'updateMavlink',
-  'save',
 ]);
 
 const activeTab = ref('display');
@@ -260,24 +248,20 @@ const toggleMavlinkConnection = async () => {
   }
 };
 
-const saveSettings = () => {
-  localStorage.setItem('display-settings', JSON.stringify(localSettings));
-
-  if (serverSettings.url !== props.serverUrl) {
-    emit('update:serverUrl', serverSettings.url);
-  }
-
-  // Save server settings
-  localStorage.setItem('serverUrl', serverSettings.url);
+const persistServerSettings = () => {
   localStorage.setItem('mavlinkUrl', serverSettings.mavlinkUrl);
   localStorage.setItem('autoConnectMavlink', serverSettings.autoConnectMavlink.toString());
+  if (!serverSettings.url) return;
+  const host = serverSettings.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  localStorage.setItem('pingviewer-server', JSON.stringify({ address: host }));
+};
 
+const applyMavlinkUrl = () => {
+  const changed = serverSettings.mavlinkUrl !== localStorage.getItem('mavlinkUrl');
+  persistServerSettings();
+  if (!changed) return;
   if (mavlinkStatus.value === 'Connected') {
-    emit('updateMavlink', {
-      action: 'reconnect',
-      url: serverSettings.mavlinkUrl,
-      autoConnect: serverSettings.autoConnectMavlink,
-    });
+    emit('updateMavlink', { action: 'reconnect', url: serverSettings.mavlinkUrl });
   } else if (serverSettings.autoConnectMavlink) {
     emit('updateMavlink', {
       action: 'connect',
@@ -285,11 +269,28 @@ const saveSettings = () => {
       autoConnect: true,
     });
   }
-
-  emit('update:displaySettings', { ...localSettings });
-  emit('save');
-  emit('update:isOpen', false);
 };
+
+const applyServerUrl = () => {
+  persistServerSettings();
+  if (!serverSettings.url) return;
+  const url = serverSettings.url.includes('://')
+    ? serverSettings.url
+    : `${window.location.protocol}//${serverSettings.url}`;
+  if (url !== props.serverUrl) {
+    emit('update:serverUrl', url);
+  }
+};
+
+watch(
+  () => serverSettings.autoConnectMavlink,
+  (enabled) => {
+    persistServerSettings();
+    if (enabled && mavlinkStatus.value === 'Disconnected') {
+      toggleMavlinkConnection();
+    }
+  }
+);
 
 watch(
   () => props.displaySettings,
