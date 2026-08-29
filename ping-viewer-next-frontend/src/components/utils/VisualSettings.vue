@@ -132,7 +132,13 @@
               />
 
               <div class="d-flex align-center mb-4">
-                <v-switch v-model="serverSettings.autoConnectMavlink" hide-details class="mr-2" />
+                <v-switch
+                  v-model="serverSettings.autoConnectMavlink"
+                  color="success"
+                  base-color="error"
+                  hide-details
+                  class="mr-2"
+                />
                 <span class="text-body-2">Auto-connect to MAVLink on startup</span>
               </div>
 

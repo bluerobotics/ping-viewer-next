@@ -17,7 +17,7 @@
               </span>
             </template>
           </v-tooltip>
-          <v-switch class="gap-2" color="white" v-model="isAutoMode" hide-details density="compact"
+          <v-switch class="gap-2" color="success" base-color="error" v-model="isAutoMode" hide-details density="compact"
             @update:model-value="handleAutoModeChange"></v-switch>
         </div>
         <v-divider class="w-4/5 mt-2 mb-4" />

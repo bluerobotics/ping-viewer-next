@@ -116,7 +116,13 @@
                   </template>
                 </v-tooltip>
               </div>
-              <v-switch v-model="autoMode" density="compact" hide-details />
+              <v-switch
+                v-model="autoMode"
+                color="success"
+                base-color="error"
+                density="compact"
+                hide-details
+              />
             </div>
 
             <div class="d-flex align-center justify-space-between mb-2 mt-4">
