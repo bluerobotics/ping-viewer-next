@@ -42,10 +42,11 @@ fn make_default_config(node_name: &str) -> zenoh::Config {
     config
         .insert_json5("adminspace/enabled", r#"true"#)
         .expect("Failed to insert adminspace/enabled");
+    let endpoint = crate::cli::manager::zenoh_server_address();
     config
-        .insert_json5("connect/endpoints", r#"["tcp/127.0.0.1:7447"]"#)
+        .insert_json5("connect/endpoints", &format!(r#"["tcp/{endpoint}"]"#))
         .expect("Failed to insert endpoints");
-    info!("Generated zenoh config with default settings");
+    info!("Generated zenoh config connecting to tcp/{endpoint}");
     config
 }
 
