@@ -4,6 +4,10 @@
 /// The `DeviceHandler` can forward requests defined in the `PingRequest` enum.
 pub mod devices;
 
+/// The `fake` module provides the `FakeStream` structure, used to simulate a fake
+/// ping1d or ping360 device.
+pub mod fake;
+
 /// The `manager` module provides the `Manager` and `ManagerHandler` structures.
 ///
 /// The `Manager` can handle requests from multiple threads. The `ManagerHandler`

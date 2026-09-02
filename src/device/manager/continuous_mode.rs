@@ -64,7 +64,8 @@ impl DeviceManager {
                 if properties.supports_auto_transmit() {
                     match self.get_device_source(device_id) {
                         Ok(source) => match source {
-                            super::SourceSelection::UdpStream(_) => {
+                            super::SourceSelection::UdpStream(_)
+                            | super::SourceSelection::FakeStream(_) => {
                                 Some(Self::start_ping360_firmware_mode(
                                     self.get_device_manager_handler(),
                                     handler,

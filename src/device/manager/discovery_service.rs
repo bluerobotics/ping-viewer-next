@@ -12,6 +12,7 @@ use udp_stream::UdpStream;
 use uuid::Uuid;
 
 use crate::device::devices::{DeviceActor, DeviceType, PingAnswer, UpgradeResult};
+use crate::device::fake::FakeStream;
 use crate::device::manager::ManagerError;
 
 use super::{
@@ -55,6 +56,7 @@ impl DeviceFactory {
 
                 SourceType::Serial(serial_stream)
             }
+            SourceSelection::FakeStream(_) => SourceType::Fake(FakeStream::new(device_type)),
         };
 
         let device = match port {
@@ -71,6 +73,13 @@ impl DeviceFactory {
                 }
                 DeviceSelection::Ping1D => DeviceType::Ping1D(Ping1D::new(serial_port)),
                 DeviceSelection::Ping360 => DeviceType::Ping360(Ping360::new(serial_port)),
+            },
+            SourceType::Fake(fake_port) => match device_type {
+                DeviceSelection::Common | DeviceSelection::Auto => {
+                    DeviceType::Common(bluerobotics_ping::common::Device::new(fake_port))
+                }
+                DeviceSelection::Ping1D => DeviceType::Ping1D(Ping1D::new(fake_port)),
+                DeviceSelection::Ping360 => DeviceType::Ping360(Ping360::new(fake_port)),
             },
         };
 
@@ -273,6 +282,7 @@ fn get_device_key(source: &SourceSelection) -> String {
     match source {
         SourceSelection::SerialStream(serial) => serial.path.clone(),
         SourceSelection::UdpStream(udp) => format!("{}:{}", udp.ip, udp.port),
+        SourceSelection::FakeStream(fake) => format!("Fake #{}", fake.fake_id),
     }
 }
 

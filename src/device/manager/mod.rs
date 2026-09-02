@@ -14,7 +14,7 @@ use std::{
     hash::{Hash, Hasher},
     net::{Ipv4Addr, SocketAddrV4, UdpSocket},
     ops::Deref,
-    sync::{Arc, RwLock},
+    sync::{atomic::AtomicU16, Arc, RwLock},
     time::Duration,
 };
 use tokio::{
@@ -27,7 +27,10 @@ use tracing::{debug, error, info, trace, warn};
 use udp_stream::UdpStream;
 use uuid::Uuid;
 
-use super::devices::{DeviceActor, DeviceActorHandler, DeviceType, PingAnswer};
+use super::{
+    devices::{DeviceActor, DeviceActorHandler, DeviceType, PingAnswer},
+    fake::FakeStream,
+};
 use bluerobotics_ping::{
     common::{DeviceInformationStruct, ProtocolVersionStruct},
     device::{Ping1D, Ping360},
@@ -128,7 +131,7 @@ impl Drop for Device {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Apiv2Schema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Apiv2Schema)]
 pub enum DeviceSelection {
     Common,
     Ping1D,
@@ -140,11 +143,13 @@ pub enum DeviceSelection {
 pub enum SourceSelection {
     UdpStream(SourceUdpStruct),
     SerialStream(SourceSerialStruct),
+    FakeStream(SourceFakeStruct),
 }
 
 enum SourceType {
     Udp(UdpStream),
     Serial(SerialStream),
+    Fake(FakeStream),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema, PartialEq)]
@@ -157,6 +162,18 @@ pub struct SourceUdpStruct {
 pub struct SourceSerialStruct {
     pub path: String,
     pub baudrate: u32,
+}
+
+// Generate distinct IDs for each fake device
+fn get_fake_source_id() -> u16 {
+    static FAKE_ID: AtomicU16 = AtomicU16::new(1);
+    FAKE_ID.fetch_add(1, std::sync::atomic::Ordering::AcqRel)
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema, PartialEq)]
+pub struct SourceFakeStruct {
+    #[serde(skip, default = "get_fake_source_id")]
+    fake_id: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -598,6 +615,7 @@ impl DeviceManager {
 
                 SourceType::Serial(serial_stream)
             }
+            SourceSelection::FakeStream(_) => SourceType::Fake(FakeStream::new(device_selection)),
         };
 
         let device = match port {
@@ -625,6 +643,19 @@ impl DeviceManager {
                 }
                 DeviceSelection::Ping360 => {
                     crate::device::devices::DeviceType::Ping360(Ping360::new(serial_port))
+                }
+            },
+            SourceType::Fake(fake_port) => match device_selection {
+                DeviceSelection::Common | DeviceSelection::Auto => {
+                    crate::device::devices::DeviceType::Common(
+                        bluerobotics_ping::common::Device::new(fake_port),
+                    )
+                }
+                DeviceSelection::Ping1D => {
+                    crate::device::devices::DeviceType::Ping1D(Ping1D::new(fake_port))
+                }
+                DeviceSelection::Ping360 => {
+                    crate::device::devices::DeviceType::Ping360(Ping360::new(fake_port))
                 }
             },
         };
@@ -790,6 +821,7 @@ impl DeviceManager {
 
                 SourceType::Serial(serial_stream)
             }
+            SourceSelection::FakeStream(_) => SourceType::Fake(FakeStream::new(device_type)),
         };
 
         let device_type_inner = match port {
@@ -806,6 +838,13 @@ impl DeviceManager {
                 }
                 DeviceSelection::Ping1D => DeviceType::Ping1D(Ping1D::new(serial_port)),
                 DeviceSelection::Ping360 => DeviceType::Ping360(Ping360::new(serial_port)),
+            },
+            SourceType::Fake(fake_port) => match device_type {
+                DeviceSelection::Common | DeviceSelection::Auto => {
+                    DeviceType::Common(bluerobotics_ping::common::Device::new(fake_port))
+                }
+                DeviceSelection::Ping1D => DeviceType::Ping1D(Ping1D::new(fake_port)),
+                DeviceSelection::Ping360 => DeviceType::Ping360(Ping360::new(fake_port)),
             },
         };
 
@@ -1342,6 +1381,7 @@ pub async fn turnoff_device_continuous_mode(source: &SourceSelection) -> Result<
                     ))
                 })?;
         }
+        SourceSelection::FakeStream(_) => (),
     }
 
     Ok(())
