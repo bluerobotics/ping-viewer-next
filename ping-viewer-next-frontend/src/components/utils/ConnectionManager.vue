@@ -323,6 +323,7 @@ const deviceTypes = [
 const connectionTypes = [
   { title: 'UDP', value: 'UdpStream' },
   { title: 'Serial', value: 'SerialStream' },
+  { title: 'Fake device', value: 'FakeStream' },
 ];
 
 const getStatusColor = (status) => {
@@ -426,20 +427,32 @@ const createDevice = async () => {
   error.value = null;
 
   try {
-    const source =
-      newDevice.value.connectionType === 'UdpStream'
-        ? {
-            UdpStream: {
-              ip: newDevice.value.udp.ip,
-              port: newDevice.value.udp.port,
-            },
-          }
-        : {
-            SerialStream: {
-              path: newDevice.value.serial.path,
-              baudrate: newDevice.value.serial.baudrate,
-            },
-          };
+    let source;
+    switch (newDevice.value.connectionType) {
+      case 'UdpStream':
+        source = {
+          UdpStream: {
+            ip: newDevice.value.udp.ip,
+            port: newDevice.value.udp.port,
+          },
+        };
+        break;
+      case 'SerialStream':
+        source = {
+          SerialStream: {
+            path: newDevice.value.serial.path,
+            baudrate: newDevice.value.serial.baudrate,
+          },
+        };
+        break;
+      case 'FakeStream':
+        source = {
+          FakeStream: {},
+        };
+        break;
+      default:
+        throw new Error(`Unknown connection type ${newDevice.value.connectionType}`);
+    }
 
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
       method: 'POST',

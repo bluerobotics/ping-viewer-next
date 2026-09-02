@@ -28,6 +28,11 @@
           <strong>Port:</strong> {{ device.source.UdpStream.port }}
         </div>
       </div>
+      <div v-if="device.source.FakeStream" class="mt-2">
+        <div class="text-sm">
+          <strong>Type:</strong> Fake
+        </div>
+      </div>
 
       <div class="mt-2">
         <div class="text-sm">
