@@ -3755,6 +3755,7 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tokio-serial",
+ "tokio-util",
  "tracing",
  "tracing-appender",
  "tracing-log",

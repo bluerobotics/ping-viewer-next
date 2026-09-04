@@ -33,6 +33,7 @@ shellexpand = "3.1"
 thiserror = "2.0.17"
 tokio = { version = "1.48.0", features = ["full"] }
 tokio-serial = "5.4.5"
+tokio-util = "0.7.17"
 tracing = { version = "0.1.41", features = ["log", "async-await"] }
 tracing-appender = "0.2.3"
 tracing-log = "0.2.0"
