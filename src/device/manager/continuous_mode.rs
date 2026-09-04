@@ -61,11 +61,7 @@ impl DeviceManager {
                 };
 
                 // Check if firmware supports auto-transmit mode
-                let supports_auto_transmit =
-                    properties.common.device_information.firmware_version_major >= 3
-                        && properties.common.device_information.firmware_version_minor >= 3;
-
-                if supports_auto_transmit {
+                if properties.supports_auto_transmit() {
                     match self.get_device_source(device_id) {
                         Ok(source) => match source {
                             super::SourceSelection::UdpStream(_) => {
@@ -292,9 +288,7 @@ impl DeviceManager {
                     if initial_settings != current_settings {
                         debug!("Restarting firmware scanning routine for Ping360Config, device: {device_id}");
 
-                        if properties.common.device_information.firmware_version_major >= 3
-                            && properties.common.device_information.firmware_version_minor >= 3
-                        {
+                        if properties.supports_auto_transmit() {
                             if let Err(err) = manager_handler
                                 .send(
                                     crate::device::manager::Request::SpecialTurnOffContinuousMode(

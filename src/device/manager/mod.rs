@@ -84,6 +84,14 @@ pub struct Ping360Properties {
     pub continuous_mode_settings: Arc<RwLock<Ping360Config>>,
 }
 
+impl Ping360Properties {
+    fn supports_auto_transmit(&self) -> bool {
+        self.common.device_information.firmware_version_major > 3
+            || (self.common.device_information.firmware_version_major == 3
+                && self.common.device_information.firmware_version_minor >= 3)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeviceInfo {
     pub id: Uuid,
