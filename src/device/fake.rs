@@ -5,12 +5,16 @@ use std::{
 };
 
 use actix_web::web::BytesMut;
-use bluerobotics_ping::message::{DeserializePayload, ProtocolMessage};
+use bluerobotics_ping::{
+    message::{DeserializePayload, ProtocolMessage},
+    ping360::{AutoDeviceDataStruct, AutoTransmitStruct},
+};
+use rand::{rngs::StdRng, Rng, RngExt, SeedableRng};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     sync::mpsc::{self, Receiver, Sender},
     task::JoinHandle,
-    time::{interval, Instant},
+    time::interval,
 };
 use tokio_util::codec::Decoder;
 use tracing::{debug, warn};
@@ -46,34 +50,120 @@ impl FakeStream {
         }
     }
 
-    fn fake_distance_ping1d(duration: Duration) -> u32 {
-        let duration = duration.as_secs_f32();
-        (27_000.0
-            + ((duration / 5.0).sin() * 5_000.0)
-            + ((duration / 10.0).sin() * 2_500.0)
-            + (((duration - 1.4) / 15.0).sin() * 2_000.0)) as u32
+    /// Generate a parabolic echo bump profile surrounded by noise
+    fn fake_echo_profile(
+        points: usize,
+        bump_start: f32,
+        bump_stop: f32,
+        rng: &mut StdRng,
+    ) -> Vec<u8> {
+        let bump_width = bump_stop - bump_start;
+
+        (0..points)
+            .map(|index| {
+                let index = index as f32;
+                let point = if index < bump_start {
+                    0.1 * ((rng.next_u32() >> 24) as f32)
+                } else if index < bump_stop {
+                    255.0
+                        * ((-4.0 / bump_width.powi(2))
+                            * (index - bump_start - bump_width / 2.0).powi(2)
+                            + 1.0)
+                } else {
+                    0.45 * ((rng.next_u32() >> 24) as f32)
+                };
+                point as u8
+            })
+            .collect()
     }
 
-    fn fake_angle_data_ping360(duration: Duration) -> (u16, Vec<u8>) {
-        let duration = duration.as_secs_f32();
-        (
-            (duration / 0.200).floor() as u16,
-            vec![
-                0,
-                0,
-                0,
-                match duration % 6.0 {
-                    phase @ 4.0..6.0 => {
-                        // duration is 4.0 or 6.0 => cosine phase is ±pi/2 => value is 0
-                        // duration is 5.0 => cosine phase is 0 => value is max
-                        (((phase - 5.0) * std::f32::consts::FRAC_PI_2).cos() * 255.0).floor() as u8
-                    }
-                    _ => 0,
-                },
-                0,
-                0,
-            ],
-        )
+    /// Simulates a Ping1D parabolic echo bump with oscillating bump and scan range
+    fn fake_profile_ping1d(
+        ping_number: u32,
+        rng: &mut StdRng,
+    ) -> bluerobotics_ping::ping1d::ProfileStruct {
+        const POINTS: usize = 200;
+        const MAX_SCAN_LENGTH: f32 = 120_000.0;
+
+        let counter = ping_number as f32;
+        let bump_start = POINTS as f32 / 2.0 - 10.0 * (counter / 10.0).sin();
+        let bump_stop = 3.0 * POINTS as f32 / 5.0 + 6.0 * (counter / 5.5).cos();
+        let bump_width = bump_stop - bump_start;
+        let scan_length = MAX_SCAN_LENGTH * (1.3 + (counter / 40.0).cos()) / 2.3;
+        let profile_data = FakeStream::fake_echo_profile(POINTS, bump_start, bump_stop, rng);
+
+        bluerobotics_ping::ping1d::ProfileStruct {
+            distance: (scan_length * (bump_stop + bump_start) / (POINTS as f32 * 2.0)) as u32,
+            confidence: (400.0 / bump_width) as u16,
+            transmit_duration: 200,
+            ping_number,
+            scan_start: 0,
+            scan_length: scan_length as u32,
+            gain_setting: 4,
+            profile_data_length: profile_data.len() as u16,
+            profile_data,
+        }
+    }
+
+    /// Simulates a Ping360 full-length echo profile at a heading that wraps every 400 gradians,
+    /// as if the transducer were slowly drifting around the center of a round pool
+    fn fake_device_data_ping360(
+        payload: &AutoTransmitStruct,
+        counter: u32,
+        number_of_samples: u16,
+        rng: &mut StdRng,
+    ) -> AutoDeviceDataStruct {
+        const ANGULAR_RESOLUTION: u32 = 400;
+        // Pool wall distance from its center, as a fraction of the scanned range
+        const POOL_RADIUS: f32 = 0.7;
+        // Echo thickness of the pool wall, as a fraction of the scanned range
+        const WALL_THICKNESS: f32 = 0.05;
+        // Transducer distance from the pool center, as a fraction of the pool radius
+        const DRIFT: f32 = 0.08;
+
+        let points = number_of_samples.max(1) as usize;
+        let angle = (counter % ANGULAR_RESOLUTION) as u16;
+
+        let radius = POOL_RADIUS * points as f32;
+        let heading = f32::from(angle) * std::f32::consts::TAU / ANGULAR_RESOLUTION as f32;
+        let revolutions = counter as f32 / ANGULAR_RESOLUTION as f32;
+
+        // x and y oscillate at different periods, tracing a curve that does not close
+        // on each spin the way a circular orbit would
+        // (<https://en.wikipedia.org/wiki/Lissajous_curve>)
+        let drift_x = DRIFT * radius * (revolutions * std::f32::consts::TAU / 5.0).sin();
+        let drift_y = DRIFT * radius * (revolutions * std::f32::consts::TAU / 7.0).sin();
+        let drift = drift_x.hypot(drift_y);
+        let bearing = heading - drift_y.atan2(drift_x);
+
+        // Ray-circle intersection from the drifted transducer towards the pool wall
+        let wall = -drift * bearing.cos()
+            + (radius.powi(2) - (drift * bearing.sin()).powi(2))
+                .max(0.0)
+                .sqrt();
+
+        let half_thickness = WALL_THICKNESS * points as f32 / 2.0;
+        let data = FakeStream::fake_echo_profile(
+            points,
+            wall - half_thickness,
+            wall + half_thickness,
+            rng,
+        );
+        bluerobotics_ping::ping360::AutoDeviceDataStruct {
+            mode: payload.mode,
+            gain_setting: payload.gain_setting,
+            angle,
+            transmit_duration: payload.transmit_duration,
+            sample_period: payload.sample_period,
+            transmit_frequency: payload.transmit_frequency,
+            start_angle: payload.start_angle,
+            stop_angle: payload.stop_angle,
+            num_steps: payload.num_steps,
+            delay: payload.delay,
+            number_of_samples,
+            data_length: data.len() as u16,
+            data,
+        }
     }
 
     /// Runs a simulated device loop for the given device selection (Ping1D or Ping360).
@@ -179,27 +269,15 @@ impl FakeStream {
                                 let tx = tx.clone();
                                 if let Some(handle) =
                                     ping1d_profile_task.replace(tokio::spawn(async move {
-                                        let start = Instant::now();
-                                        let mut interval = interval(Duration::from_millis(500));
+                                        let mut rng = StdRng::seed_from_u64(0x426c7565);
+                                        let mut interval = interval(Duration::from_millis(50));
                                         interval.tick().await;
 
                                         for i in 0.. {
                                             // https://docs.bluerobotics.com/ping-protocol/pingmessage-ping1d/#1300-profile
                                             let reply =
                                                 bluerobotics_ping::ping1d::Messages::Profile(
-                                                    bluerobotics_ping::ping1d::ProfileStruct {
-                                                        distance: FakeStream::fake_distance_ping1d(
-                                                            Instant::now().duration_since(start),
-                                                        ),
-                                                        confidence: 100,
-                                                        transmit_duration: 10_000,
-                                                        ping_number: i,
-                                                        scan_start: 0,
-                                                        scan_length: 100_000,
-                                                        gain_setting: 0,
-                                                        profile_data_length: 0,
-                                                        profile_data: vec![],
-                                                    },
+                                                    FakeStream::fake_profile_ping1d(i, &mut rng),
                                                 );
 
                                             let mut msg = ProtocolMessage::new();
@@ -261,31 +339,20 @@ impl FakeStream {
 
                     if let Some(handle) =
                         ping360_auto_device_data_task.replace(tokio::spawn(async move {
-                            let start = Instant::now();
-                            let mut interval = interval(Duration::from_millis(200));
+                            let mut rng = StdRng::seed_from_u64(0x426c7565);
+                            let mut interval = interval(Duration::from_millis(7));
                             interval.tick().await;
 
-                            loop {
-                                let (angle, data) = FakeStream::fake_angle_data_ping360(
-                                    Instant::now().duration_since(start),
-                                );
+                            let number_of_samples = payload.number_of_samples.max(1);
+                            for i in 0.. {
                                 // https://docs.bluerobotics.com/ping-protocol/pingmessage-ping360/#2301-auto_device_data
                                 let reply = bluerobotics_ping::ping360::Messages::AutoDeviceData(
-                                    bluerobotics_ping::ping360::AutoDeviceDataStruct {
-                                        mode: payload.mode,
-                                        gain_setting: payload.gain_setting,
-                                        angle,
-                                        transmit_duration: payload.transmit_duration,
-                                        sample_period: payload.sample_period,
-                                        transmit_frequency: payload.transmit_frequency,
-                                        start_angle: payload.start_angle,
-                                        stop_angle: payload.stop_angle,
-                                        num_steps: payload.num_steps,
-                                        delay: payload.delay,
-                                        number_of_samples: payload.number_of_samples,
-                                        data_length: data.len() as u16,
-                                        data,
-                                    },
+                                    FakeStream::fake_device_data_ping360(
+                                        &payload,
+                                        i,
+                                        number_of_samples,
+                                        &mut rng,
+                                    ),
                                 );
 
                                 let mut msg = ProtocolMessage::new();
