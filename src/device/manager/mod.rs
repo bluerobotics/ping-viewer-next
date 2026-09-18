@@ -180,7 +180,7 @@ pub struct SourceFakeStruct {
 pub enum DeviceStatus {
     Available,
     Running,
-    Error,
+    Error(String),
     ContinuousMode,
 }
 
@@ -238,7 +238,7 @@ impl std::fmt::Display for DeviceStatus {
             DeviceStatus::Available => write!(f, "available"),
             DeviceStatus::Running => write!(f, "running"),
             DeviceStatus::ContinuousMode => write!(f, "streaming"),
-            DeviceStatus::Error => write!(f, "in error state"),
+            DeviceStatus::Error(reason) => write!(f, "in error state ({reason})"),
         }
     }
 }
@@ -457,7 +457,10 @@ impl DeviceManager {
         };
 
         for device in device_info {
-            if matches!(device.status, DeviceStatus::Error | DeviceStatus::Available) {
+            if matches!(
+                device.status,
+                DeviceStatus::Error(_) | DeviceStatus::Available
+            ) {
                 continue;
             }
 
@@ -485,7 +488,8 @@ impl DeviceManager {
                         "Device Actor main task finished, marking device with error. Device id: {:?}",
                         device.id
                     );
-                    device_entry.status = DeviceStatus::Error;
+                    device_entry.status =
+                        DeviceStatus::Error("Device Actor main task finished".into());
                     continue;
                 }
             }
@@ -513,13 +517,15 @@ impl DeviceManager {
     ) {
         let Some(broadcast) = &device_entry.broadcast else {
             error!("Device actor broadcast service finished, marking device with error. Device id: {:?}", device_id);
-            device_entry.status = DeviceStatus::Error;
+            device_entry.status =
+                DeviceStatus::Error("Device actor broadcast service finished".into());
             return;
         };
 
         if broadcast.is_finished() {
             error!("Device actor broadcast service finished, marking device with error. Device id: {:?}", device_id);
-            device_entry.status = DeviceStatus::Error;
+            device_entry.status =
+                DeviceStatus::Error("Device actor broadcast service finished".into());
             return;
         }
 
@@ -532,7 +538,8 @@ impl DeviceManager {
                         error!(
                             "Device connection timeout, marking with error. Device id: {device_id:?}",
                         );
-                        device_entry.status = DeviceStatus::Error;
+                        device_entry.status =
+                            DeviceStatus::Error("Device connection timeout".into());
                     }
                     Ok(Err(err)) => match err {
                         tokio::sync::broadcast::error::RecvError::Lagged(_) => error!(
@@ -540,7 +547,8 @@ impl DeviceManager {
                         ),
                         tokio::sync::broadcast::error::RecvError::Closed => {
                             error!("Device connection error, marking with error. Device id: {device_id:?}, Error: {err:?}");
-                            device_entry.status = DeviceStatus::Error;
+                            device_entry.status =
+                                DeviceStatus::Error("Device connection error".into());
                         }
                     },
                     Ok(Ok(_ok)) => {
@@ -569,21 +577,21 @@ impl DeviceManager {
         )
         .await
         {
-            Err(_err) => {
+            Err(_) => {
                 error!(
                     "Device connection timeout, marking with error. Device id: {:?}",
                     device_id
                 );
-                device_entry.status = DeviceStatus::Error;
+                device_entry.status = DeviceStatus::Error("Device connection timeout".into());
             }
-            Ok(Err(err)) => {
+            Ok(Err(error)) => {
                 error!(
                     "Device connection error, marking with error. Device id: {:?}, Error: {:?}",
-                    device_id, err
+                    device_id, error,
                 );
-                device_entry.status = DeviceStatus::Error;
+                device_entry.status = DeviceStatus::Error("Device connection error".into());
             }
-            Ok(Ok(_answer)) => {
+            Ok(Ok(_)) => {
                 debug!("Device still responsive. Device id: {:?}", device_id);
             }
         }
