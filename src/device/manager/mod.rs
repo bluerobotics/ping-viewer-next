@@ -15,7 +15,7 @@ use std::{
     net::{Ipv4Addr, SocketAddrV4, UdpSocket},
     ops::Deref,
     sync::{atomic::AtomicU16, Arc, RwLock},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::{
     sync::{broadcast::Receiver, mpsc, oneshot},
@@ -47,6 +47,9 @@ pub struct Device {
     pub status: DeviceStatus,
     pub device_type: DeviceSelection,
     pub properties: Option<DeviceProperties>,
+    pub recover_attempts: u32,
+    // Next instant to attempt recovery at
+    pub next_recover_at: Option<Instant>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -112,6 +115,22 @@ impl Device {
             device_type: self.device_type.clone(),
             properties: self.properties.clone(),
         }
+    }
+
+    fn reset_recover_backoff(&mut self) {
+        self.recover_attempts = 0;
+        self.next_recover_at = None;
+    }
+
+    fn schedule_recover_backoff(&mut self) {
+        self.recover_attempts = self.recover_attempts.saturating_add(1);
+        self.next_recover_at = Some(Instant::now() + Duration::from_secs(10));
+    }
+
+    fn due_for_recover(&self) -> bool {
+        self.next_recover_at
+            .map(|at| Instant::now() >= at)
+            .unwrap_or(true)
     }
 }
 
@@ -429,8 +448,11 @@ impl DeviceManager {
                             info!("New device available, registered with id {:?} : device_type: {:?}", device_info.id, device_info.device_type);
 
                             if crate::cli::manager::is_enable_auto_create() {
-                                if let Err(err) = self.auto_create_device(device_info.id).await {
-                                    error!("Failed to auto create discovered device {:?}: {err:?}", device_info.id);
+                                if let Err(error) = self.auto_create_device(device_info.id).await {
+                                    error!("Failed to auto create discovered device {:?}: {error:?}", device_info.id);
+                                    if let Ok(device) = self.get_mut_device(device_info.id) {
+                                        device.schedule_recover_backoff();
+                                    }
                                 }
                             }
                         }
@@ -451,6 +473,61 @@ impl DeviceManager {
     }
 
     pub async fn update_devices_status(&mut self) {
+        let device_info = match self.list().await {
+            Ok(Answer::DeviceInfo(answer)) => answer,
+            _ => return,
+        };
+
+        let auto_create = crate::cli::manager::is_enable_auto_create();
+        let mut recover_ids = Vec::new();
+        let mut available_ids = Vec::new();
+
+        for device in &device_info {
+            match &device.status {
+                DeviceStatus::Error(_) => {
+                    if self
+                        .get_device(device.id)
+                        .map(|entry| entry.due_for_recover())
+                        .unwrap_or(false)
+                    {
+                        recover_ids.push(device.id);
+                    }
+                }
+                DeviceStatus::Available if auto_create => {
+                    if self
+                        .get_device(device.id)
+                        .map(|entry| entry.actor.is_none() && entry.due_for_recover())
+                        .unwrap_or(false)
+                    {
+                        available_ids.push(device.id);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        for device_id in recover_ids {
+            if let Err(err) = self.recover_device(device_id).await {
+                error!("Auto-heal failed for device {device_id:?}: {err:?}");
+            }
+        }
+
+        for device_id in available_ids {
+            match self.auto_create_device(device_id).await {
+                Ok(_) => {
+                    if let Ok(device) = self.get_mut_device(device_id) {
+                        device.reset_recover_backoff();
+                    }
+                }
+                Err(err) => {
+                    error!("Failed to auto create available device {device_id:?}: {err:?}");
+                    if let Ok(device) = self.get_mut_device(device_id) {
+                        device.schedule_recover_backoff();
+                    }
+                }
+            }
+        }
+
         let device_info = match self.list().await {
             Ok(Answer::DeviceInfo(answer)) => answer,
             _ => return,
@@ -745,6 +822,8 @@ impl DeviceManager {
             broadcast: None,
             device_type: device_selection,
             properties: None,
+            recover_attempts: 0,
+            next_recover_at: None,
         };
 
         self.device.insert(hash, device);
@@ -950,6 +1029,8 @@ impl DeviceManager {
             broadcast: None,
             device_type: device_info.device_type,
             properties: device_info.properties,
+            recover_attempts: 0,
+            next_recover_at: None,
         };
 
         let info = device.info();
@@ -1053,10 +1134,15 @@ impl DeviceManager {
         self.check_device_uuid(device_id)?;
         self.stop_then_teardown_device_runtime(device_id).await?;
         match self.auto_create_device(device_id).await {
-            Ok(answer) => Ok(answer),
+            Ok(answer) => {
+                self.get_mut_device(device_id)?.reset_recover_backoff();
+                Ok(answer)
+            }
             Err(error) => {
-                error!("Failed to recover device {device_id:?}: {error:?}");
-                self.get_mut_device(device_id)?.status = DeviceStatus::Error(error.to_string());
+                error!("Failed to recover device {device_id:?}: {err:?}");
+                let device = self.get_mut_device(device_id)?;
+                device.status = DeviceStatus::Error(error.to_string());
+                device.schedule_recover_backoff();
                 Err(error)
             }
         }
