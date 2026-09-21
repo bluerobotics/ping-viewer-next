@@ -262,10 +262,28 @@ pub enum PingAnswer {
     UpgradeResult(UpgradeResult),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, thiserror::Error)]
 pub enum DeviceError {
+    #[error("{}", ping_error_message(.0))]
     PingError(bluerobotics_ping::error::PingError),
+    #[error("{0}")]
     TokioError(String),
+}
+
+fn ping_error_message(error: &bluerobotics_ping::error::PingError) -> String {
+    use bluerobotics_ping::error::PingError;
+
+    match error {
+        PingError::TimeoutError => "Device did not answer in time".to_string(),
+        PingError::Io(details) => format!("Connection to the device failed: {details}"),
+        PingError::ParseError(_) => "Received a malformed message from the device".to_string(),
+        PingError::TokioBroadcastError(details) | PingError::TokioMpscError(details) => {
+            format!("Internal device channel failed: {details}")
+        }
+        PingError::JoinError => "Device communication task stopped unexpectedly".to_string(),
+        PingError::TryFromError(_) => "Received an unexpected message from the device".to_string(),
+        PingError::NackError(details) => format!("Device rejected the request: {details}"),
+    }
 }
 
 impl Clone for PingAnswer {
