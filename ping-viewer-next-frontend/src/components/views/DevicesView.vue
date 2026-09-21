@@ -26,9 +26,14 @@
               <span class="font-bold">{{ selectedDevice.device_type }}</span>
               <span class="text-gray-400 ml-2">{{ selectedDevice.id }}</span>
             </div>
-            <v-chip :color="getStatusColor(selectedDevice.status)" size="small">
-              {{ getStatusLabel(selectedDevice.status) }}
-            </v-chip>
+            <v-tooltip location="bottom" :text="deviceStatusReason(selectedDevice.status)"
+              :disabled="!deviceStatusReason(selectedDevice.status)">
+              <template v-slot:activator="{ props }">
+                <v-chip v-bind="props" :color="getStatusColor(selectedDevice.status)" size="small">
+                  {{ getStatusLabel(selectedDevice.status) }}
+                </v-chip>
+              </template>
+            </v-tooltip>
           </div>
         </div>
 
@@ -58,6 +63,11 @@ import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import DeviceSettings from '../utils/DeviceManager.vue';
 import Ping1DLoader from '../widgets/sonar1d/Ping1DLoader.vue';
 import Ping360Loader from '../widgets/sonar360/Ping360Loader.vue';
+import {
+  deviceStatusColor as getStatusColor,
+  deviceStatusLabel as getStatusLabel,
+  deviceStatusReason,
+} from '@/ping-device/utils/device-status';
 
 const props = defineProps({
   serverUrl: {
@@ -103,30 +113,6 @@ const containerStyle = computed(() => ({
   maxWidth: '100%',
   maxHeight: '100%',
 }));
-
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'ContinuousMode':
-    case 'Running':
-      return 'success';
-    case 'Error':
-      return 'error';
-    default:
-      return 'warning';
-  }
-};
-
-const getStatusLabel = (status) => {
-  switch (status) {
-    case 'ContinuousMode':
-    case 'Running':
-      return 'Connected';
-    case 'Error':
-      return 'Error';
-    default:
-      return 'Available';
-  }
-};
 
 const selectDevice = async (device) => {
   isComponentReady.value = false;
