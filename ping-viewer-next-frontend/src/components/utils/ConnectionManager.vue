@@ -52,9 +52,15 @@
 
               <template v-slot:append>
                 <div class="d-flex align-center gap-2">
-                  <v-btn variant="elevated" class="rounded-lg -mb-1" :color="getStatusColor(device.status)" size="small">
-                    {{ getStatusLabel(device.status) }}
-                  </v-btn>
+                  <v-tooltip location="bottom" :text="deviceStatusReason(device.status)"
+                    :disabled="!deviceStatusReason(device.status)">
+                    <template v-slot:activator="{ props }">
+                      <v-btn v-bind="props" variant="elevated" class="rounded-lg -mb-1"
+                        :color="getStatusColor(device.status)" size="small">
+                        {{ getStatusLabel(device.status) }}
+                      </v-btn>
+                    </template>
+                  </v-tooltip>
 
                   <v-menu location="start" offset="5">
                     <template v-slot:activator="{ props }">
@@ -233,6 +239,11 @@
 
 <script setup>
 import { inject, onMounted, onUnmounted, ref, watch } from 'vue';
+import {
+  deviceStatusColor as getStatusColor,
+  deviceStatusLabel as getStatusLabel,
+  deviceStatusReason,
+} from '@/ping-device/utils/device-status';
 
 const props = defineProps({
   serverUrl: {
@@ -325,30 +336,6 @@ const connectionTypes = [
   { title: 'Serial', value: 'SerialStream' },
   { title: 'Fake device', value: 'FakeStream' },
 ];
-
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'ContinuousMode':
-    case 'Running':
-      return 'success';
-    case 'Error':
-      return 'error';
-    default:
-      return 'warning';
-  }
-};
-
-const getStatusLabel = (status) => {
-  switch (status) {
-    case 'ContinuousMode':
-    case 'Running':
-      return 'Connected';
-    case 'Error':
-      return 'Error';
-    default:
-      return 'Available';
-  }
-};
 
 const toggleManualCreate = () => {
   showManualCreate.value = !showManualCreate.value;
