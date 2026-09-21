@@ -132,6 +132,13 @@ impl Device {
             .map(|at| Instant::now() >= at)
             .unwrap_or(true)
     }
+
+    fn mark_error(&mut self, reason: impl Into<String>) {
+        self.status = DeviceStatus::Error(reason.into());
+        if self.next_recover_at.is_none() {
+            self.next_recover_at = Some(Instant::now() + Duration::from_secs(10));
+        }
+    }
 }
 
 impl Drop for Device {
@@ -547,6 +554,9 @@ impl DeviceManager {
                 Ok(receiver) => receiver,
                 Err(err) => {
                     error!("Device connection error, cant take subscriber. Device id: {:?}, Error: {err:?}", device.id);
+                    if let Some(entry) = self.device.get_mut(&device.id) {
+                        entry.mark_error(format!("Could not subscribe to the device: {err}"));
+                    }
                     continue;
                 }
             };
@@ -565,8 +575,7 @@ impl DeviceManager {
                         "Device Actor main task finished, marking device with error. Device id: {:?}",
                         device.id
                     );
-                    device_entry.status =
-                        DeviceStatus::Error("Device Actor main task finished".into());
+                    device_entry.mark_error("Device Actor main task finished");
                     continue;
                 }
             }
@@ -594,15 +603,13 @@ impl DeviceManager {
     ) {
         let Some(broadcast) = &device_entry.broadcast else {
             error!("Device actor broadcast service finished, marking device with error. Device id: {:?}", device_id);
-            device_entry.status =
-                DeviceStatus::Error("Device actor broadcast service finished".into());
+            device_entry.mark_error("Device actor broadcast service finished");
             return;
         };
 
         if broadcast.is_finished() {
             error!("Device actor broadcast service finished, marking device with error. Device id: {:?}", device_id);
-            device_entry.status =
-                DeviceStatus::Error("Device actor broadcast service finished".into());
+            device_entry.mark_error("Device actor broadcast service finished");
             return;
         }
 
@@ -611,24 +618,22 @@ impl DeviceManager {
                 match tokio::time::timeout(std::time::Duration::from_secs(15), receiver.recv())
                     .await
                 {
-                    Err(_err) => {
+                    Err(_) => {
                         error!(
                             "Device connection timeout, marking with error. Device id: {device_id:?}",
                         );
-                        device_entry.status =
-                            DeviceStatus::Error("Device connection timeout".into());
+                        device_entry.mark_error("Device connection timeout");
                     }
-                    Ok(Err(err)) => match err {
+                    Ok(Err(error)) => match error {
                         tokio::sync::broadcast::error::RecvError::Lagged(_) => error!(
-                            "Device connection error. Device id: {device_id:?}, Error: {err:?}"
+                            "Device connection error. Device id: {device_id:?}, Error: {error:?}"
                         ),
                         tokio::sync::broadcast::error::RecvError::Closed => {
-                            error!("Device connection error, marking with error. Device id: {device_id:?}, Error: {err:?}");
-                            device_entry.status =
-                                DeviceStatus::Error("Device connection error".into());
+                            error!("Device connection error, marking with error. Device id: {device_id:?}, Error: {error:?}");
+                            device_entry.mark_error("Device connection error");
                         }
                     },
-                    Ok(Ok(_ok)) => {
+                    Ok(Ok(_)) => {
                         debug!("Device still responsive. Device id: {device_id:?}");
                     }
                 }
@@ -641,6 +646,11 @@ impl DeviceManager {
 
     async fn check_running_device(device_entry: &mut Device, device_id: Uuid) {
         let Some(handler) = &device_entry.handler else {
+            error!(
+                "Device handler missing, marking with error. Device id: {:?}",
+                device_id
+            );
+            device_entry.mark_error("Device handler missing");
             return;
         };
 
@@ -659,14 +669,14 @@ impl DeviceManager {
                     "Device connection timeout, marking with error. Device id: {:?}",
                     device_id
                 );
-                device_entry.status = DeviceStatus::Error("Device connection timeout".into());
+                device_entry.mark_error("Device connection timeout");
             }
             Ok(Err(error)) => {
                 error!(
                     "Device connection error, marking with error. Device id: {:?}, Error: {:?}",
                     device_id, error,
                 );
-                device_entry.status = DeviceStatus::Error("Device connection error".into());
+                device_entry.mark_error("Device connection error");
             }
             Ok(Ok(_)) => {
                 debug!("Device still responsive. Device id: {:?}", device_id);
@@ -979,16 +989,18 @@ impl DeviceManager {
                     device_id, error
                 );
                 self.stop_then_teardown_device_runtime(device_id).await?;
-                self.get_mut_device(device_id)?.status = DeviceStatus::Error(error.to_string());
+                let device = self.get_mut_device(device_id)?;
+                device.mark_error(error.to_string());
+                device.schedule_recover_backoff();
                 return Err(error);
             }
         }
 
         match self.get_device(device_id) {
             Ok(device) => Ok(device.info()),
-            Err(err) => {
-                error!("Failed to get device info for {}: {:?}", device_id, err);
-                Err(err)
+            Err(error) => {
+                error!("Failed to get device info for {}: {:?}", device_id, error);
+                Err(error)
             }
         }
     }
@@ -1139,9 +1151,9 @@ impl DeviceManager {
                 Ok(answer)
             }
             Err(error) => {
-                error!("Failed to recover device {device_id:?}: {err:?}");
+                error!("Failed to recover device {device_id:?}: {error:?}");
                 let device = self.get_mut_device(device_id)?;
-                device.status = DeviceStatus::Error(error.to_string());
+                device.mark_error(error.to_string());
                 device.schedule_recover_backoff();
                 Err(error)
             }
