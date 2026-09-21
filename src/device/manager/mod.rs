@@ -210,17 +210,37 @@ pub enum Answer {
     DeviceConfig(ModifyDeviceResult),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, thiserror::Error)]
 pub enum ManagerError {
+    #[error("Device {0} is not registered")]
     DeviceNotExist(Uuid),
+    #[error("Device {0} is already registered")]
     DeviceAlreadyExist(Uuid),
+    #[error("Device {1} is {0}")]
     DeviceStatus(DeviceStatus, Uuid),
+    #[error("{0}")]
     DeviceError(super::devices::DeviceError),
+    #[error("Could not open the device source: {0}")]
     DeviceSourceError(String),
+    #[error("No devices available")]
     NoDevices,
+    #[error("Internal request channel failed: {0}")]
     TokioMpsc(String),
+    #[error("Request is not implemented: {0:?}")]
     NotImplemented(Request),
+    #[error("{0}")]
     Other(String),
+}
+
+impl std::fmt::Display for DeviceStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeviceStatus::Available => write!(f, "available"),
+            DeviceStatus::Running => write!(f, "running"),
+            DeviceStatus::ContinuousMode => write!(f, "streaming"),
+            DeviceStatus::Error => write!(f, "in error state"),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
