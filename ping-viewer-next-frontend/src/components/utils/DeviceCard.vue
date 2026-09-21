@@ -37,9 +37,14 @@
       <div class="mt-2">
         <div class="text-sm">
           <strong>Status:</strong>
-          <v-chip :color="getStatusColor(device.status)" size="small" class="ml-2">
-            {{ getStatusLabel(device.status) }}
-          </v-chip>
+          <v-tooltip location="bottom" :text="deviceStatusReason(device.status)"
+            :disabled="!deviceStatusReason(device.status)">
+            <template v-slot:activator="{ props }">
+              <v-chip v-bind="props" :color="getStatusColor(device.status)" size="small" class="ml-2">
+                {{ getStatusLabel(device.status) }}
+              </v-chip>
+            </template>
+          </v-tooltip>
         </div>
       </div>
 
@@ -57,6 +62,12 @@
 </template>
 
 <script setup>
+import {
+  deviceStatusColor as getStatusColor,
+  deviceStatusLabel as getStatusLabel,
+  deviceStatusReason,
+} from '@/ping-device/utils/device-status';
+
 const props = defineProps({
   device: {
     type: Object,
@@ -81,27 +92,6 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['click', 'dblclick', 'toggle']);
-
-const getStatusColor = (status) => {
-  const statusColors = {
-    Running: 'success',
-    ContinuousMode: 'success',
-    Error: 'error',
-  };
-  return statusColors[status] || 'warning';
-};
-
-const getStatusLabel = (status) => {
-  switch (status) {
-    case 'ContinuousMode':
-    case 'Running':
-      return 'Connected';
-    case 'Error':
-      return 'Error';
-    default:
-      return 'Available';
-  }
-};
 
 const handleClick = (event) => {
   if (props.clickable) {
