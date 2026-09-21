@@ -894,11 +894,14 @@ impl DeviceManager {
                     device_id
                 );
             }
-            Err(err) => {
+            Err(error) => {
                 error!(
                     "Failed to enable continuous mode for device {}: {:?}",
-                    device_id, err
+                    device_id, error
                 );
+                self.stop_then_teardown_device_runtime(device_id).await?;
+                self.get_mut_device(device_id)?.status = DeviceStatus::Error(error.to_string());
+                return Err(error);
             }
         }
 
@@ -992,6 +995,73 @@ impl DeviceManager {
         Ok(())
     }
 
+    pub async fn stop_then_teardown_device_runtime(
+        &mut self,
+        device_id: Uuid,
+    ) -> Result<(), ManagerError> {
+        let (handler, device_type, source) = {
+            let device = self.get_device(device_id)?;
+            (
+                device.handler.clone(),
+                device.device_type,
+                device.source.clone(),
+            )
+        };
+
+        if let Some(handler) = handler {
+            match device_type {
+                DeviceSelection::Ping1D => {
+                    let id = <bluerobotics_ping::ping1d::ProfileStruct as bluerobotics_ping::message::MessageInfo>::id();
+                    if let Err(err) = handler
+                        .send(super::devices::PingRequest::Ping1D(
+                            super::devices::Ping1DRequest::ContinuousStop(
+                                bluerobotics_ping::ping1d::ContinuousStopStruct { id },
+                            ),
+                        ))
+                        .await
+                    {
+                        warn!(
+                            "stop_then_teardown: ContinuousStop failed for {device_id:?}: {err:?}"
+                        );
+                    }
+                }
+                DeviceSelection::Ping360 => {
+                    if matches!(source, SourceSelection::SerialStream(_)) {
+                        if let Err(err) = handler
+                            .send(super::devices::PingRequest::Ping360(
+                                super::devices::Ping360Request::MotorOff,
+                            ))
+                            .await
+                        {
+                            warn!("stop_then_teardown: MotorOff failed for {device_id:?}: {err:?}");
+                        }
+                    }
+                }
+                DeviceSelection::Common | DeviceSelection::Auto => {}
+            }
+        }
+
+        if let Err(err) = turnoff_device_continuous_mode(&source).await {
+            warn!("stop_then_teardown: turnoff failed for {device_id:?}: {err:?}");
+        }
+        sleep(Duration::from_millis(500)).await;
+
+        self.teardown_device_runtime(device_id)
+    }
+
+    pub async fn recover_device(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
+        self.check_device_uuid(device_id)?;
+        self.stop_then_teardown_device_runtime(device_id).await?;
+        match self.auto_create_device(device_id).await {
+            Ok(answer) => Ok(answer),
+            Err(error) => {
+                error!("Failed to recover device {device_id:?}: {error:?}");
+                self.get_mut_device(device_id)?.status = DeviceStatus::Error(error.to_string());
+                Err(error)
+            }
+        }
+    }
+
     pub async fn delete(&mut self, id: Uuid) -> Result<Answer, ManagerError> {
         let device = self
             .device
@@ -1007,9 +1077,15 @@ impl DeviceManager {
     }
 
     pub async fn continuous_mode(&mut self, device_id: Uuid) -> Result<Answer, ManagerError> {
-        if let Ok(DeviceStatus::Available) = self.get_device_status(device_id) {
-            self.auto_create_device(device_id).await?;
-            trace!("Successfully created device in continuous_mode for {device_id:?}");
+        match self.get_device_status(device_id)? {
+            DeviceStatus::Available => {
+                self.auto_create_device(device_id).await?;
+                trace!("Successfully created device in continuous_mode for {device_id:?}");
+            }
+            DeviceStatus::Error(_) => {
+                return self.recover_device(device_id).await;
+            }
+            DeviceStatus::ContinuousMode | DeviceStatus::Running => {}
         }
 
         match self.get_device_status(device_id) {
