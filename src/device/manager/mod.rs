@@ -979,6 +979,19 @@ impl DeviceManager {
         Ok(device_info)
     }
 
+    pub fn teardown_device_runtime(&mut self, device_id: Uuid) -> Result<(), ManagerError> {
+        let device = self.get_mut_device(device_id)?;
+        if let Some(handle) = device.actor.take() {
+            handle.abort();
+        }
+        if let Some(broadcast) = device.broadcast.take() {
+            broadcast.abort();
+        }
+        device.handler = None;
+        device.status = DeviceStatus::Available;
+        Ok(())
+    }
+
     pub async fn delete(&mut self, id: Uuid) -> Result<Answer, ManagerError> {
         let device = self
             .device
