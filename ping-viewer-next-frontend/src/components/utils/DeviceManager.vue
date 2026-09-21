@@ -88,9 +88,14 @@
 								{{ device.id }}
 							</td>
 							<td>
-								<v-chip :color="getStatusColor(device.status)" size="small">
-									{{ getStatusLabel(device.status) }}
-								</v-chip>
+								<v-tooltip location="bottom" :text="deviceStatusReason(device.status)"
+									:disabled="!deviceStatusReason(device.status)">
+									<template v-slot:activator="{ props }">
+										<v-chip v-bind="props" :color="getStatusColor(device.status)" size="small">
+											{{ getStatusLabel(device.status) }}
+										</v-chip>
+									</template>
+								</v-tooltip>
 							</td>
 							<td>
 								<div v-if="device.source.SerialStream">
@@ -201,6 +206,11 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue';
+import {
+  deviceStatusColor as getStatusColor,
+  deviceStatusLabel as getStatusLabel,
+  deviceStatusReason,
+} from '@/ping-device/utils/device-status';
 
 const props = defineProps({
   serverUrl: {
@@ -281,30 +291,6 @@ const newDevice = ref({
     baudrate: 2500000,
   },
 });
-
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'ContinuousMode':
-    case 'Running':
-      return 'success';
-    case 'Error':
-      return 'error';
-    default:
-      return 'warning';
-  }
-};
-
-const getStatusLabel = (status) => {
-  switch (status) {
-    case 'ContinuousMode':
-    case 'Running':
-      return 'Connected';
-    case 'Error':
-      return 'Error';
-    default:
-      return 'Available';
-  }
-};
 
 const fetchDevices = async () => {
   try {
