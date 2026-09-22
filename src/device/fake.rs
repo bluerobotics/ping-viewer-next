@@ -9,7 +9,7 @@ use bluerobotics_ping::{
     message::{DeserializePayload, ProtocolMessage},
     ping360::{AutoDeviceDataStruct, AutoTransmitStruct},
 };
-use rand::{rngs::StdRng, Rng, RngExt, SeedableRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     sync::mpsc::{self, Receiver, Sender},
