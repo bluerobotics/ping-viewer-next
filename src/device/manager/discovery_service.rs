@@ -210,12 +210,7 @@ impl DeviceDiscoveryManager {
                     }
                 }
 
-                if let Some(result) =
-                    tokio::task::spawn_blocking(device_discovery::network_discovery)
-                        .await
-                        .ok()
-                        .flatten()
-                {
+                if let Some(result) = device_discovery::network_discovery().await {
                     for source in result {
                         let key = get_device_key(&source);
                         if !device_keys.contains(&key) {

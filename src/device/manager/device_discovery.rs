@@ -103,59 +103,102 @@ impl DiscoveryResponse {
     }
 }
 
-pub fn network_discovery() -> Option<Vec<SourceSelection>> {
-    let socket = match std::net::UdpSocket::bind("0.0.0.0:0") {
-        Ok(s) => s,
-        Err(err) => {
-            warn!("auto_create: network: Failed to bind to socket: {err}");
-            return None;
-        }
-    };
+pub async fn network_discovery() -> Option<Vec<SourceSelection>> {
+    // Find IPv4 addresses on all interfaces
+    let addresses = netdev::get_interfaces()
+        .into_iter()
+        .flat_map(|interface| interface.ipv4)
+        .collect::<Vec<_>>();
 
-    if let Err(err) = socket.set_broadcast(true) {
-        warn!("auto_create: network: Failed to enable broadcast: {err}");
-        return None;
-    }
+    let mut tasks = Vec::with_capacity(addresses.len());
 
-    let broadcast_addr = "255.255.255.255:30303";
-    let discovery_message = "Discovery";
-
-    if let Err(err) = socket.send_to(discovery_message.as_bytes(), broadcast_addr) {
-        warn!("auto_create: network: Failed to send discovery message: {err}");
-        return None;
-    }
-
-    if let Err(err) = socket.set_read_timeout(Some(std::time::Duration::from_secs(2))) {
-        warn!("auto_create: network: Failed to set read timeout: {err}");
-        return None;
-    }
-
-    let mut buf = [0; 1024];
-    let mut responses = Vec::new();
-
-    loop {
-        match socket.recv_from(&mut buf) {
-            Ok((size, src)) => {
-                let response = match std::str::from_utf8(&buf[..size]) {
-                    Ok(r) => r,
-                    Err(err) => {
-                        warn!("auto_create: network: Received invalid UTF-8 response from: {src}, details: {err}");
-                        continue;
-                    }
-                };
-
-                if let Some(discovery_response) = DiscoveryResponse::from_response(response) {
-                    responses.push(discovery_response);
-                } else {
+    for address in addresses {
+        let task = tokio::spawn(async move {
+            let socket = match tokio::net::UdpSocket::bind((address.addr(), 0)).await {
+                Ok(socket) => socket,
+                Err(error) => {
                     warn!(
-                        "auto_create: network: Failed to parse the discovery response from: {src}"
+                        %address,
+                        "auto_create: network: Failed to bind to socket: {error}"
                     );
+                    return vec![];
+                }
+            };
+
+            if let Err(error) = socket.set_broadcast(true) {
+                warn!(
+                    %address,
+                    "auto_create: network: Failed to enable broadcast: {error}"
+                );
+                return vec![];
+            }
+
+            if let Err(error) = socket
+                .send_to(b"Discovery", (address.broadcast(), 30303))
+                .await
+            {
+                warn!(
+                    %address,
+                    "auto_create: network: Failed to send discovery message: {error}"
+                );
+                return vec![];
+            }
+
+            let mut buf = [0; 1024];
+            let mut responses = Vec::new();
+
+            loop {
+                match timeout(
+                    std::time::Duration::from_secs(2),
+                    socket.recv_from(&mut buf),
+                )
+                .await
+                {
+                    Ok(Ok((size, src))) => {
+                        let response = match std::str::from_utf8(&buf[..size]) {
+                            Ok(response) => response,
+                            Err(error) => {
+                                warn!(%address, "auto_create: network: Received invalid UTF-8 response from: {src}, details: {error}");
+                                continue;
+                            }
+                        };
+
+                        if let Some(discovery_response) = DiscoveryResponse::from_response(response)
+                        {
+                            responses.push(discovery_response);
+                        } else {
+                            warn!(
+                                %address,
+                                "auto_create: network: Failed to parse the discovery response from: {src}"
+                            );
+                        }
+                    }
+                    Ok(Err(error)) => {
+                        warn!(
+                            %address,
+                            "auto_create: network: Error receiving response: {error}"
+                        );
+                        break;
+                    }
+                    Err(_) => {
+                        warn!(%address, "auto_create: network: Timeout");
+                        break;
+                    }
                 }
             }
-            Err(err) => {
-                warn!("auto_create: network: Timeout or error receiving response: {err}");
-                break;
-            }
+
+            responses
+        });
+
+        tasks.push(task);
+    }
+
+    let mut responses: Vec<DiscoveryResponse> = Vec::new();
+
+    for task in tasks {
+        match task.await {
+            Ok(result) => responses.extend(result),
+            Err(error) => warn!("auto_create: network: Discovery task failed: {error}"),
         }
     }
 
