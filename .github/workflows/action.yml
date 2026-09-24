@@ -5,6 +5,9 @@ on: [push, pull_request]
 permissions:
   contents: write
 
+env:
+  NODE_VERSION: "24"
+
 jobs:
   quick-tests:
     runs-on: ubuntu-22.04
@@ -34,10 +37,11 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Install build dependencies - Bun
-        uses: oven-sh/setup-bun@v2.0.1
+      - name: Install build dependencies - Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          bun-version: 1.1.30
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: "https://registry.npmjs.org"
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -60,22 +64,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          bun-version: 1.1.22
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: Format check
-        run: bunx biome format
+        run: npx biome format
 
       - name: Lint check
-        run: bunx biome lint
+        run: npx biome lint
 
       - name: Build project
-        run: bun run build
+        run: npm run build
 
       - name: Upload dist folder
         uses: actions/upload-artifact@v4
@@ -275,15 +280,11 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
         # webkitgtk 4.0 is for Tauri v1 - webkitgtk 4.1 is for Tauri v2.
 
-      - name: setup node
-        uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: lts/*
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: "https://registry.npmjs.org"
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -299,7 +300,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd ping-viewer-next-desktop
-          bun install
+          npm ci
 
       - name: Build the app
         id: tauri-build
