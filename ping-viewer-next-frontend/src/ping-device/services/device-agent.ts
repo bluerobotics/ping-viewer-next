@@ -59,7 +59,7 @@ export class DeviceAgent implements DeviceAgentState {
     this.apiService = new ApiService(serverUrl);
     this.connect();
 
-    watch(this.ping360Settings, async (newSettings, oldSettings) => {
+    watch(this.ping360Settings, async (newSettings, _oldSettings) => {
       if (newSettings) {
         const mode = await this.checkViewSector();
         this.polarMode.value = mode;

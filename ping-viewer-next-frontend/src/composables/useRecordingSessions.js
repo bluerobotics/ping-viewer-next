@@ -73,7 +73,7 @@ const createWebSocketManager = () => {
         isConnected = false;
       };
 
-      ws.onclose = (event) => {
+      ws.onclose = (_event) => {
         isConnected = false;
 
         for (const listener of listeners) {
@@ -131,7 +131,7 @@ const createWebSocketManager = () => {
   };
 
   const removeListener = (listener) => {
-    const wasRemoved = listeners.delete(listener);
+    listeners.delete(listener);
 
     // Only disconnect if there are no more listeners
     if (listeners.size === 0) {

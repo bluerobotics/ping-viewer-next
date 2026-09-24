@@ -7,7 +7,7 @@ export function useMenuCoordination(menus, options = {}) {
     watch(currentRef, (newValue) => {
       if (newValue) {
         const lastOpenMenu = Object.entries(menus).find(
-          ([_, ref]) => ref.value && ref !== currentRef,
+          ([_menu, ref]) => ref.value && ref !== currentRef,
         )?.[0];
 
         for (const [otherMenu, otherRef] of Object.entries(menus)) {

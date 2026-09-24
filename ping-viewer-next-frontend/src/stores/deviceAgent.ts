@@ -293,6 +293,7 @@ export const usePingDeviceStore = defineStore("pingDevice", () => {
 
         return true;
       } catch (error) {
+        console.warn(error);
         return false;
       }
     };
@@ -311,6 +312,7 @@ export const usePingDeviceStore = defineStore("pingDevice", () => {
 
         return true;
       } catch (error) {
+        console.warn(error);
         return false;
       }
     };
@@ -327,6 +329,7 @@ export const usePingDeviceStore = defineStore("pingDevice", () => {
 
         return true;
       } catch (error) {
+        console.warn(error);
         return false;
       }
     };
@@ -343,6 +346,7 @@ export const usePingDeviceStore = defineStore("pingDevice", () => {
 
         return true;
       } catch (error) {
+        console.warn(error);
         return false;
       }
     };
