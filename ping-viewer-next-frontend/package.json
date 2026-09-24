@@ -5,7 +5,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --fix --ignore-path .gitignore"
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "lint": "oxlint"
   },
   "dependencies": {
     "@bluerobotics/cockpit-api": "^1.0.0-alpha-2",
@@ -17,6 +19,8 @@
     "@vueuse/core": "^12.5.0",
     "caniuse-lite": "^1.0.30001724",
     "core-js": "^3.39.0",
+    "oxfmt": "^0.70.0",
+    "oxlint": "^1.85.0",
     "pinia": "^3.0.1",
     "roboto-fontface": "^0.10.0",
     "safe-units": "^2.0.1",
