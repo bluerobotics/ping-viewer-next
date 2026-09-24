@@ -11,7 +11,7 @@
 </template>
 
 <script setup>
-import { computed, inject, ref } from 'vue';
+import { computed, inject, ref } from "vue";
 
 const props = defineProps({
   device: {
@@ -24,9 +24,9 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['recording-started', 'recording-stopped']);
+const emit = defineEmits(["recording-started", "recording-stopped"]);
 
-const recordingSessions = inject('recordingSessions', ref(new Map()));
+const recordingSessions = inject("recordingSessions", ref(new Map()));
 const isLoading = ref(false);
 
 const isRecording = computed(() => {
@@ -48,16 +48,16 @@ const startRecording = async () => {
     const response = await fetch(
       `${props.serverUrl}/v1/recordings_manager/${props.device.id}/StartRecording`,
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      }
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      },
     );
     if (!response.ok) {
-      throw new Error('Failed to start recording');
+      throw new Error("Failed to start recording");
     }
-    emit('recording-started');
+    emit("recording-started");
   } catch (err) {
-    console.error('Error starting recording:', err);
+    console.error("Error starting recording:", err);
   } finally {
     isLoading.value = false;
   }
@@ -69,16 +69,16 @@ const stopRecording = async () => {
     const response = await fetch(
       `${props.serverUrl}/v1/recordings_manager/${props.device.id}/StopRecording`,
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      }
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      },
     );
     if (!response.ok) {
-      throw new Error('Failed to stop recording');
+      throw new Error("Failed to stop recording");
     }
-    emit('recording-stopped');
+    emit("recording-stopped");
   } catch (err) {
-    console.error('Error stopping recording:', err);
+    console.error("Error stopping recording:", err);
   } finally {
     isLoading.value = false;
   }
@@ -95,12 +95,16 @@ const stopRecording = async () => {
   padding: 0 1rem;
   border-radius: 9999px;
   border: 2px solid transparent;
-  background-color: rgba(var(--v-theme-surface), 0.10);
+  background-color: rgba(var(--v-theme-surface), 0.1);
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(25px);
-  box-shadow: 0px 8px 8px 0px rgba(0, 0, 0, 0.2), 0px 8px 12px 6px rgba(0, 0, 0, 0.09);
+  box-shadow:
+    0px 8px 8px 0px rgba(0, 0, 0, 0.2),
+    0px 8px 12px 6px rgba(0, 0, 0, 0.09);
   cursor: pointer;
-  transition: border-color 0.3s ease, background-color 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    background-color 0.3s ease;
   outline: none;
   user-select: none;
   white-space: nowrap;
@@ -144,7 +148,8 @@ const stopRecording = async () => {
 }
 
 @keyframes pill-pulse {
-  0%, 100% {
+  0%,
+  100% {
     border-color: #ef4444;
   }
   50% {
@@ -153,7 +158,8 @@ const stopRecording = async () => {
 }
 
 @keyframes dot-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {

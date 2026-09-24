@@ -1,4 +1,4 @@
-import { watch } from 'vue';
+import { watch } from "vue";
 
 export function useMenuCoordination(menus, options = {}) {
   const { allowTransitions = [] } = options;
@@ -7,14 +7,14 @@ export function useMenuCoordination(menus, options = {}) {
     watch(currentRef, (newValue) => {
       if (newValue) {
         const lastOpenMenu = Object.entries(menus).find(
-          ([_, ref]) => ref.value && ref !== currentRef
+          ([_, ref]) => ref.value && ref !== currentRef,
         )?.[0];
 
         for (const [otherMenu, otherRef] of Object.entries(menus)) {
           if (otherMenu !== currentMenu) {
             const shouldAllowTransition = allowTransitions.some(
               (transition) =>
-                transition.from === lastOpenMenu && transition.to.includes(currentMenu)
+                transition.from === lastOpenMenu && transition.to.includes(currentMenu),
             );
 
             if (!shouldAllowTransition) {

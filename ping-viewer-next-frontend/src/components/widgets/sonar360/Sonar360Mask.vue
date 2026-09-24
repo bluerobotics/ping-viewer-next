@@ -1,66 +1,101 @@
 <template>
-	<div class="relative w-full h-full p4">
-		<div class="absolute inset-0">
-			<slot></slot>
-		</div>
+  <div class="relative w-full h-full p4">
+    <div class="absolute inset-0">
+      <slot></slot>
+    </div>
 
-		<svg class="absolute top-0 left-0 w-full h-full pointer-events-none" viewBox="0 0 100 100"
-			preserveAspectRatio="xMidYMid meet">
-			<defs>
-				<linearGradient :id="sweepGradientId" gradientUnits="userSpaceOnUse"
-					x1="50" y1="50"
-					:x2="50 + maxRadius * Math.cos(adjustedAngleRad)"
-					:y2="50 + maxRadius * Math.sin(adjustedAngleRad)">
-					<stop offset="0%" stop-color="white" stop-opacity="0" />
-					<stop offset="100%" stop-color="white" stop-opacity="0.9" />
-				</linearGradient>
-			</defs>
+    <svg
+      class="absolute top-0 left-0 w-full h-full pointer-events-none"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <defs>
+        <linearGradient
+          :id="sweepGradientId"
+          gradientUnits="userSpaceOnUse"
+          x1="50"
+          y1="50"
+          :x2="50 + maxRadius * Math.cos(adjustedAngleRad)"
+          :y2="50 + maxRadius * Math.sin(adjustedAngleRad)"
+        >
+          <stop offset="0%" stop-color="white" stop-opacity="0" />
+          <stop offset="100%" stop-color="white" stop-opacity="0.9" />
+        </linearGradient>
+      </defs>
 
-			<path v-if="!isFullCircle" :d="sectorPath" fill="none" :stroke="radiusLineColor"
-				:stroke-width="radiusLineWidth" vector-effect="non-scaling-stroke" />
+      <path
+        v-if="!isFullCircle"
+        :d="sectorPath"
+        fill="none"
+        :stroke="radiusLineColor"
+        :stroke-width="radiusLineWidth"
+        vector-effect="non-scaling-stroke"
+      />
 
-			<g v-if="showRadiusLines">
-				<path v-for="line in radiusLines" :key="line.distance" :d="getRadiusLinePath(line.radius)"
-					:stroke="radiusLineColor" :stroke-width="radiusLineWidth" fill="none"
-					vector-effect="non-scaling-stroke" />
-			</g>
+      <g v-if="showRadiusLines">
+        <path
+          v-for="line in radiusLines"
+          :key="line.distance"
+          :d="getRadiusLinePath(line.radius)"
+          :stroke="radiusLineColor"
+          :stroke-width="radiusLineWidth"
+          fill="none"
+          vector-effect="non-scaling-stroke"
+        />
+      </g>
 
-			<line v-for="deg in angleLines" :key="deg"
-				x1="50" y1="50"
-				:x2="50 + maxRadius * Math.cos((deg - 90) * Math.PI / 180)"
-				:y2="50 + maxRadius * Math.sin((deg - 90) * Math.PI / 180)"
-				:stroke="radiusLineColor" :stroke-width="radiusLineWidth"
-				vector-effect="non-scaling-stroke" />
+      <line
+        v-for="deg in angleLines"
+        :key="deg"
+        x1="50"
+        y1="50"
+        :x2="50 + maxRadius * Math.cos(((deg - 90) * Math.PI) / 180)"
+        :y2="50 + maxRadius * Math.sin(((deg - 90) * Math.PI) / 180)"
+        :stroke="radiusLineColor"
+        :stroke-width="radiusLineWidth"
+        vector-effect="non-scaling-stroke"
+      />
 
-			<line x1="50" y1="50"
-				:x2="50 + maxRadius * Math.cos(adjustedAngleRad)"
-				:y2="50 + maxRadius * Math.sin(adjustedAngleRad)"
-				:stroke="`url(#${sweepGradientId})`" stroke-width="2"
-				vector-effect="non-scaling-stroke" />
+      <line
+        x1="50"
+        y1="50"
+        :x2="50 + maxRadius * Math.cos(adjustedAngleRad)"
+        :y2="50 + maxRadius * Math.sin(adjustedAngleRad)"
+        :stroke="`url(#${sweepGradientId})`"
+        stroke-width="2"
+        vector-effect="non-scaling-stroke"
+      />
+    </svg>
 
-		</svg>
-
-		<!--
+    <!--
 			Intentional second scaleX(-1): the outer container in Ping360.vue is already
 			flipped when headDown is true. Re-flipping the markers here keeps their text
 			readable while the sonar itself remains mirrored.
 		-->
-		<div v-if="showMarkers" class="absolute inset-0" :style="headDown ? { transform: 'scaleX(-1)' } : {}">
-			<div v-for="line in radiusLines" :key="line.distance"
-				class="absolute text-4xl font-medium text-white depth-label transform -translate-x-1/2 -translate-y-1/2" :style="{
-					left: `calc(${getMarkerPositionPercent(line.radius).x}% + 50px)`,
-					top: `${getMarkerPositionPercent(line.radius).y}%`,
-				}">
-				{{ depthValue(line.distance).toFixed(1) }}{{ depthUnit }}
-			</div>
-		</div>
-	</div>
+    <div
+      v-if="showMarkers"
+      class="absolute inset-0"
+      :style="headDown ? { transform: 'scaleX(-1)' } : {}"
+    >
+      <div
+        v-for="line in radiusLines"
+        :key="line.distance"
+        class="absolute text-4xl font-medium text-white depth-label transform -translate-x-1/2 -translate-y-1/2"
+        :style="{
+          left: `calc(${getMarkerPositionPercent(line.radius).x}% + 50px)`,
+          top: `${getMarkerPositionPercent(line.radius).y}%`,
+        }"
+      >
+        {{ depthValue(line.distance).toFixed(1) }}{{ depthUnit }}
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { useUnits } from '../../../composables/useUnits';
-import { useHeadDown } from './useHeadDown';
+import { computed, ref } from "vue";
+import { useUnits } from "../../../composables/useUnits";
+import { useHeadDown } from "./useHeadDown";
 
 const instanceId = ref(Math.random().toString(36).slice(2, 8));
 const sweepGradientId = computed(() => `sweep-grad-${instanceId.value}`);
@@ -118,7 +153,7 @@ const radiusLines = computed(() => {
 });
 
 const sectorPath = computed(() => {
-  if (isFullCircle.value) return '';
+  if (isFullCircle.value) return "";
 
   const startRad = (props.startAngle - 90) * (Math.PI / 180);
   const endRad = (props.endAngle - 90) * (Math.PI / 180);
@@ -169,7 +204,7 @@ const getMarkerPositionPercent = (radius: number) => {
 
 <style scoped>
 .depth-label {
-	-webkit-text-stroke: 1px rgba(0, 0, 0, 0.7);
-	paint-order: stroke fill;
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.7);
+  paint-order: stroke fill;
 }
 </style>

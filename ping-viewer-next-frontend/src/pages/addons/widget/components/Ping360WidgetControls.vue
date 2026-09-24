@@ -16,46 +16,82 @@
     <div v-else class="control-card">
       <div class="controls-column">
         <div class="control-pill">
-          <v-btn class="pill-btn" icon variant="text" size="small"
-            aria-label="Decrease range" @click="emitAction('step_range', 'down')">
+          <v-btn
+            class="pill-btn"
+            icon
+            variant="text"
+            size="small"
+            aria-label="Decrease range"
+            @click="emitAction('step_range', 'down')"
+          >
             <v-icon size="18">mdi-minus</v-icon>
           </v-btn>
           <span class="pill-content">
             <span class="pill-label">Range</span>
             <span class="pill-value">{{ rangeLabel }}</span>
           </span>
-          <v-btn class="pill-btn" icon variant="text" size="small"
-            aria-label="Increase range" @click="emitAction('step_range', 'up')">
+          <v-btn
+            class="pill-btn"
+            icon
+            variant="text"
+            size="small"
+            aria-label="Increase range"
+            @click="emitAction('step_range', 'up')"
+          >
             <v-icon size="18">mdi-plus</v-icon>
           </v-btn>
         </div>
 
         <div class="control-pill">
-          <v-btn class="pill-btn" icon variant="text" size="small"
-            aria-label="Decrease sector" @click="emitAction('step_sector', 'down')">
+          <v-btn
+            class="pill-btn"
+            icon
+            variant="text"
+            size="small"
+            aria-label="Decrease sector"
+            @click="emitAction('step_sector', 'down')"
+          >
             <v-icon size="18">mdi-minus</v-icon>
           </v-btn>
           <span class="pill-content">
             <span class="pill-label">Sector</span>
             <span class="pill-value">{{ sectorLabel }}</span>
           </span>
-          <v-btn class="pill-btn" icon variant="text" size="small"
-            aria-label="Increase sector" @click="emitAction('step_sector', 'up')">
+          <v-btn
+            class="pill-btn"
+            icon
+            variant="text"
+            size="small"
+            aria-label="Increase sector"
+            @click="emitAction('step_sector', 'up')"
+          >
             <v-icon size="18">mdi-plus</v-icon>
           </v-btn>
         </div>
 
         <div class="control-pill">
-          <v-btn class="pill-btn" icon variant="text" size="small"
-            aria-label="Decrease gain" @click="emitAction('decrease_gain')">
+          <v-btn
+            class="pill-btn"
+            icon
+            variant="text"
+            size="small"
+            aria-label="Decrease gain"
+            @click="emitAction('decrease_gain')"
+          >
             <v-icon size="18">mdi-minus</v-icon>
           </v-btn>
           <span class="pill-content">
             <span class="pill-label">Gain</span>
             <span class="pill-value">{{ gainLabel }}</span>
           </span>
-          <v-btn class="pill-btn" icon variant="text" size="small"
-            aria-label="Increase gain" @click="emitAction('increase_gain')">
+          <v-btn
+            class="pill-btn"
+            icon
+            variant="text"
+            size="small"
+            aria-label="Increase gain"
+            @click="emitAction('increase_gain')"
+          >
             <v-icon size="18">mdi-plus</v-icon>
           </v-btn>
         </div>
@@ -86,8 +122,8 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
-import { useUnits } from '../../../../composables/useUnits';
+import { computed, ref } from "vue";
+import { useUnits } from "../../../../composables/useUnits";
 
 const props = defineProps({
   isRecording: {
@@ -108,25 +144,25 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['button-click']);
+const emit = defineEmits(["button-click"]);
 
 const isOpen = ref(false);
 const { formatDepth } = useUnits();
 
-const gainValues = ['Low', 'Normal', 'High'];
+const gainValues = ["Low", "Normal", "High"];
 
 const rangeLabel = computed(() =>
-  props.range == null ? '--' : formatDepth(props.range, props.range >= 10 ? 0 : 1)
+  props.range == null ? "--" : formatDepth(props.range, props.range >= 10 ? 0 : 1),
 );
 
 const gainLabel = computed(
-  () => gainValues[props.gain] ?? (props.gain == null ? '--' : props.gain)
+  () => gainValues[props.gain] ?? (props.gain == null ? "--" : props.gain),
 );
 
-const sectorLabel = computed(() => (props.sector == null ? '--' : `${props.sector}°`));
+const sectorLabel = computed(() => (props.sector == null ? "--" : `${props.sector}°`));
 
 const emitAction = (action, value) => {
-  emit('button-click', { action, value, id: action });
+  emit("button-click", { action, value, id: action });
 };
 </script>
 
@@ -147,7 +183,7 @@ const emitAction = (action, value) => {
 }
 
 .open-toggle-wrapper.is-recording::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: 50%;
@@ -159,9 +195,18 @@ const emitAction = (action, value) => {
 }
 
 @keyframes open-toggle-flash {
-  0% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.25; transform: scale(1.15); }
-  100% { opacity: 1; transform: scale(1); }
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .chevron-btn {
@@ -311,7 +356,9 @@ const emitAction = (action, value) => {
   margin-left: 8px;
   border-radius: 50%;
   background-color: rgba(255, 255, 255, 0.55);
-  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
   pointer-events: none;
 }
 
@@ -322,8 +369,17 @@ const emitAction = (action, value) => {
 }
 
 @keyframes rec-pulse {
-  0% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(0.8); }
-  100% { opacity: 1; transform: scale(1); }
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 </style>

@@ -1,8 +1,8 @@
-import type { BaseResponse, DeviceMessage } from './common';
-import type { Ping360Settings } from './ping360';
+import type { BaseResponse, DeviceMessage } from "./common";
+import type { Ping360Settings } from "./ping360";
 
 export interface ConfigResponse extends BaseResponse {
-  type: 'config';
+  type: "config";
   updated: boolean;
 }
 

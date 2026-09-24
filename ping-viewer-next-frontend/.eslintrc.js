@@ -9,8 +9,8 @@ module.exports = {
   env: {
     node: true,
   },
-  extends: ['vuetify', './.eslintrc-auto-import.json'],
+  extends: ["vuetify", "./.eslintrc-auto-import.json"],
   rules: {
-    'vue/multi-word-component-names': 'off',
+    "vue/multi-word-component-names": "off",
   },
 };

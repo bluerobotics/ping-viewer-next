@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from "vue";
 
 // WebSocket manager singleton
 const createWebSocketManager = () => {
@@ -24,9 +24,9 @@ const createWebSocketManager = () => {
       currentUrl = url;
       // Fix the WebSocket URL construction
       let wsUrl;
-      if (url.startsWith('http://') || url.startsWith('https://')) {
+      if (url.startsWith("http://") || url.startsWith("https://")) {
         const urlObj = new URL(url);
-        const wsProtocol = urlObj.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsProtocol = urlObj.protocol === "https:" ? "wss:" : "ws:";
         wsUrl = `${wsProtocol}//${urlObj.host}/ws/recording`;
       } else {
         // Handle cases where url is just host:port
@@ -41,11 +41,11 @@ const createWebSocketManager = () => {
 
         // Notify all listeners that connection is established
         for (const listener of listeners) {
-          if (typeof listener === 'function') {
+          if (typeof listener === "function") {
             try {
               listener();
             } catch (err) {
-              console.error('Error in listener:', err);
+              console.error("Error in listener:", err);
             }
           }
         }
@@ -55,21 +55,21 @@ const createWebSocketManager = () => {
         try {
           const data = JSON.parse(event.data);
           for (const listener of listeners) {
-            if (typeof listener === 'function') {
+            if (typeof listener === "function") {
               try {
                 listener(data);
               } catch (err) {
-                console.error('Error in listener:', err);
+                console.error("Error in listener:", err);
               }
             }
           }
         } catch (err) {
-          console.error('Error parsing WebSocket message:', err);
+          console.error("Error parsing WebSocket message:", err);
         }
       };
 
       ws.onerror = (event) => {
-        console.error('WebSocket error:', event);
+        console.error("WebSocket error:", event);
         isConnected = false;
       };
 
@@ -77,11 +77,11 @@ const createWebSocketManager = () => {
         isConnected = false;
 
         for (const listener of listeners) {
-          if (typeof listener === 'function') {
+          if (typeof listener === "function") {
             try {
               listener();
             } catch (err) {
-              console.error('Error in listener:', err);
+              console.error("Error in listener:", err);
             }
           }
         }
@@ -92,11 +92,11 @@ const createWebSocketManager = () => {
             connect(currentUrl);
           }, 5000);
         } else if (reconnectAttempts >= maxReconnectAttempts) {
-          console.error('Max reconnection attempts reached. Giving up.');
+          console.error("Max reconnection attempts reached. Giving up.");
         }
       };
     } catch (err) {
-      console.error('Error creating WebSocket connection:', err);
+      console.error("Error creating WebSocket connection:", err);
       isConnected = false;
     }
   };
@@ -118,8 +118,8 @@ const createWebSocketManager = () => {
   };
 
   const addListener = (listener) => {
-    if (typeof listener !== 'function') {
-      console.error('Listener must be a function');
+    if (typeof listener !== "function") {
+      console.error("Listener must be a function");
       return;
     }
 
@@ -169,7 +169,7 @@ export function useRecordingSessions(serverUrl, wsManagerInstance = wsManager) {
     try {
       const response = await fetch(`${serverUrl}/v1/device_manager/GetAllRecordingStatus`);
       if (!response.ok) {
-        throw new Error('Failed to fetch recording statuses');
+        throw new Error("Failed to fetch recording statuses");
       }
       const data = await response.json();
       if (data.AllRecordingStatus) {
@@ -178,8 +178,8 @@ export function useRecordingSessions(serverUrl, wsManagerInstance = wsManager) {
         }
       }
     } catch (err) {
-      console.error('Error fetching initial recording statuses:', err);
-      error.value = 'Failed to fetch initial recording statuses';
+      console.error("Error fetching initial recording statuses:", err);
+      error.value = "Failed to fetch initial recording statuses";
     }
   };
 

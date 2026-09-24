@@ -1,11 +1,21 @@
 <template>
-  <v-card :elevation="4" class="device-card" :class="{
-    'border-primary': selected,
-    'cursor-pointer': clickable
-  }" @click="handleClick" @dblclick="handleDoubleClick">
+  <v-card
+    :elevation="4"
+    class="device-card"
+    :class="{
+      'border-primary': selected,
+      'cursor-pointer': clickable,
+    }"
+    @click="handleClick"
+    @dblclick="handleDoubleClick"
+  >
     <v-card-item>
       <template v-slot:prepend>
-        <v-icon :icon="device.device_type === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'" size="large" class="mr-4" />
+        <v-icon
+          :icon="device.device_type === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'"
+          size="large"
+          class="mr-4"
+        />
       </template>
       <v-card-title>{{ device.device_type }}</v-card-title>
       <v-card-subtitle>ID: {{ device.id }}</v-card-subtitle>
@@ -13,34 +23,34 @@
 
     <v-card-text>
       <div v-if="device.source.SerialStream" class="mt-2">
-        <div class="text-sm">
-          <strong>Path:</strong> {{ device.source.SerialStream.path }}
-        </div>
+        <div class="text-sm"><strong>Path:</strong> {{ device.source.SerialStream.path }}</div>
         <div class="text-sm">
           <strong>Baudrate:</strong> {{ device.source.SerialStream.baudrate }}
         </div>
       </div>
       <div v-if="device.source.UdpStream" class="mt-2">
-        <div class="text-sm">
-          <strong>IP:</strong> {{ device.source.UdpStream.ip }}
-        </div>
-        <div class="text-sm">
-          <strong>Port:</strong> {{ device.source.UdpStream.port }}
-        </div>
+        <div class="text-sm"><strong>IP:</strong> {{ device.source.UdpStream.ip }}</div>
+        <div class="text-sm"><strong>Port:</strong> {{ device.source.UdpStream.port }}</div>
       </div>
       <div v-if="device.source.FakeStream" class="mt-2">
-        <div class="text-sm">
-          <strong>Type:</strong> Fake
-        </div>
+        <div class="text-sm"><strong>Type:</strong> Fake</div>
       </div>
 
       <div class="mt-2">
         <div class="text-sm">
           <strong>Status:</strong>
-          <v-tooltip location="bottom" :text="deviceStatusReason(device.status)"
-            :disabled="!deviceStatusReason(device.status)">
+          <v-tooltip
+            location="bottom"
+            :text="deviceStatusReason(device.status)"
+            :disabled="!deviceStatusReason(device.status)"
+          >
             <template v-slot:activator="{ props }">
-              <v-chip v-bind="props" :color="getStatusColor(device.status)" size="small" class="ml-2">
+              <v-chip
+                v-bind="props"
+                :color="getStatusColor(device.status)"
+                size="small"
+                class="ml-2"
+              >
                 {{ getStatusLabel(device.status) }}
               </v-chip>
             </template>
@@ -54,8 +64,13 @@
     </v-card-text>
 
     <v-card-actions v-if="showActions">
-      <v-btn :color="selected ? 'error' : 'primary'" variant="tonal" block @click.stop="$emit('toggle')">
-        {{ selected ? 'Remove' : 'Add' }} Device
+      <v-btn
+        :color="selected ? 'error' : 'primary'"
+        variant="tonal"
+        block
+        @click.stop="$emit('toggle')"
+      >
+        {{ selected ? "Remove" : "Add" }} Device
       </v-btn>
     </v-card-actions>
   </v-card>
@@ -66,7 +81,7 @@ import {
   deviceStatusColor as getStatusColor,
   deviceStatusLabel as getStatusLabel,
   deviceStatusReason,
-} from '@/ping-device/utils/device-status';
+} from "@/ping-device/utils/device-status";
 
 const props = defineProps({
   device: {
@@ -91,17 +106,17 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['click', 'dblclick', 'toggle']);
+const emit = defineEmits(["click", "dblclick", "toggle"]);
 
 const handleClick = (event) => {
   if (props.clickable) {
-    emit('click', event);
+    emit("click", event);
   }
 };
 
 const handleDoubleClick = (event) => {
   if (props.clickable) {
-    emit('dblclick', event);
+    emit("dblclick", event);
   }
 };
 </script>

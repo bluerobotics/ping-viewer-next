@@ -6,16 +6,16 @@
       alt="Background"
     />
     <div
-  class="fixed w-[70vw] h-[30vw] top-1/2 left-1/2 rounded-[20px] transform -translate-x-1/2 -translate-y-1/2 z-[9992]"
-  :style="{
-    backgroundColor: 'rgba(0, 0, 0, 0.10)',
-    color: 'rgba(255, 255, 255, 1)',
-    border: '1px solid rgba(255, 255, 255, 0.25)',
-    backdropFilter: 'blur(25px)',            
-    WebkitBackdropFilter: 'blur(16px)',     
-    boxShadow: '0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016'
-  }"
->
+      class="fixed w-[70vw] h-[30vw] top-1/2 left-1/2 rounded-[20px] transform -translate-x-1/2 -translate-y-1/2 z-[9992]"
+      :style="{
+        backgroundColor: 'rgba(0, 0, 0, 0.10)',
+        color: 'rgba(255, 255, 255, 1)',
+        border: '1px solid rgba(255, 255, 255, 0.25)',
+        backdropFilter: 'blur(25px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: '0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016',
+      }"
+    >
       <div
         class="relative flex flex-col w-full h-[80%] rounded-tr-[20px] rounded-tl-[20px] items-center justify-center elevation-7 border-b-[1px] border-[#ffffff33] bg-[#FFFFFF11] px-8"
       >
@@ -48,56 +48,59 @@
         class="bg-[#00000088] text-white p-1 rounded-full elevation-3 focus:outline-none"
         @click="toggleFullscreen"
       >
-        <v-icon :icon="isFullscreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen'" class="text-2xl -mt-[2px] -mr-[1px]" />
+        <v-icon
+          :icon="isFullscreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen'"
+          class="text-2xl -mt-[2px] -mr-[1px]"
+        />
       </button>
     </div>
   </div>
 </template>
 <script lang="ts" setup>
-import blueRoboticsWhiteNameLogo from '../../assets/blue-robotics-white-name-logo.png';
-import pingViewerLogo from '../../assets/ping-2-logo.png';
-import splashBackground from '../../assets/splash-background.png';
+import blueRoboticsWhiteNameLogo from "../../assets/blue-robotics-white-name-logo.png";
+import pingViewerLogo from "../../assets/ping-2-logo.png";
+import splashBackground from "../../assets/splash-background.png";
 
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
 
-import { useFullscreen } from '@vueuse/core';
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { useFullscreen } from "@vueuse/core";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 
 const showSplashScreen = ref(true);
-const randomLightHeartedMessage = ref<string>('');
+const randomLightHeartedMessage = ref<string>("");
 let timerId: ReturnType<typeof setTimeout>;
 
 const startupLightHeartedMessages: string[] = [
-  'Pinging plankton for signal clarity...',
-  'Listening for whispers from the deep...',
-  'Rendering reflections of rebellious rays...',
-  'Teaching sonar beams to stay in their lanes...',
-  'Cross-checking echoes for existential questions...',
-  'Calibrating the ocean’s mood swings...',
-  'Counting bubbles per second for accuracy...',
-  'Decoding dolphin dialects into raw data...',
-  'Tuning sonar chirps to the key of C-sea-major...',
-  'Scanning abyssal plains for misplaced pixels...',
-  'Asking manta rays to stop photobombing scans...',
-  'Collecting echoes of long-lost legends...',
-  'Reverberating responsibly — eco-friendly sonar engaged...',
-  'Smoothing out waveforms for that silky sonar look...',
-  'Analyzing echoes from yesterday’s tides...',
-  'Summoning sub-surface spirits for calibration...',
-  'Measuring murkiness — scientifically and emotionally...',
-  'Refactoring sonar pings to sound 12% friendlier...',
-  'Locating the legendary Lag Monster below 200 meters...',
-  'Optimizing ping intervals to impress the squids...',
-  'Searching for Atlantis... again...',
-  'Synchronizing sonar with whale lullabies...',
-  'Distinguishing fish schools from coding schools...',
-  'Verifying that reflections are indeed reflective...',
-  'Cleaning sonar domes — one bubble at a time...',
-  'Detecting anomalies in the abyss (or just shrimp)...',
-  'Negotiating data packets with passing jellyfish...',
-  'Drawing depth lines with artistic flare (and flares)...',
-  'Echo-locating enthusiasm across all channels...',
-  'Waiting for the sea to answer our last ping...',
+  "Pinging plankton for signal clarity...",
+  "Listening for whispers from the deep...",
+  "Rendering reflections of rebellious rays...",
+  "Teaching sonar beams to stay in their lanes...",
+  "Cross-checking echoes for existential questions...",
+  "Calibrating the ocean’s mood swings...",
+  "Counting bubbles per second for accuracy...",
+  "Decoding dolphin dialects into raw data...",
+  "Tuning sonar chirps to the key of C-sea-major...",
+  "Scanning abyssal plains for misplaced pixels...",
+  "Asking manta rays to stop photobombing scans...",
+  "Collecting echoes of long-lost legends...",
+  "Reverberating responsibly — eco-friendly sonar engaged...",
+  "Smoothing out waveforms for that silky sonar look...",
+  "Analyzing echoes from yesterday’s tides...",
+  "Summoning sub-surface spirits for calibration...",
+  "Measuring murkiness — scientifically and emotionally...",
+  "Refactoring sonar pings to sound 12% friendlier...",
+  "Locating the legendary Lag Monster below 200 meters...",
+  "Optimizing ping intervals to impress the squids...",
+  "Searching for Atlantis... again...",
+  "Synchronizing sonar with whale lullabies...",
+  "Distinguishing fish schools from coding schools...",
+  "Verifying that reflections are indeed reflective...",
+  "Cleaning sonar domes — one bubble at a time...",
+  "Detecting anomalies in the abyss (or just shrimp)...",
+  "Negotiating data packets with passing jellyfish...",
+  "Drawing depth lines with artistic flare (and flares)...",
+  "Echo-locating enthusiasm across all channels...",
+  "Waiting for the sea to answer our last ping...",
 ];
 
 const remainingMessages = ref<string[]>([...startupLightHeartedMessages]);
@@ -114,29 +117,31 @@ const scheduleNextMessage = (): void => {
 };
 
 const handleKeydown = (event: KeyboardEvent): void => {
-  if (event.key === 'Escape') {
+  if (event.key === "Escape") {
     showSplashScreen.value = false;
   }
 };
 
 onMounted(() => {
-  window.addEventListener('keydown', handleKeydown);
+  window.addEventListener("keydown", handleKeydown);
   scheduleNextMessage();
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener("keydown", handleKeydown);
   clearTimeout(timerId);
 });
 </script>
 
 <style scoped>
 .glassMenuBlack {
-      background-color: rgba(0, 0, 0, 0.15);
-      color: rgba(255, 255, 255, 1);
-      backdrop-filter: 25px blur;
-      border: 1px solid rgba(255, 255, 255, 0.04);
-      box-shadow: 0px 4px 4px 0px #00000033, 0px 8px 12px 6px #00000016;
+  background-color: rgba(0, 0, 0, 0.15);
+  color: rgba(255, 255, 255, 1);
+  backdrop-filter: 25px blur;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow:
+    0px 4px 4px 0px #00000033,
+    0px 8px 12px 6px #00000016;
 }
 
 @keyframes descend {

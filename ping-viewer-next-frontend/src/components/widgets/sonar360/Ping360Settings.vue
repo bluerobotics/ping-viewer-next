@@ -14,33 +14,56 @@
         <div class="d-flex align-center justify-space-between mb-1">
           <v-tooltip text="Analog gain setting (0 = low, 1 = normal, 2 = high)" location="left">
             <template v-slot:activator="{ props }">
-              <span v-bind="props" class="text-body-2 text-medium-emphasis">
-                Gain Setting
-              </span>
+              <span v-bind="props" class="text-body-2 text-medium-emphasis"> Gain Setting </span>
             </template>
           </v-tooltip>
         </div>
         <div class="d-flex align-center gap-2">
-          <v-slider v-model="settings.gain_setting" :min="0" :max="2" :step="1" show-ticks="always" tick-size="3"
-            :ticks="{ 0: 'low', 1: 'normal', 2: 'high' }" density="compact" hide-details class="flex-grow-1"
-            @update:modelValue="handleGainSettingChange" />
+          <v-slider
+            v-model="settings.gain_setting"
+            :min="0"
+            :max="2"
+            :step="1"
+            show-ticks="always"
+            tick-size="3"
+            :ticks="{ 0: 'low', 1: 'normal', 2: 'high' }"
+            density="compact"
+            hide-details
+            class="flex-grow-1"
+            @update:modelValue="handleGainSettingChange"
+          />
         </div>
 
         <div class="d-flex align-center justify-space-between mb-1 mt-4">
           <v-tooltip :text="`Scanning range in ${distanceLabel}`" location="left">
             <template v-slot:activator="{ props }">
-              <span v-bind="props" class="text-body-2 text-medium-emphasis">
-                Range
-              </span>
+              <span v-bind="props" class="text-body-2 text-medium-emphasis"> Range </span>
             </template>
           </v-tooltip>
           <span class="text-caption text-medium-emphasis mr-1">{{ distanceLabel }}</span>
         </div>
         <div class="d-flex align-center gap-2">
-          <v-slider v-model="range" :min="2" :max="60" :step="1" density="compact" hide-details class="flex-grow-1"
-            @update:modelValue="handleRangeChange" />
-          <v-text-field v-model.number="range" type="number" :min="2" :max="60" :step="1" density="compact"
-            hide-details style="width: 82px !important; flex: 0 0 auto" @update:modelValue="handleRangeChange" />
+          <v-slider
+            v-model="range"
+            :min="2"
+            :max="60"
+            :step="1"
+            density="compact"
+            hide-details
+            class="flex-grow-1"
+            @update:modelValue="handleRangeChange"
+          />
+          <v-text-field
+            v-model.number="range"
+            type="number"
+            :min="2"
+            :max="60"
+            :step="1"
+            density="compact"
+            hide-details
+            style="width: 82px !important; flex: 0 0 auto"
+            @update:modelValue="handleRangeChange"
+          />
         </div>
 
         <div class="d-flex align-center justify-space-between mb-1 mt-4">
@@ -52,14 +75,33 @@
           <span class="text-caption text-medium-emphasis mr-1">degrees</span>
         </div>
         <div class="d-flex align-center gap-2">
-          <v-slider v-model="width" :min="90" :max="360" step="90" show-ticks="always" tick-size="4" thumb-label
-            :ticks="{ 90: '90', 180: '180', 270: '270', 360: '360' }" density="compact" hide-details class="flex-grow-1"
-            @update:modelValue="handleWidthChange" />
+          <v-slider
+            v-model="width"
+            :min="90"
+            :max="360"
+            step="90"
+            show-ticks="always"
+            tick-size="4"
+            thumb-label
+            :ticks="{ 90: '90', 180: '180', 270: '270', 360: '360' }"
+            density="compact"
+            hide-details
+            class="flex-grow-1"
+            @update:modelValue="handleWidthChange"
+          />
         </div>
 
-        <v-btn block variant="tonal" @click="showMountOptions = !showMountOptions" class="mb-2 mt-4">
-          <v-icon :icon="showMountOptions ? 'mdi-chevron-up' : 'mdi-chevron-down'" class="mr-2"></v-icon>
-          {{ showMountOptions ? 'Hide Mount Options' : 'Show Mount Options' }}
+        <v-btn
+          block
+          variant="tonal"
+          @click="showMountOptions = !showMountOptions"
+          class="mb-2 mt-4"
+        >
+          <v-icon
+            :icon="showMountOptions ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+            class="mr-2"
+          ></v-icon>
+          {{ showMountOptions ? "Hide Mount Options" : "Show Mount Options" }}
         </v-btn>
 
         <v-expand-transition>
@@ -68,16 +110,29 @@
               <div class="d-flex align-center justify-space-between mb-1 mt-2">
                 <v-tooltip text="Mount offset of scanning sector" location="left">
                   <template v-slot:activator="{ props }">
-                    <span v-bind="props" class="text-body-2 text-medium-emphasis">Mount Offset</span>
+                    <span v-bind="props" class="text-body-2 text-medium-emphasis"
+                      >Mount Offset</span
+                    >
                   </template>
                 </v-tooltip>
                 <span class="text-caption text-medium-emphasis mr-1">degrees</span>
               </div>
 
               <div class="d-flex align-center gap-2">
-                <v-slider v-model="centerAngle" :min="0" :max="360" step="5" show-ticks="always" tick-size="4" thumb-label
-                  :ticks="{ 0: '0', 180: '180', 360: '360' }" density="compact" hide-details class="flex-grow-1"
-                  @update:modelValue="handleCenterAngleChange" />
+                <v-slider
+                  v-model="centerAngle"
+                  :min="0"
+                  :max="360"
+                  step="5"
+                  show-ticks="always"
+                  tick-size="4"
+                  thumb-label
+                  :ticks="{ 0: '0', 180: '180', 360: '360' }"
+                  density="compact"
+                  hide-details
+                  class="flex-grow-1"
+                  @update:modelValue="handleCenterAngleChange"
+                />
               </div>
             </div>
 
@@ -100,19 +155,23 @@
         <v-divider class="mb-4 mt-4" />
 
         <v-btn block variant="tonal" @click="showAdvanced = !showAdvanced" class="mb-4">
-          <v-icon :icon="showAdvanced ? 'mdi-chevron-up' : 'mdi-chevron-down'" class="mr-2"></v-icon>
-          {{ showAdvanced ? 'Hide Advanced Settings' : 'Show Advanced Settings' }}
+          <v-icon
+            :icon="showAdvanced ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+            class="mr-2"
+          ></v-icon>
+          {{ showAdvanced ? "Hide Advanced Settings" : "Show Advanced Settings" }}
         </v-btn>
 
         <v-expand-transition>
           <div v-if="showAdvanced">
             <div class="mb-4">
               <div class="d-flex align-center justify-space-between">
-                <v-tooltip text="Enable automatic parameter adjustment based on range" location="left">
+                <v-tooltip
+                  text="Enable automatic parameter adjustment based on range"
+                  location="left"
+                >
                   <template v-slot:activator="{ props }">
-                    <span v-bind="props" class="text-body-2 text-medium-emphasis">
-                      Auto Mode
-                    </span>
+                    <span v-bind="props" class="text-body-2 text-medium-emphasis"> Auto Mode </span>
                   </template>
                 </v-tooltip>
               </div>
@@ -136,10 +195,27 @@
               <span class="text-caption text-medium-emphasis mr-1">{{ speedUnit }}</span>
             </div>
             <div class="d-flex align-center gap-2 mb-8">
-              <v-slider v-model="settings.speed_of_sound" :min="1400" :max="1600" :step="1" density="compact"
-                hide-details class="flex-grow-1" @update:modelValue="handleSpeedOfSoundChange" />
-              <v-text-field v-model.number="settings.speed_of_sound" type="number" :min="1400" :max="1600" :step="1"
-                density="compact" hide-details style="width: 80px" @update:modelValue="handleSpeedOfSoundChange" />
+              <v-slider
+                v-model="settings.speed_of_sound"
+                :min="1400"
+                :max="1600"
+                :step="1"
+                density="compact"
+                hide-details
+                class="flex-grow-1"
+                @update:modelValue="handleSpeedOfSoundChange"
+              />
+              <v-text-field
+                v-model.number="settings.speed_of_sound"
+                type="number"
+                :min="1400"
+                :max="1600"
+                :step="1"
+                density="compact"
+                hide-details
+                style="width: 80px"
+                @update:modelValue="handleSpeedOfSoundChange"
+              />
             </div>
 
             <div class="d-flex align-center justify-space-between mb-1 mt-4">
@@ -153,12 +229,29 @@
               <span class="text-caption text-medium-emphasis mr-1">25ns</span>
             </div>
             <div class="d-flex align-center gap-2 mb-8">
-              <v-slider v-model="settings.sample_period" :min="MIN_SAMPLE_PERIOD" :max="MAX_SAMPLE_PERIOD" :step="1"
-                density="compact" hide-details class="flex-grow-1" :disabled="autoMode"
-                @update:modelValue="handleSamplePeriodChange" />
-              <v-text-field v-model.number="settings.sample_period" type="number" :min="MIN_SAMPLE_PERIOD"
-                :max="MAX_SAMPLE_PERIOD" :step="1" density="compact" hide-details style="width: 80px"
-                :disabled="autoMode" @update:modelValue="handleSamplePeriodChange" />
+              <v-slider
+                v-model="settings.sample_period"
+                :min="MIN_SAMPLE_PERIOD"
+                :max="MAX_SAMPLE_PERIOD"
+                :step="1"
+                density="compact"
+                hide-details
+                class="flex-grow-1"
+                :disabled="autoMode"
+                @update:modelValue="handleSamplePeriodChange"
+              />
+              <v-text-field
+                v-model.number="settings.sample_period"
+                type="number"
+                :min="MIN_SAMPLE_PERIOD"
+                :max="MAX_SAMPLE_PERIOD"
+                :step="1"
+                density="compact"
+                hide-details
+                style="width: 80px"
+                :disabled="autoMode"
+                @update:modelValue="handleSamplePeriodChange"
+              />
             </div>
 
             <div class="d-flex align-center justify-space-between mb-1 mt-4">
@@ -171,12 +264,29 @@
               </v-tooltip>
             </div>
             <div class="d-flex align-center gap-2 mb-8">
-              <v-slider v-model="settings.number_of_samples" :min="MIN_NUMBER_OF_POINTS" :max="MAX_NUMBER_OF_POINTS"
-                :step="1" density="compact" hide-details class="flex-grow-1" :disabled="autoMode"
-                @update:modelValue="handleNumberOfSamplesChange" />
-              <v-text-field v-model.number="settings.number_of_samples" type="number" :min="MIN_NUMBER_OF_POINTS"
-                :max="MAX_NUMBER_OF_POINTS" :step="1" density="compact" hide-details style="width: 80px"
-                :disabled="autoMode" @update:modelValue="handleNumberOfSamplesChange" />
+              <v-slider
+                v-model="settings.number_of_samples"
+                :min="MIN_NUMBER_OF_POINTS"
+                :max="MAX_NUMBER_OF_POINTS"
+                :step="1"
+                density="compact"
+                hide-details
+                class="flex-grow-1"
+                :disabled="autoMode"
+                @update:modelValue="handleNumberOfSamplesChange"
+              />
+              <v-text-field
+                v-model.number="settings.number_of_samples"
+                type="number"
+                :min="MIN_NUMBER_OF_POINTS"
+                :max="MAX_NUMBER_OF_POINTS"
+                :step="1"
+                density="compact"
+                hide-details
+                style="width: 80px"
+                :disabled="autoMode"
+                @update:modelValue="handleNumberOfSamplesChange"
+              />
             </div>
 
             <div class="d-flex align-center justify-space-between mb-1 mt-4">
@@ -190,12 +300,29 @@
               <span class="text-caption text-medium-emphasis mr-1">µs</span>
             </div>
             <div class="d-flex align-center gap-2 mb-8">
-              <v-slider v-model="settings.transmit_duration" :min="MIN_TRANSMIT_DURATION" :max="transmitDurationMax"
-                :step="1" density="compact" hide-details class="flex-grow-1" :disabled="autoMode"
-                @update:modelValue="handleTransmitDurationChange" />
-              <v-text-field v-model.number="settings.transmit_duration" type="number" :min="MIN_TRANSMIT_DURATION"
-                :max="transmitDurationMax" :step="1" density="compact" hide-details style="width: 80px"
-                :disabled="autoMode" @update:modelValue="handleTransmitDurationChange" />
+              <v-slider
+                v-model="settings.transmit_duration"
+                :min="MIN_TRANSMIT_DURATION"
+                :max="transmitDurationMax"
+                :step="1"
+                density="compact"
+                hide-details
+                class="flex-grow-1"
+                :disabled="autoMode"
+                @update:modelValue="handleTransmitDurationChange"
+              />
+              <v-text-field
+                v-model.number="settings.transmit_duration"
+                type="number"
+                :min="MIN_TRANSMIT_DURATION"
+                :max="transmitDurationMax"
+                :step="1"
+                density="compact"
+                hide-details
+                style="width: 80px"
+                :disabled="autoMode"
+                @update:modelValue="handleTransmitDurationChange"
+              />
             </div>
 
             <div class="d-flex align-center justify-space-between mb-1 mt-4">
@@ -209,10 +336,27 @@
               <span class="text-caption text-medium-emphasis mr-1">kHz</span>
             </div>
             <div class="d-flex align-center gap-2 mb-8">
-              <v-slider v-model="settings.transmit_frequency" :min="500" :max="1000" :step="1" density="compact"
-                hide-details class="flex-grow-1" @update:modelValue="handleTransmitFrequencyChange" />
-              <v-text-field v-model.number="settings.transmit_frequency" type="number" :min="500" :max="1000" :step="1"
-                density="compact" hide-details style="width: 80px" @update:modelValue="handleTransmitFrequencyChange" />
+              <v-slider
+                v-model="settings.transmit_frequency"
+                :min="500"
+                :max="1000"
+                :step="1"
+                density="compact"
+                hide-details
+                class="flex-grow-1"
+                @update:modelValue="handleTransmitFrequencyChange"
+              />
+              <v-text-field
+                v-model.number="settings.transmit_frequency"
+                type="number"
+                :min="500"
+                :max="1000"
+                :step="1"
+                density="compact"
+                hide-details
+                style="width: 80px"
+                @update:modelValue="handleTransmitFrequencyChange"
+              />
             </div>
           </div>
         </v-expand-transition>
@@ -222,10 +366,10 @@
 </template>
 
 <script setup>
-import { useDebounceFn } from '@vueuse/core';
-import { computed, ref, watch } from 'vue';
-import { useUnits } from '../../../composables/useUnits';
-import { useHeadDown } from './useHeadDown';
+import { useDebounceFn } from "@vueuse/core";
+import { computed, ref, watch } from "vue";
+import { useUnits } from "../../../composables/useUnits";
+import { useHeadDown } from "./useHeadDown";
 
 const { distanceLabel, speedUnit } = useUnits();
 
@@ -248,10 +392,10 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:range', 'rangeChange', 'update:angles', 'close']);
+const emit = defineEmits(["update:range", "rangeChange", "update:angles", "close"]);
 
 const handleClose = () => {
-  emit('close');
+  emit("close");
 };
 
 // Constants from Ping360 specs
@@ -301,12 +445,12 @@ function calculateSectorAngles() {
 
 function emitSectorToDisplay(sector) {
   if (sector.isFullCircle) {
-    emit('update:angles', { startAngle: 0, endAngle: 360 });
+    emit("update:angles", { startAngle: 0, endAngle: 360 });
     return;
   }
 
   const halfWidth = width.value / 2;
-  emit('update:angles', {
+  emit("update:angles", {
     startAngle: (((360 - halfWidth) % 360) + 360) % 360,
     endAngle: halfWidth,
   });
@@ -340,8 +484,8 @@ const debouncedSaveSettings = useDebounceFn(async (updatedSettings) => {
     }
 
     const modifyCommand = {
-      command: 'ModifyDevice',
-      module: 'DeviceManager',
+      command: "ModifyDevice",
+      module: "DeviceManager",
       payload: {
         uuid: props.deviceId,
         modify: {
@@ -358,26 +502,26 @@ const debouncedSaveSettings = useDebounceFn(async (updatedSettings) => {
     };
 
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify(modifyCommand),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to save settings');
+      throw new Error("Failed to save settings");
     }
   } catch (error) {
-    console.error('Error saving settings:', error);
+    console.error("Error saving settings:", error);
   }
 }, DEBOUNCE_VALUE_MS);
 
 const transmitDurationMax = computed(() => {
   return Math.min(
     MAX_TRANSMIT_DURATION,
-    Math.floor(settings.value.sample_period * SAMPLE_PERIOD_TICK_DURATION * 64e6)
+    Math.floor(settings.value.sample_period * SAMPLE_PERIOD_TICK_DURATION * 64e6),
   );
 });
 
@@ -399,19 +543,19 @@ const fetchCurrentSettings = async () => {
   isInitializing.value = true;
   try {
     const requestBody = {
-      command: 'ModifyDevice',
-      module: 'DeviceManager',
+      command: "ModifyDevice",
+      module: "DeviceManager",
       payload: {
         uuid: props.deviceId,
-        modify: 'GetPing360Config',
+        modify: "GetPing360Config",
       },
     };
 
     const response = await fetch(`${props.serverUrl}/v1/device_manager/request`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify(requestBody),
     });
@@ -459,7 +603,7 @@ const fetchCurrentSettings = async () => {
       range.value = calculateRange();
     }
   } catch (error) {
-    console.error('Error fetching settings:', error);
+    console.error("Error fetching settings:", error);
   } finally {
     isLoading.value = false;
     setTimeout(() => {
@@ -481,7 +625,7 @@ function calculateSamplePeriod(desiredRange) {
     (2 * desiredRange) /
       (settings.value.number_of_samples *
         settings.value.speed_of_sound *
-        SAMPLE_PERIOD_TICK_DURATION)
+        SAMPLE_PERIOD_TICK_DURATION),
   );
 }
 
@@ -493,17 +637,17 @@ function adjustTransmitDuration() {
   autoDuration = Math.round(
     Math.max(
       Math.ceil(2.5 * settings.value.sample_period * SAMPLE_PERIOD_TICK_DURATION * 1e6),
-      autoDuration
-    )
+      autoDuration,
+    ),
   );
 
   settings.value.transmit_duration = Math.round(
-    Math.max(MIN_TRANSMIT_DURATION, Math.min(transmitDurationMax.value, autoDuration))
+    Math.max(MIN_TRANSMIT_DURATION, Math.min(transmitDurationMax.value, autoDuration)),
   );
 }
 const handleAngleChange = (newAngles) => {
   if (newAngles[0] === 0 && newAngles[1] === 360) {
-    emit('update:angles', { startAngle: 0, endAngle: 360 });
+    emit("update:angles", { startAngle: 0, endAngle: 360 });
     debouncedSaveSettings({ ...settings.value });
     return;
   }
@@ -515,7 +659,7 @@ const handleAngleChange = (newAngles) => {
     endAngle: rotateAngle(newAngles[1]),
   };
 
-  emit('update:angles', effectiveAngles);
+  emit("update:angles", effectiveAngles);
   debouncedSaveSettings({ ...settings.value });
 };
 const handleRangeChange = (newRange) => {
@@ -531,8 +675,8 @@ const handleRangeChange = (newRange) => {
       MIN_NUMBER_OF_POINTS,
       Math.floor(
         (2 * newRange) /
-          (MIN_SAMPLE_PERIOD * SAMPLE_PERIOD_TICK_DURATION * settings.value.speed_of_sound)
-      )
+          (MIN_SAMPLE_PERIOD * SAMPLE_PERIOD_TICK_DURATION * settings.value.speed_of_sound),
+      ),
     );
     settings.value.sample_period = MIN_SAMPLE_PERIOD;
   } else if (newSamplePeriod > MAX_SAMPLE_PERIOD) {
@@ -541,8 +685,8 @@ const handleRangeChange = (newRange) => {
       MAX_NUMBER_OF_POINTS,
       Math.ceil(
         (2 * newRange) /
-          (MAX_SAMPLE_PERIOD * SAMPLE_PERIOD_TICK_DURATION * settings.value.speed_of_sound)
-      )
+          (MAX_SAMPLE_PERIOD * SAMPLE_PERIOD_TICK_DURATION * settings.value.speed_of_sound),
+      ),
     );
   } else {
     settings.value.sample_period = newSamplePeriod;
@@ -550,8 +694,8 @@ const handleRangeChange = (newRange) => {
 
   adjustTransmitDuration();
   range.value = Math.round(newRange);
-  emit('rangeChange', range.value);
-  emit('update:range', range.value);
+  emit("rangeChange", range.value);
+  emit("update:range", range.value);
 
   debouncedSaveSettings({ ...settings.value });
 };
@@ -608,7 +752,7 @@ watch(
 
     handleAngleChange(angleRange.value);
   },
-  { deep: true, immediate: true }
+  { deep: true, immediate: true },
 );
 
 watch(
@@ -617,7 +761,7 @@ watch(
     if (newValue) {
       await fetchCurrentSettings();
     }
-  }
+  },
 );
 
 onMounted(async () => {

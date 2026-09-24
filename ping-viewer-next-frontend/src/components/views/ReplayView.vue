@@ -1,18 +1,23 @@
 <template>
   <div class="relative">
-    <component v-if="isComponentReady" :is="deviceComponent" :device="currentDeviceData.device"
-      v-bind="deviceSpecificProps" class="z-10"></component>
+    <component
+      v-if="isComponentReady"
+      :is="deviceComponent"
+      :device="currentDeviceData.device"
+      v-bind="deviceSpecificProps"
+      class="z-10"
+    ></component>
   </div>
 </template>
 
 <script setup>
-import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { calculateRange, gradiansToDegrees } from '../../ping-device/utils/ping360-utils';
-import Ping1D from '../widgets/sonar1d/Ping1D.vue';
-import Ping360 from '../widgets/sonar360/Ping360.vue';
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { calculateRange, gradiansToDegrees } from "../../ping-device/utils/ping360-utils";
+import Ping1D from "../widgets/sonar1d/Ping1D.vue";
+import Ping360 from "../widgets/sonar360/Ping360.vue";
 
 const { commonSettings, ping1DSettings, ping360Settings, displaySettings } =
-  inject('deviceSettings');
+  inject("deviceSettings");
 
 const currentDeviceData = ref(null);
 const deviceView = ref(null);
@@ -26,7 +31,7 @@ const componentDimensions = ref({
 
 const deviceComponent = computed(() => {
   if (!currentDeviceData.value) return null;
-  return currentDeviceData.value.device.device_type === 'Ping360' ? Ping360 : Ping1D;
+  return currentDeviceData.value.device.device_type === "Ping360" ? Ping360 : Ping1D;
 });
 
 const deviceSpecificProps = computed(() => {
@@ -37,7 +42,7 @@ const deviceSpecificProps = computed(() => {
     height: componentDimensions.value.height,
   };
 
-  if (currentDeviceData.value.device.device_type === 'Ping360') {
+  if (currentDeviceData.value.device.device_type === "Ping360") {
     const d = currentDeviceData.value.data.measurementRaw;
     let maxRange = 300;
     let startAngle = 0;
@@ -114,7 +119,7 @@ const updateCurrentDeviceData = async (frame) => {
 
   await handleDeviceTypeChange(frame.device.device_type);
 
-  if (frame.device.device_type === 'Ping360') {
+  if (frame.device.device_type === "Ping360") {
     const d = frame.data;
     const dataArray = Array.isArray(d.data) ? d.data : Object.values(d.data);
     currentDeviceData.value = {
@@ -155,14 +160,14 @@ const handleResize = () => {
 };
 
 onMounted(() => {
-  window.addEventListener('resize', handleResize);
+  window.addEventListener("resize", handleResize);
   nextTick(() => {
     updateComponentDimensions();
   });
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize);
+  window.removeEventListener("resize", handleResize);
   isComponentReady.value = false;
   currentDeviceData.value = null;
   loadedDeviceType.value = null;

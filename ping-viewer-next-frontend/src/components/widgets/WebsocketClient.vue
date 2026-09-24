@@ -1,8 +1,6 @@
 <template>
   <div class="bg-gray-100 min-h-screen p-6">
-    <div
-      class="max-w-4xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden"
-    >
+    <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
       <div class="bg-gray-800 text-white py-4 px-6">
         <h1 class="text-2xl font-bold">Ping Viewer</h1>
       </div>
@@ -57,22 +55,22 @@
 export default {
   data() {
     return {
-      status: 'Connecting...',
+      status: "Connecting...",
       socket: null,
       messages: [],
-      messageInput: '',
+      messageInput: "",
       autoScroll: true,
     };
   },
   methods: {
     redirectToDocs() {
-      window.location.href = '/docs/';
+      window.location.href = "/docs/";
     },
     connectWebSocket() {
       this.socket = new WebSocket(`ws://${window.location.host}/ws`);
 
       this.socket.onopen = () => {
-        this.status = 'Connected';
+        this.status = "Connected";
       };
 
       this.socket.onmessage = (event) => {
@@ -85,17 +83,17 @@ export default {
       };
 
       this.socket.onclose = () => {
-        this.status = 'Disconnected';
+        this.status = "Disconnected";
       };
 
       this.socket.onerror = () => {
-        this.status = 'Error';
+        this.status = "Error";
       };
     },
     sendMessage() {
       if (this.messageInput && this.socket.readyState === WebSocket.OPEN) {
         this.socket.send(this.messageInput);
-        this.messageInput = '';
+        this.messageInput = "";
       }
     },
     scrollToBottom() {

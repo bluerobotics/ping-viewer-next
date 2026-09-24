@@ -9,9 +9,12 @@
       </template>
 
       <v-list density="compact">
-        <v-list-item v-for="notification in sortedNotifications" :key="notification.id"
-          :class="{ 'unread': !notification.read }"
-          @click="markAsRead(notification.id)">
+        <v-list-item
+          v-for="notification in sortedNotifications"
+          :key="notification.id"
+          :class="{ unread: !notification.read }"
+          @click="markAsRead(notification.id)"
+        >
           <template v-slot:prepend>
             <div class="text-caption mr-2">{{ formatTime(notification.timestamp) }}</div>
           </template>
@@ -67,8 +70,8 @@
 </template>
 
 <script setup>
-import { useNotificationStore } from '@/stores/notificationStore';
-import { computed, ref, watch } from 'vue';
+import { useNotificationStore } from "@/stores/notificationStore";
+import { computed, ref, watch } from "vue";
 
 const props = defineProps({
   glass: {
@@ -77,7 +80,7 @@ const props = defineProps({
   },
   iconSize: {
     type: String,
-    default: 'default',
+    default: "default",
   },
   isOpen: {
     type: Boolean,
@@ -85,47 +88,47 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:is-open']);
+const emit = defineEmits(["update:is-open"]);
 
 const notificationStore = useNotificationStore();
 const notifications = computed(() => notificationStore.notifications);
 const unreadCount = computed(() => notifications.value.filter((n) => !n.read).length);
 
 // Sorting state
-const sortKey = ref('timestamp');
-const sortOrder = ref('desc');
+const sortKey = ref("timestamp");
+const sortOrder = ref("desc");
 
 // Sort notifications based on current sort key and order
 const sortedNotifications = computed(() => {
   return [...notifications.value].sort((a, b) => {
     let comparison = 0;
 
-    if (sortKey.value === 'timestamp') {
+    if (sortKey.value === "timestamp") {
       comparison = a.timestamp - b.timestamp;
-    } else if (sortKey.value === 'device') {
-      const deviceA = a.message.split('device ')[1] || '';
-      const deviceB = b.message.split('device ')[1] || '';
+    } else if (sortKey.value === "device") {
+      const deviceA = a.message.split("device ")[1] || "";
+      const deviceB = b.message.split("device ")[1] || "";
       comparison = deviceA.localeCompare(deviceB);
-    } else if (sortKey.value === 'title') {
+    } else if (sortKey.value === "title") {
       comparison = a.title.localeCompare(b.title);
     }
 
-    return sortOrder.value === 'asc' ? comparison : -comparison;
+    return sortOrder.value === "asc" ? comparison : -comparison;
   });
 });
 
 const sortBy = (key) => {
   if (sortKey.value === key) {
-    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+    sortOrder.value = sortOrder.value === "asc" ? "desc" : "asc";
   } else {
     sortKey.value = key;
-    sortOrder.value = 'asc';
+    sortOrder.value = "asc";
   }
 };
 
 const formatTime = (timestamp) => {
   const date = new Date(timestamp);
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
 const markAsRead = (id) => {
@@ -147,8 +150,8 @@ const clearAll = () => {
 watch(
   () => props.isOpen,
   (newValue) => {
-    emit('update:is-open', newValue);
-  }
+    emit("update:is-open", newValue);
+  },
 );
 </script>
 
@@ -191,7 +194,7 @@ watch(
 }
 
 .notification-list :deep(.v-list-item.unread)::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 0;

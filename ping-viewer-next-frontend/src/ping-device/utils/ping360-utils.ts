@@ -1,11 +1,11 @@
-import type { Ping360Settings } from '../types/ping360';
+import type { Ping360Settings } from "../types/ping360";
 import {
   MAX_NUMBER_OF_POINTS,
   MAX_TRANSMIT_DURATION,
   MIN_SAMPLE_PERIOD,
   MIN_TRANSMIT_DURATION,
   SAMPLE_PERIOD_TICK_DURATION,
-} from './constants';
+} from "./constants";
 
 export const calculateRange = (settings: Partial<Ping360Settings>): number => {
   const samplePeriod = (settings.sample_period || MIN_SAMPLE_PERIOD) * SAMPLE_PERIOD_TICK_DURATION;
@@ -18,10 +18,10 @@ export const calculateRange = (settings: Partial<Ping360Settings>): number => {
 export const calculateSamplePeriod = (
   desiredRange: number,
   numberOfSamples: number,
-  speedOfSound: number
+  speedOfSound: number,
 ): number => {
   return Math.ceil(
-    (2 * desiredRange) / (numberOfSamples * speedOfSound * SAMPLE_PERIOD_TICK_DURATION)
+    (2 * desiredRange) / (numberOfSamples * speedOfSound * SAMPLE_PERIOD_TICK_DURATION),
   );
 };
 
@@ -42,25 +42,25 @@ export const gradiansToDegrees = (gradians: number): number => {
 export const calculateTransmitDurationMax = (samplePeriod: number): number => {
   return Math.min(
     MAX_TRANSMIT_DURATION,
-    Math.floor(samplePeriod * SAMPLE_PERIOD_TICK_DURATION * 64e6)
+    Math.floor(samplePeriod * SAMPLE_PERIOD_TICK_DURATION * 64e6),
   );
 };
 
 export const calculateTransmitDuration = (
   range: number,
   speedOfSound: number,
-  samplePeriod: number
+  samplePeriod: number,
 ): number => {
   let autoDuration = Math.round((8000 * range) / speedOfSound);
 
   autoDuration = Math.round(
-    Math.max(Math.ceil(2.5 * samplePeriod * SAMPLE_PERIOD_TICK_DURATION * 1e6), autoDuration)
+    Math.max(Math.ceil(2.5 * samplePeriod * SAMPLE_PERIOD_TICK_DURATION * 1e6), autoDuration),
   );
 
   return Math.round(
     Math.max(
       MIN_TRANSMIT_DURATION,
-      Math.min(calculateTransmitDurationMax(samplePeriod), autoDuration)
-    )
+      Math.min(calculateTransmitDurationMax(samplePeriod), autoDuration),
+    ),
   );
 };

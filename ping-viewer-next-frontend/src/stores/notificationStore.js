@@ -1,7 +1,7 @@
-import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { defineStore } from "pinia";
+import { ref } from "vue";
 
-export const useNotificationStore = defineStore('notifications', () => {
+export const useNotificationStore = defineStore("notifications", () => {
   const notifications = ref([]);
   const nextId = ref(1);
 
@@ -12,7 +12,7 @@ export const useNotificationStore = defineStore('notifications', () => {
       ...notification,
       read: false,
       timestamp: new Date(),
-      device_type: notification.device_type || 'unknown',
+      device_type: notification.device_type || "unknown",
     });
   };
 

@@ -1,7 +1,11 @@
 <template>
   <div class="absolute bottom-5 left-1/2 -translate-x-1/2 z-10">
-    <div class="pill-container" :class="{ expanded: isExpanded, glass: isGlass }"
-      @mouseenter="handleShowControls" @mouseleave="handleHideControls">
+    <div
+      class="pill-container"
+      :class="{ expanded: isExpanded, glass: isGlass }"
+      @mouseenter="handleShowControls"
+      @mouseleave="handleHideControls"
+    >
       <div class="pill-content" :class="{ expanded: isExpanded }">
         <slot></slot>
       </div>
@@ -16,7 +20,7 @@
 </template>
 
 <script setup>
-import { computed, inject, ref } from 'vue';
+import { computed, inject, ref } from "vue";
 
 defineProps({
   isRecording: {
@@ -25,7 +29,7 @@ defineProps({
   },
 });
 
-const glass = inject('glass', ref(false));
+const glass = inject("glass", ref(false));
 const isGlass = computed(() => glass.value);
 
 const isExpanded = ref(false);
@@ -56,7 +60,9 @@ const handleHideControls = () => {
   justify-content: center;
   background-color: rgb(var(--v-theme-surface));
   border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.3),
+    0 4px 8px 3px rgba(0, 0, 0, 0.15);
 }
 
 .pill-container.glass {
@@ -110,7 +116,8 @@ const handleHideControls = () => {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.6;
   }
   50% {

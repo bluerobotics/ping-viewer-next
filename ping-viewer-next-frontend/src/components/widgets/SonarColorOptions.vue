@@ -4,8 +4,14 @@
       <v-list-item-title class="text-subtitle-2 mb-2">Color Palette</v-list-item-title>
 
       <div class="mt-2">
-        <v-select v-model="selectedPalette" :items="Object.keys(allPalettes)" hide-details density="compact"
-          class="mb-2" @update:model-value="updateColorPalette" />
+        <v-select
+          v-model="selectedPalette"
+          :items="Object.keys(allPalettes)"
+          hide-details
+          density="compact"
+          class="mb-2"
+          @update:model-value="updateColorPalette"
+        />
 
         <v-list-item-title class="text-subtitle-2 mb-2">Gradient Preview</v-list-item-title>
         <div class="mt-2">
@@ -16,32 +22,71 @@
       <div v-if="selectedPalette === 'Custom'" class="mt-4">
         <v-list-item-title class="text-subtitle-2 mb-2 d-flex justify-space-between align-center">
           <span>Custom Palette Points</span>
-          <v-btn size="small" color="primary" @click="addColorPoint" :disabled="customPalette.length >= 10"
-            density="compact">
+          <v-btn
+            size="small"
+            color="primary"
+            @click="addColorPoint"
+            :disabled="customPalette.length >= 10"
+            density="compact"
+          >
             Add Point
           </v-btn>
         </v-list-item-title>
 
         <TransitionGroup name="point-list" tag="div">
-          <div v-for="(point, index) in customPalette" :key="index"
-            class="mb-2 pa-2 bg-surface rounded-md flex items-center gap-4 point-item">
-            <div class="flex flex-col items-start" style="min-width: 120px;">
+          <div
+            v-for="(point, index) in customPalette"
+            :key="index"
+            class="mb-2 pa-2 bg-surface rounded-md flex items-center gap-4 point-item"
+          >
+            <div class="flex flex-col items-start" style="min-width: 120px">
               <label class="text-caption mb-1">Position</label>
-              <v-text-field v-model.number="point.pos" type="number" min="0" max="1" step="0.1" hide-details
-                density="compact" class="flex-grow-0" style="width: 100%;" @input="debouncedValidateAndUpdate(index)" />
+              <v-text-field
+                v-model.number="point.pos"
+                type="number"
+                min="0"
+                max="1"
+                step="0.1"
+                hide-details
+                density="compact"
+                class="flex-grow-0"
+                style="width: 100%"
+                @input="debouncedValidateAndUpdate(index)"
+              />
             </div>
 
-            <div class="flex flex-col items-start" style="min-width: 120px;">
+            <div class="flex flex-col items-start" style="min-width: 120px">
               <label class="text-caption mb-1">Transparency</label>
-              <v-text-field v-model.number="point.color[3]" type="number" min="0" max="255" hide-details
-                density="compact" class="flex-grow-0" style="width: 100%;" @input="debouncedValidateAndUpdate(index)" />
+              <v-text-field
+                v-model.number="point.color[3]"
+                type="number"
+                min="0"
+                max="255"
+                hide-details
+                density="compact"
+                class="flex-grow-0"
+                style="width: 100%"
+                @input="debouncedValidateAndUpdate(index)"
+              />
             </div>
 
-            <input type="color" :value="rgbaToHex(point.color)" @input="(e) => updatePointColor(index, e.target.value)"
-              class="w-10 h-8 rounded cursor-pointer flex-shrink-0" />
+            <input
+              type="color"
+              :value="rgbaToHex(point.color)"
+              @input="(e) => updatePointColor(index, e.target.value)"
+              class="w-10 h-8 rounded cursor-pointer flex-shrink-0"
+            />
 
-            <v-btn icon="mdi-delete" size="small" color="error" variant="text" @click="removeColorPoint(index)"
-              :disabled="customPalette.length <= 2" density="compact" class="flex-shrink-0" />
+            <v-btn
+              icon="mdi-delete"
+              size="small"
+              color="error"
+              variant="text"
+              @click="removeColorPoint(index)"
+              :disabled="customPalette.length <= 2"
+              density="compact"
+              class="flex-shrink-0"
+            />
           </div>
         </TransitionGroup>
       </div>
@@ -50,7 +95,7 @@
 </template>
 
 <script>
-import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
 export const colorPalettes = {
   Transparent: [
@@ -73,36 +118,36 @@ export const colorPalettes = {
     { pos: 0.5, color: [0, 63, 255, 255] },
     { pos: 1, color: [0, 255, 255, 255] },
   ],
-  'Thermal Blue': [
+  "Thermal Blue": [
     { pos: 0, color: [5, 34, 95, 255] },
     { pos: 0.25, color: [106, 168, 79, 255] },
     { pos: 0.5, color: [255, 255, 0, 255] },
     { pos: 0.75, color: [127, 96, 0, 255] },
     { pos: 1, color: [92, 15, 8, 255] },
   ],
-  'Thermal Black': [
+  "Thermal Black": [
     { pos: 0, color: [0, 0, 0, 255] },
     { pos: 0.25, color: [106, 168, 79, 255] },
     { pos: 0.5, color: [255, 255, 0, 255] },
     { pos: 0.75, color: [127, 96, 0, 255] },
     { pos: 1, color: [92, 15, 8, 255] },
   ],
-  'Thermal White': [
+  "Thermal White": [
     { pos: 0, color: [255, 255, 255, 255] },
     { pos: 0.25, color: [106, 168, 79, 255] },
     { pos: 0.5, color: [255, 255, 0, 255] },
     { pos: 0.75, color: [127, 96, 0, 255] },
     { pos: 1, color: [92, 15, 8, 255] },
   ],
-  'Monochrome Black': [
+  "Monochrome Black": [
     { pos: 0, color: [0, 0, 0, 255] },
     { pos: 1, color: [255, 255, 255, 255] },
   ],
-  'Monochrome White': [
+  "Monochrome White": [
     { pos: 0, color: [255, 255, 255, 255] },
     { pos: 1, color: [0, 0, 0, 255] },
   ],
-  'Monochrome Sepia': [
+  "Monochrome Sepia": [
     { pos: 0, color: [48, 33, 19, 255] },
     { pos: 1, color: [232, 201, 67, 255] },
   ],
@@ -111,7 +156,7 @@ export const colorPalettes = {
 
 export const getColorFromPalette = (value, palette) => {
   const intensity = value / 255;
-  const gradient = colorPalettes[palette] || colorPalettes['Thermal Blue'];
+  const gradient = colorPalettes[palette] || colorPalettes["Thermal Blue"];
 
   for (let i = 1; i < gradient.length; i++) {
     if (intensity <= gradient[i].pos) {
@@ -130,14 +175,14 @@ export const getColorFromPalette = (value, palette) => {
 };
 
 export default {
-  name: 'SonarColorOptions',
+  name: "SonarColorOptions",
   props: {
     initialPalette: {
       type: String,
-      default: 'Ocean',
+      default: "Ocean",
     },
   },
-  emits: ['update:colorPalette'],
+  emits: ["update:colorPalette"],
 
   setup(props, { emit }) {
     const selectedPalette = ref(props.initialPalette);
@@ -152,12 +197,12 @@ export default {
 
     onMounted(() => {
       try {
-        const savedCustomPalette = localStorage.getItem('customColorPalette');
+        const savedCustomPalette = localStorage.getItem("customColorPalette");
         if (savedCustomPalette) {
           customPalette.value = JSON.parse(savedCustomPalette);
         }
       } catch (error) {
-        console.error('Error loading custom palette:', error);
+        console.error("Error loading custom palette:", error);
       }
     });
 
@@ -168,7 +213,7 @@ export default {
 
     const gradientPreviewStyle = computed(() => {
       const palette =
-        selectedPalette.value === 'Custom'
+        selectedPalette.value === "Custom"
           ? customPalette.value
           : colorPalettes[selectedPalette.value];
 
@@ -182,7 +227,7 @@ export default {
           const [r, g, b, a] = point.color;
           return `rgba(${r}, ${g}, ${b}, ${a / 255}) ${point.pos * 100}%`;
         })
-        .join(', ');
+        .join(", ");
 
       const style = {
         background: `linear-gradient(to right, ${stops})`,
@@ -201,10 +246,10 @@ export default {
 
     const updateColorPalette = () => {
       debouncedUpdate(() => {
-        if (selectedPalette.value === 'Custom') {
+        if (selectedPalette.value === "Custom") {
           colorPalettes.Custom = customPalette.value;
         }
-        emit('update:colorPalette', selectedPalette.value);
+        emit("update:colorPalette", selectedPalette.value);
       });
     };
 
@@ -218,7 +263,7 @@ export default {
       gradientCache.clear();
 
       debouncedUpdate(() => {
-        localStorage.setItem('customColorPalette', JSON.stringify(customPalette.value));
+        localStorage.setItem("customColorPalette", JSON.stringify(customPalette.value));
         updateColorPalette();
       });
     };
@@ -244,13 +289,13 @@ export default {
       customPalette.value = customPalette.value.filter((_, i) => i !== index);
 
       debouncedUpdate(() => {
-        localStorage.setItem('customColorPalette', JSON.stringify(customPalette.value));
+        localStorage.setItem("customColorPalette", JSON.stringify(customPalette.value));
         updateColorPalette();
       });
     };
 
     const rgbaToHex = (rgba) => {
-      const key = rgba.join(',');
+      const key = rgba.join(",");
       if (colorCache.has(key)) {
         return colorCache.get(key);
       }
@@ -289,7 +334,7 @@ export default {
         if (newPalette && colorPalettes[newPalette]) {
           selectedPalette.value = newPalette;
         }
-      }
+      },
     );
 
     onUnmounted(() => {

@@ -1,9 +1,9 @@
 <template>
-	<canvas ref="canvas" class="a-scan-line h-full" />
+  <canvas ref="canvas" class="a-scan-line h-full" />
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from "vue";
 
 const props = defineProps({
   sensorData: { type: Array, default: () => [] },
@@ -54,13 +54,13 @@ const draw = () => {
   ctx.closePath();
 
   const gradient = ctx.createLinearGradient(0, 0, w, 0);
-  gradient.addColorStop(0, 'rgba(0, 220, 80, 0.15)');
-  gradient.addColorStop(0.5, 'rgba(0, 220, 80, 0.4)');
-  gradient.addColorStop(1, 'rgba(0, 220, 80, 0.15)');
+  gradient.addColorStop(0, "rgba(0, 220, 80, 0.15)");
+  gradient.addColorStop(0.5, "rgba(0, 220, 80, 0.4)");
+  gradient.addColorStop(1, "rgba(0, 220, 80, 0.15)");
   ctx.fillStyle = gradient;
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(0, 220, 80, 0.8)';
+  ctx.strokeStyle = "rgba(0, 220, 80, 0.8)";
   ctx.lineWidth = 1.5;
 
   ctx.beginPath();
@@ -88,7 +88,7 @@ const draw = () => {
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.strokeStyle = 'rgba(0, 220, 80, 0.3)';
+  ctx.strokeStyle = "rgba(0, 220, 80, 0.3)";
   ctx.lineWidth = 1;
   ctx.moveTo(centerX, 0);
   ctx.lineTo(centerX, h);
@@ -105,20 +105,20 @@ const resize = () => {
 watch(() => props.sensorData, draw);
 
 onMounted(() => {
-  ctx = canvas.value.getContext('2d');
+  ctx = canvas.value.getContext("2d");
   resize();
-  window.addEventListener('resize', resize);
+  window.addEventListener("resize", resize);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', resize);
+  window.removeEventListener("resize", resize);
 });
 </script>
 
 <style scoped>
 .a-scan-line {
-	width: 50px;
-	flex-shrink: 0;
-	background: rgba(0, 0, 0, 0.3);
+  width: 50px;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.3);
 }
 </style>

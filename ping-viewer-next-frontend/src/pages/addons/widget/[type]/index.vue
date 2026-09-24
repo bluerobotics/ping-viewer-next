@@ -1,6 +1,5 @@
 <template>
   <div class="h-screen w-screen bg-transparent" ref="containerRef">
-
     <div v-if="isLoading" class="flex items-center justify-center text-white">
       <div class="text-center">
         <v-progress-circular indeterminate color="primary" size="64" class="mb-4" />
@@ -22,30 +21,45 @@
     </div>
 
     <div v-else-if="widgetComponent && deviceData" class="widget-container h-full w-full">
-      <component :is="widgetComponent" v-bind="widgetProps" class="h-full w-full bg-transparent" ref="widgetRef"
-        @settings-change="handleWidgetSettingsChange" />
-      <Ping360WidgetControls v-if="widgetType === 'ping360'" :is-recording="isRecording"
-        :range="ping360Range" :gain="ping360Gain" :sector="ping360Sector"
-        @button-click="handleMaskButtonClick" />
-      <Ping1DWidgetControls v-if="widgetType === 'ping1d'" :is-recording="isRecording"
-        :is-auto-gain="isAutoGain" :range="ping1DRange" :gain="ping1DGain"
-        @button-click="handleMaskButtonClick" />
+      <component
+        :is="widgetComponent"
+        v-bind="widgetProps"
+        class="h-full w-full bg-transparent"
+        ref="widgetRef"
+        @settings-change="handleWidgetSettingsChange"
+      />
+      <Ping360WidgetControls
+        v-if="widgetType === 'ping360'"
+        :is-recording="isRecording"
+        :range="ping360Range"
+        :gain="ping360Gain"
+        :sector="ping360Sector"
+        @button-click="handleMaskButtonClick"
+      />
+      <Ping1DWidgetControls
+        v-if="widgetType === 'ping1d'"
+        :is-recording="isRecording"
+        :is-auto-gain="isAutoGain"
+        :range="ping1DRange"
+        :gain="ping1DGain"
+        @button-click="handleMaskButtonClick"
+      />
     </div>
   </div>
 </template>
 
 <script>
-import { usePingDeviceStore } from '@/stores/deviceAgent';
-import { listenToDatalakeVariable } from '@bluerobotics/cockpit-api';
-import Ping1DLoader from '@components/widgets/sonar1d/Ping1DLoader.vue';
-import Ping360Loader from '@components/widgets/sonar360/Ping360Loader.vue';
-import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref } from 'vue';
-import { useRoute } from 'vue-router';
-import Ping1DWidgetControls from '../components/Ping1DWidgetControls.vue';
-import Ping360WidgetControls from '../components/Ping360WidgetControls.vue';
+import { usePingDeviceStore } from "@/stores/deviceAgent";
+import { listenToDatalakeVariable } from "@bluerobotics/cockpit-api";
+import Ping1DLoader from "@components/widgets/sonar1d/Ping1DLoader.vue";
+import Ping360Loader from "@components/widgets/sonar360/Ping360Loader.vue";
+import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref } from "vue";
+import { useRoute } from "vue-router";
+import Ping1DWidgetControls from "../components/Ping1DWidgetControls.vue";
+import Ping360WidgetControls from "../components/Ping360WidgetControls.vue";
 
 export default defineComponent({
-  name: 'WidgetView',
+  name: "WidgetView",
   components: {
     Ping360WidgetControls,
     Ping1DWidgetControls,
@@ -54,9 +68,9 @@ export default defineComponent({
     const route = useRoute();
     const containerRef = ref(null);
     const widgetRef = ref(null);
-    const serverUrl = ref('');
-    const deviceId = ref('');
-    const error = ref('');
+    const serverUrl = ref("");
+    const deviceId = ref("");
+    const error = ref("");
     const isLoading = ref(true);
     const deviceData = ref(null);
     const dimensions = ref({ width: 0, height: 0 });
@@ -89,9 +103,9 @@ export default defineComponent({
 
     const widgetComponent = computed(() => {
       switch (widgetType.value) {
-        case 'ping360':
+        case "ping360":
           return Ping360Loader;
-        case 'ping1d':
+        case "ping1d":
           return Ping1DLoader;
         default:
           return null;
@@ -99,15 +113,15 @@ export default defineComponent({
     });
 
     const websocketUrl = computed(() => {
-      if (!serverUrl.value || !deviceId.value) return '';
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      if (!serverUrl.value || !deviceId.value) return "";
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const host = new URL(serverUrl.value).host;
       return `${wsProtocol}//${host}/ws?device_number=${deviceId.value}`;
     });
 
     const recordingWebSocketUrl = computed(() => {
-      if (!serverUrl.value) return '';
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      if (!serverUrl.value) return "";
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const host = new URL(serverUrl.value).host;
       return `${wsProtocol}//${host}/ws/recording`;
     });
@@ -128,12 +142,12 @@ export default defineComponent({
               isRecording.value = data.is_active || false;
             }
           } catch (err) {
-            console.error('Error parsing recording WebSocket message:', err);
+            console.error("Error parsing recording WebSocket message:", err);
           }
         };
 
         recordingWebSocket.onerror = (error) => {
-          console.error('Recording WebSocket error:', error);
+          console.error("Recording WebSocket error:", error);
         };
 
         recordingWebSocket.onclose = (event) => {
@@ -146,13 +160,13 @@ export default defineComponent({
           }
         };
       } catch (err) {
-        console.error('Error setting up recording WebSocket:', err);
+        console.error("Error setting up recording WebSocket:", err);
       }
     };
 
     const closeRecordingWebSocket = () => {
       if (recordingWebSocket) {
-        recordingWebSocket.close(1000, 'Component unmounting');
+        recordingWebSocket.close(1000, "Component unmounting");
         recordingWebSocket = null;
       }
     };
@@ -162,22 +176,22 @@ export default defineComponent({
 
       try {
         const response = await fetch(`${serverUrl.value}/v1/recordings_manager/list`, {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
+            "Content-Type": "application/json",
+            Accept: "application/json",
           },
         });
 
         if (!response.ok) {
-          console.warn('Failed to fetch initial recording status:', response.statusText);
+          console.warn("Failed to fetch initial recording status:", response.statusText);
           return;
         }
 
         const data = await response.json();
 
         const deviceRecording = data.AllRecordingStatus?.find(
-          (recording) => recording.device_id === deviceId.value
+          (recording) => recording.device_id === deviceId.value,
         );
 
         if (deviceRecording) {
@@ -186,7 +200,7 @@ export default defineComponent({
           isRecording.value = false;
         }
       } catch (err) {
-        console.error('Error fetching initial recording status:', err);
+        console.error("Error fetching initial recording status:", err);
         isRecording.value = false;
       }
     };
@@ -195,11 +209,11 @@ export default defineComponent({
       for (let attempt = 1; attempt <= attempts; attempt++) {
         try {
           const response = await fetch(`${serverUrl.value}/device_manager/request`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              command: 'EnableContinuousMode',
-              module: 'DeviceManager',
+              command: "EnableContinuousMode",
+              module: "DeviceManager",
               payload: { uuid: deviceId.value },
             }),
           });
@@ -220,19 +234,19 @@ export default defineComponent({
     const commonProps = {
       width: window.innerWidth,
       height: window.innerHeight,
-      colorPalette: 'Thermal Blue',
+      colorPalette: "Thermal Blue",
     };
 
     const ping360Props = {
       ...commonProps,
-      lineColor: '#f44336',
+      lineColor: "#f44336",
       lineWidth: 0.5,
       maxDistance: 300,
       numMarkers: 5,
       showRadiusLines: true,
       showMarkers: true,
-      radiusLineColor: 'rgba(255, 255, 255, 0.7)',
-      markerColor: 'white',
+      radiusLineColor: "rgba(255, 255, 255, 0.7)",
+      markerColor: "white",
       radiusLineWidth: 1,
     };
 
@@ -240,12 +254,12 @@ export default defineComponent({
       ...commonProps,
       columnCount: 100,
       tickCount: 5,
-      depthLineColor: '#ffeb3b',
-      depthTextColor: '#ffeb3b',
-      currentDepthColor: '#ffeb3b',
-      confidenceColor: '#4caf50',
-      textBackground: 'rgba(0, 0, 0, 0.5)',
-      depthArrowColor: '#f44336',
+      depthLineColor: "#ffeb3b",
+      depthTextColor: "#ffeb3b",
+      currentDepthColor: "#ffeb3b",
+      confidenceColor: "#4caf50",
+      textBackground: "rgba(0, 0, 0, 0.5)",
+      depthArrowColor: "#f44336",
     };
 
     const widgetProps = computed(() => {
@@ -259,7 +273,7 @@ export default defineComponent({
         showControls: false,
       };
 
-      if (widgetType.value === 'ping360') {
+      if (widgetType.value === "ping360") {
         return {
           ...baseProps,
           ...ping360Props,
@@ -286,7 +300,7 @@ export default defineComponent({
       }
 
       if (!deviceInstance.value) {
-        console.error('No device instance available');
+        console.error("No device instance available");
         return;
       }
 
@@ -294,17 +308,17 @@ export default defineComponent({
         const { action, value, id } = buttonEvent;
 
         switch (action) {
-          case 'toggle_recording':
+          case "toggle_recording":
             await deviceInstance.value.common.toggleRecording();
             break;
 
-          case 'increase_range':
-            if (widgetType.value === 'ping360') {
-              const rangeTarget = value || '+10%';
+          case "increase_range":
+            if (widgetType.value === "ping360") {
+              const rangeTarget = value || "+10%";
               const result = await deviceInstance.value.ping360.setRange(rangeTarget);
               if (result) {
               }
-            } else if (widgetType.value === 'ping1d') {
+            } else if (widgetType.value === "ping1d") {
               const settings = await deviceInstance.value.ping1D.getSettings();
               if (settings) {
                 if (settings.mode_auto === 1) {
@@ -317,13 +331,13 @@ export default defineComponent({
             }
             break;
 
-          case 'decrease_range':
-            if (widgetType.value === 'ping360') {
-              const rangeTarget = value || '+10%';
+          case "decrease_range":
+            if (widgetType.value === "ping360") {
+              const rangeTarget = value || "+10%";
               const result = await deviceInstance.value.ping360.setRange(rangeTarget);
               if (result) {
               }
-            } else if (widgetType.value === 'ping1d') {
+            } else if (widgetType.value === "ping1d") {
               const settings = await deviceInstance.value.ping1D.getSettings();
               if (settings) {
                 if (settings.mode_auto === 1) {
@@ -336,13 +350,13 @@ export default defineComponent({
             }
             break;
 
-          case 'set_range':
-            if (widgetType.value === 'ping360') {
+          case "set_range":
+            if (widgetType.value === "ping360") {
               const rangeTarget = `${value}m`;
               const result = await deviceInstance.value.ping360.setRange(rangeTarget);
               if (result) {
               }
-            } else if (widgetType.value === 'ping1d') {
+            } else if (widgetType.value === "ping1d") {
               const settings = await deviceInstance.value.ping1D.getSettings();
               if (settings) {
                 if (settings.mode_auto === 1) {
@@ -354,7 +368,7 @@ export default defineComponent({
             }
             break;
 
-          case 'sequence_range':
+          case "sequence_range":
             if (deviceInstance.value) {
               const rangeSequence = [1, 2, 5, 10, 15, 20, 30, 40, 50, 60];
 
@@ -362,7 +376,7 @@ export default defineComponent({
                 let currentRange = 0;
                 let currentIndex = 0;
 
-                if (widgetType.value === 'ping360') {
+                if (widgetType.value === "ping360") {
                   const settings = await deviceInstance.value.ping360.getSettings();
                   if (settings) {
                     currentRange = deviceInstance.value.ping360.calculateRange(settings);
@@ -370,7 +384,7 @@ export default defineComponent({
                     currentIndex = findClosestValueIndex(currentRange, rangeSequence);
 
                     let newIndex;
-                    if (value === 'up') {
+                    if (value === "up") {
                       newIndex = Math.min(rangeSequence.length - 1, currentIndex + 1);
                     } else {
                       newIndex = Math.max(0, currentIndex - 1);
@@ -383,7 +397,7 @@ export default defineComponent({
                       }
                     }
                   }
-                } else if (widgetType.value === 'ping1d') {
+                } else if (widgetType.value === "ping1d") {
                   const settings = await deviceInstance.value.ping1D.getSettings();
                   if (settings) {
                     currentRange = settings.scan_length;
@@ -391,7 +405,7 @@ export default defineComponent({
                     currentIndex = findClosestValueIndex(currentRange, rangeSequence);
 
                     let newIndex;
-                    if (value === 'up') {
+                    if (value === "up") {
                       newIndex = Math.min(rangeSequence.length - 1, currentIndex + 1);
                     } else {
                       newIndex = Math.max(0, currentIndex - 1);
@@ -404,27 +418,27 @@ export default defineComponent({
                   }
                 }
               } catch (err) {
-                console.error('Error adjusting sequence range:', err);
+                console.error("Error adjusting sequence range:", err);
               }
             }
             break;
 
-          case 'step_range':
-            if (widgetType.value === 'ping360' && deviceInstance.value.ping360) {
+          case "step_range":
+            if (widgetType.value === "ping360" && deviceInstance.value.ping360) {
               const rangeSequence = [2, 4, 6, 8, 10, 15, 20, 30, 40, 50];
               const settings = await deviceInstance.value.ping360.getSettings();
               if (settings) {
                 const currentRange = deviceInstance.value.ping360.calculateRange(settings);
                 const currentIndex = findClosestValueIndex(currentRange, rangeSequence);
                 const newIndex =
-                  value === 'up'
+                  value === "up"
                     ? Math.min(rangeSequence.length - 1, currentIndex + 1)
                     : Math.max(0, currentIndex - 1);
                 if (newIndex !== currentIndex) {
                   await deviceInstance.value.ping360.setRange(`${rangeSequence[newIndex]}m`);
                 }
               }
-            } else if (widgetType.value === 'ping1d' && deviceInstance.value.ping1D) {
+            } else if (widgetType.value === "ping1d" && deviceInstance.value.ping1D) {
               const rangeSequence = [1, 2, 5, 10, 15, 20, 30, 40, 50, 60, 75];
               const settings = await deviceInstance.value.ping1D.getSettings();
               if (settings) {
@@ -434,21 +448,21 @@ export default defineComponent({
                 const currentRange = settings.scan_length;
                 const currentIndex = findClosestValueIndex(currentRange, rangeSequence);
                 const newIndex =
-                  value === 'up'
+                  value === "up"
                     ? Math.min(rangeSequence.length - 1, currentIndex + 1)
                     : Math.max(0, currentIndex - 1);
                 if (newIndex !== currentIndex) {
                   await deviceInstance.value.ping1D.setRange(
                     settings.scan_start,
-                    rangeSequence[newIndex]
+                    rangeSequence[newIndex],
                   );
                 }
               }
             }
             break;
 
-          case 'step_sector':
-            if (widgetType.value === 'ping360' && deviceInstance.value.ping360) {
+          case "step_sector":
+            if (widgetType.value === "ping360" && deviceInstance.value.ping360) {
               const sectorSequence = [90, 180, 360];
               const settings = await deviceInstance.value.ping360.getSettings();
               if (settings) {
@@ -466,7 +480,7 @@ export default defineComponent({
 
                 const currentIndex = findClosestValueIndex(currentSector, sectorSequence);
                 const newIndex =
-                  value === 'up'
+                  value === "up"
                     ? Math.min(sectorSequence.length - 1, currentIndex + 1)
                     : Math.max(0, currentIndex - 1);
                 if (newIndex !== currentIndex) {
@@ -492,8 +506,8 @@ export default defineComponent({
             }
             break;
 
-          case 'set_sector':
-            if (widgetType.value === 'ping360' && deviceInstance.value.ping360) {
+          case "set_sector":
+            if (widgetType.value === "ping360" && deviceInstance.value.ping360) {
               const settings = await deviceInstance.value.ping360.getSettings();
               if (settings) {
                 const sectorSpan = value;
@@ -524,8 +538,8 @@ export default defineComponent({
             }
             break;
 
-          case 'increase_gain':
-            if (widgetType.value === 'ping360' && deviceInstance.value.ping360) {
+          case "increase_gain":
+            if (widgetType.value === "ping360" && deviceInstance.value.ping360) {
               const settings = await deviceInstance.value.ping360.getSettings();
               if (settings) {
                 const newGain = Math.min(2, settings.gain_setting + 1);
@@ -535,7 +549,7 @@ export default defineComponent({
                 };
                 await deviceInstance.value.ping360.setSettings(updatedSettings);
               }
-            } else if (widgetType.value === 'ping1d') {
+            } else if (widgetType.value === "ping1d") {
               const settings = await deviceInstance.value.ping1D.getSettings();
               if (settings) {
                 if (settings.mode_auto === 1) {
@@ -549,8 +563,8 @@ export default defineComponent({
             }
             break;
 
-          case 'decrease_gain':
-            if (widgetType.value === 'ping360' && deviceInstance.value.ping360) {
+          case "decrease_gain":
+            if (widgetType.value === "ping360" && deviceInstance.value.ping360) {
               const settings = await deviceInstance.value.ping360.getSettings();
               if (settings) {
                 const newGain = Math.max(0, settings.gain_setting - 1);
@@ -560,7 +574,7 @@ export default defineComponent({
                 };
                 await deviceInstance.value.ping360.setSettings(updatedSettings);
               }
-            } else if (widgetType.value === 'ping1d') {
+            } else if (widgetType.value === "ping1d") {
               const settings = await deviceInstance.value.ping1D.getSettings();
               if (settings) {
                 if (settings.mode_auto === 1) {
@@ -574,8 +588,8 @@ export default defineComponent({
             }
             break;
 
-          case 'toggle_auto_gain':
-            if (widgetType.value === 'ping1d') {
+          case "toggle_auto_gain":
+            if (widgetType.value === "ping1d") {
               const settings = await deviceInstance.value.ping1D.getSettings();
               if (settings) {
                 const autoMode = settings.mode_auto === 0;
@@ -588,18 +602,18 @@ export default defineComponent({
             console.warn(`Unknown action: ${action}`);
         }
       } catch (err) {
-        console.error('Error handling button action:', err);
+        console.error("Error handling button action:", err);
       }
     };
 
     const isAutoGain = computed(() => {
-      if (widgetType.value !== 'ping1d') return false;
+      if (widgetType.value !== "ping1d") return false;
       const settings = deviceInstance.value?.data?.ping1DSettings;
       return settings?.mode_auto === 1;
     });
 
     const handleWidgetSettingsChange = (settings) => {
-      if (widgetType.value === 'ping360') {
+      if (widgetType.value === "ping360") {
         ping360WidgetSettings.value = {
           ...ping360WidgetSettings.value,
           ...settings,
@@ -607,7 +621,7 @@ export default defineComponent({
         return;
       }
 
-      if (widgetType.value === 'ping1d') {
+      if (widgetType.value === "ping1d") {
         ping1DWidgetSettings.value = {
           ...ping1DWidgetSettings.value,
           ...settings,
@@ -657,7 +671,7 @@ export default defineComponent({
     });
 
     const polarMode = computed(() => {
-      if (deviceInstance.value && widgetType.value === 'ping360') {
+      if (deviceInstance.value && widgetType.value === "ping360") {
         if (deviceInstance.value.data.polarMode) {
           return deviceInstance.value.data.polarMode;
         }
@@ -666,7 +680,7 @@ export default defineComponent({
           return deviceInstance.value.polarMode.value;
         }
       }
-      return 'full';
+      return "full";
     });
 
     onMounted(async () => {
@@ -684,35 +698,35 @@ export default defineComponent({
         resizeObserver.observe(containerRef.value);
       }
 
-      window.addEventListener('resize', updateDimensions);
+      window.addEventListener("resize", updateDimensions);
       await nextTick();
       updateDimensions();
 
       try {
         const params = new URLSearchParams(window.location.search);
-        serverUrl.value = params.get('server') || `${location.protocol}//${location.host}`;
-        deviceId.value = params.get('uuid') || '';
+        serverUrl.value = params.get("server") || `${location.protocol}//${location.host}`;
+        deviceId.value = params.get("uuid") || "";
 
         if (!deviceId.value) {
-          throw new Error('Missing required parameters: uuid');
+          throw new Error("Missing required parameters: uuid");
         }
 
         const requestBody = {
-          command: 'List',
-          module: 'DeviceManager',
+          command: "List",
+          module: "DeviceManager",
         };
 
         const response = await fetch(`${serverUrl.value}/device_manager/request`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            'Access-Control-Allow-Origin': '*',
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "Access-Control-Allow-Origin": "*",
           },
-          mode: 'cors',
+          mode: "cors",
           body: JSON.stringify({
-            command: 'List',
-            module: 'DeviceManager',
+            command: "List",
+            module: "DeviceManager",
           }),
         }).catch((err) => {
           return {
@@ -722,8 +736,8 @@ export default defineComponent({
                 DeviceInfo: [
                   {
                     id: deviceId.value,
-                    device_type: route.params.type?.toUpperCase() || 'Ping360',
-                    status: 'Available',
+                    device_type: route.params.type?.toUpperCase() || "Ping360",
+                    status: "Available",
                     source: {
                       UdpStream: {
                         ip: new URL(serverUrl.value).hostname,
@@ -747,7 +761,7 @@ export default defineComponent({
           device = {
             id: deviceId.value,
             device_type: route.params.type.toUpperCase(),
-            status: 'Available',
+            status: "Available",
             source: {
               UdpStream: {
                 ip: new URL(serverUrl.value).hostname,
@@ -757,15 +771,15 @@ export default defineComponent({
           };
         }
 
-        if (device.status !== 'ContinuousMode') {
+        if (device.status !== "ContinuousMode") {
           if (await enableContinuousMode()) {
-            device.status = 'ContinuousMode';
+            device.status = "ContinuousMode";
           }
         }
 
         if (device.device_type.toLowerCase() !== widgetType.value) {
           throw new Error(
-            `Device type mismatch: expected ${widgetType.value} but got ${device.device_type}`
+            `Device type mismatch: expected ${widgetType.value} but got ${device.device_type}`,
           );
         }
 
@@ -774,18 +788,18 @@ export default defineComponent({
         await fetchInitialRecordingStatus();
         setupRecordingWebSocket();
       } catch (err) {
-        console.error('Widget initialization error:', err);
+        console.error("Widget initialization error:", err);
         error.value = err.message;
         isLoading.value = false;
       }
 
-      if (widgetType.value === 'ping360') {
+      if (widgetType.value === "ping360") {
         datalakeUnsubscribe = listenToDatalakeVariable(
-          'ATTITUDE/yaw',
+          "ATTITUDE/yaw",
           (data) => {
             yawAngle.value = -(data * 180) / Math.PI;
           },
-          10
+          10,
         );
       }
 
@@ -829,7 +843,7 @@ export default defineComponent({
 
       closeRecordingWebSocket();
 
-      window.removeEventListener('resize', updateDimensions);
+      window.removeEventListener("resize", updateDimensions);
     });
 
     return {

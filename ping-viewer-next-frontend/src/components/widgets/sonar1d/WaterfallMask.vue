@@ -1,90 +1,122 @@
 <template>
-	<div class="waterfall-display relative w-full h-full" :style="{ paddingRight: `${rightOffset}px` }">
-		<WaterfallShader ref="waterfallShader" :width="width" :height="height" :max-depth="maxDepth"
-			:min-depth="minDepth" :column-count="columnCount" :sensor-data="sensorData" :color-palette="colorPalette"
-			:get-color-from-palette="getColorFromPalette" @update:columnCount="$emit('update:columnCount', $event)"
-			@mousemove="handleMouseMove" @mouseleave="handleMouseLeave" />
-		<canvas ref="overlayCanvas" class="absolute top-0 left-0 h-full pointer-events-none" :style="{ width: `calc(100% - ${rightOffset}px)` }"></canvas>
-	<div class="depth-ruler absolute top-0 h-full pointer-events-none" :style="{
-		right: showAScan ? '50px' : '0',
-		width: `${RULER_WIDTH}px`,
-	}">
-		<template v-for="tick in depthTicks" :key="tick.value">
-			<div class="absolute right-0 w-3 h-px bg-white/70" :style="{ top: `${tick.position}%` }"></div>
-			<span class="absolute text-3xl font-medium text-white whitespace-nowrap depth-label" :style="{
-				right: '6px',
-				top: `${tick.position}%`,
-				transform: 'translateY(-100%)',
-			}">{{ tick.label }}</span>
-		</template>
-	</div>
-	<div v-if="hasValidMeasurement" class="absolute w-0 h-0 border-solid border-transparent border-l-[16px] border-y-[8px]" :style="{
-		top: `${arrowPosition}%`,
-		right: `${rightOffset}px`,
-		borderLeftColor: depthArrowColor,
-		transform: 'translateY(-50%)',
-	}"/>
-		<AScanLine
-			v-if="showAScan"
-			class="absolute top-0 right-0 h-full"
-			:sensor-data="sensorData"
-			:max-depth="maxDepth"
-			:min-depth="minDepth"
-			:virtual-max-depth="virtualMaxDepth"
-			:width="50"
-		/>
+  <div
+    class="waterfall-display relative w-full h-full"
+    :style="{ paddingRight: `${rightOffset}px` }"
+  >
+    <WaterfallShader
+      ref="waterfallShader"
+      :width="width"
+      :height="height"
+      :max-depth="maxDepth"
+      :min-depth="minDepth"
+      :column-count="columnCount"
+      :sensor-data="sensorData"
+      :color-palette="colorPalette"
+      :get-color-from-palette="getColorFromPalette"
+      @update:columnCount="$emit('update:columnCount', $event)"
+      @mousemove="handleMouseMove"
+      @mouseleave="handleMouseLeave"
+    />
+    <canvas
+      ref="overlayCanvas"
+      class="absolute top-0 left-0 h-full pointer-events-none"
+      :style="{ width: `calc(100% - ${rightOffset}px)` }"
+    ></canvas>
+    <div
+      class="depth-ruler absolute top-0 h-full pointer-events-none"
+      :style="{
+        right: showAScan ? '50px' : '0',
+        width: `${RULER_WIDTH}px`,
+      }"
+    >
+      <template v-for="tick in depthTicks" :key="tick.value">
+        <div
+          class="absolute right-0 w-3 h-px bg-white/70"
+          :style="{ top: `${tick.position}%` }"
+        ></div>
+        <span
+          class="absolute text-3xl font-medium text-white whitespace-nowrap depth-label"
+          :style="{
+            right: '6px',
+            top: `${tick.position}%`,
+            transform: 'translateY(-100%)',
+          }"
+          >{{ tick.label }}</span
+        >
+      </template>
+    </div>
+    <div
+      v-if="hasValidMeasurement"
+      class="absolute w-0 h-0 border-solid border-transparent border-l-[16px] border-y-[8px]"
+      :style="{
+        top: `${arrowPosition}%`,
+        right: `${rightOffset}px`,
+        borderLeftColor: depthArrowColor,
+        transform: 'translateY(-50%)',
+      }"
+    />
+    <AScanLine
+      v-if="showAScan"
+      class="absolute top-0 right-0 h-full"
+      :sensor-data="sensorData"
+      :max-depth="maxDepth"
+      :min-depth="minDepth"
+      :virtual-max-depth="virtualMaxDepth"
+      :width="50"
+    />
 
-	<vue-draggable-resizable
-		v-if="hasValidMeasurement"
-		:x="boxPosition.x"
-		:y="boxPosition.y"
-		:w="boxPosition.w"
-		:h="boxPosition.h"
-		:min-width="130"
-		:min-height="40"
-		:parent="true"
-		:resizable="true"
-		:lock-aspect-ratio="true"
-		:disableUserSelect="true"
-		class="measurements-box glass-panel"
-		@resizing="onResize"
-		@dragging="onDrag"
-		@dblclick="resetPosition"
-	>
-		<div class="measurements-content text-sm px-1 rounded" :style="{ fontSize: `${fontSize}px` }">
-			<div class="text-left" :style="{ color: '#FFFFFF' }">
-				Depth: {{ formatDepth(currentDepth) }}
-			</div>
-			<div class="text-left" :style="{ color: '#FFFFFF' }">
-				Confidence: {{ confidence }}%
-			</div>
-		</div>
-	</vue-draggable-resizable>
+    <vue-draggable-resizable
+      v-if="hasValidMeasurement"
+      :x="boxPosition.x"
+      :y="boxPosition.y"
+      :w="boxPosition.w"
+      :h="boxPosition.h"
+      :min-width="130"
+      :min-height="40"
+      :parent="true"
+      :resizable="true"
+      :lock-aspect-ratio="true"
+      :disableUserSelect="true"
+      class="measurements-box glass-panel"
+      @resizing="onResize"
+      @dragging="onDrag"
+      @dblclick="resetPosition"
+    >
+      <div class="measurements-content text-sm px-1 rounded" :style="{ fontSize: `${fontSize}px` }">
+        <div class="text-left" :style="{ color: '#FFFFFF' }">
+          Depth: {{ formatDepth(currentDepth) }}
+        </div>
+        <div class="text-left" :style="{ color: '#FFFFFF' }">Confidence: {{ confidence }}%</div>
+      </div>
+    </vue-draggable-resizable>
 
-	<div v-if="hoveredColumn !== null && mousePosition && isValidColumnData(hoveredColumn)"
-		class="hovered-column-info glass-panel px-2 py-1 rounded flex flex-col space-y-1 absolute" :style="{
-			fontSize: `${fontSize}px`,
-			...getHoveredBoxPosition()
-		}">
-		<div class="flex flex-col" :style="{ color: '#FFFFFF' }">
-			<span :style="{ fontSize: `${fontSize * 0.4}px` }">Depth</span>
-			<span>{{ formatDepth(historicalData[hoveredColumn]?.depth) }}</span>
-		</div>
-		<div class="flex flex-col" :style="{ color: '#FFFFFF' }">
-			<span :style="{ fontSize: `${fontSize * 0.4}px` }">Confidence</span>
-			<span>{{ historicalData[hoveredColumn]?.confidence }}%</span>
-		</div>
-	</div>
-	</div>
+    <div
+      v-if="hoveredColumn !== null && mousePosition && isValidColumnData(hoveredColumn)"
+      class="hovered-column-info glass-panel px-2 py-1 rounded flex flex-col space-y-1 absolute"
+      :style="{
+        fontSize: `${fontSize}px`,
+        ...getHoveredBoxPosition(),
+      }"
+    >
+      <div class="flex flex-col" :style="{ color: '#FFFFFF' }">
+        <span :style="{ fontSize: `${fontSize * 0.4}px` }">Depth</span>
+        <span>{{ formatDepth(historicalData[hoveredColumn]?.depth) }}</span>
+      </div>
+      <div class="flex flex-col" :style="{ color: '#FFFFFF' }">
+        <span :style="{ fontSize: `${fontSize * 0.4}px` }">Confidence</span>
+        <span>{{ historicalData[hoveredColumn]?.confidence }}%</span>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { onKeyStroke } from '@vueuse/core';
-import VueDraggableResizable from 'vue-draggable-resizable';
-import { useUnits } from '../../../composables/useUnits';
-import AScanLine from './AScanLine.vue';
-import WaterfallShader from './WaterfallShader.vue';
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { onKeyStroke } from "@vueuse/core";
+import VueDraggableResizable from "vue-draggable-resizable";
+import { useUnits } from "../../../composables/useUnits";
+import AScanLine from "./AScanLine.vue";
+import WaterfallShader from "./WaterfallShader.vue";
 
 const { formatDepth, depthValue, depthUnit } = useUnits();
 
@@ -102,18 +134,18 @@ const props = defineProps({
   currentDepth: { type: Number, required: true },
   accuracy: { type: Number, required: true },
   confidence: { type: Number, required: true },
-  depthLineColor: { type: String, default: 'yellow' },
-  depthTextColor: { type: String, default: 'yellow' },
-  currentDepthColor: { type: String, default: 'yellow' },
-  confidenceColor: { type: String, default: '#00FF00' },
-  virtualMaxDepthColor: { type: String, default: '#FF8C00' },
-  textBackground: { type: String, default: 'rgba(0, 0, 0, 0.8)' },
-  depthArrowColor: { type: String, default: 'yellow' },
+  depthLineColor: { type: String, default: "yellow" },
+  depthTextColor: { type: String, default: "yellow" },
+  currentDepthColor: { type: String, default: "yellow" },
+  confidenceColor: { type: String, default: "#00FF00" },
+  virtualMaxDepthColor: { type: String, default: "#FF8C00" },
+  textBackground: { type: String, default: "rgba(0, 0, 0, 0.8)" },
+  depthArrowColor: { type: String, default: "yellow" },
   tickCount: { type: Number, default: 5 },
   showAScan: { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['update:columnCount']);
+const emit = defineEmits(["update:columnCount"]);
 
 const rightOffset = computed(() => (props.showAScan ? 50 : 0));
 
@@ -128,7 +160,7 @@ const containerHeight = ref(80);
 const DEFAULT_BOX_SIZE = { w: 260, h: 80 };
 
 function getDefaultPosition() {
-  const container = document.querySelector('.waterfall-display');
+  const container = document.querySelector(".waterfall-display");
   const containerWidth = container ? container.clientWidth : 600;
   return {
     x: Math.max(0, Math.floor((containerWidth - DEFAULT_BOX_SIZE.w) / 2)),
@@ -140,10 +172,10 @@ function getDefaultPosition() {
 const boxPosition = ref(loadSavedPosition());
 
 function loadSavedPosition() {
-  const saved = localStorage.getItem('waterfall-measurements-position');
+  const saved = localStorage.getItem("waterfall-measurements-position");
   const defaultPos = getDefaultPosition();
   const savedPosition = saved ? JSON.parse(saved) : defaultPos;
-  const container = document.querySelector('.waterfall-display');
+  const container = document.querySelector(".waterfall-display");
   if (!container) {
     return defaultPos;
   }
@@ -161,7 +193,7 @@ function loadSavedPosition() {
 }
 
 function savePosition(position) {
-  localStorage.setItem('waterfall-measurements-position', JSON.stringify(position));
+  localStorage.setItem("waterfall-measurements-position", JSON.stringify(position));
 }
 
 function onDrag(x, y) {
@@ -239,10 +271,10 @@ watch(
 
     updateVirtualMaxDepth();
     drawOverlay();
-  }
+  },
 );
 
-onKeyStroke(['r', 'R'], () => {
+onKeyStroke(["r", "R"], () => {
   historicalData.value = [];
   updateVirtualMaxDepth();
   drawOverlay();
@@ -253,7 +285,7 @@ watch(
   () => {
     updateVirtualMaxDepth();
   },
-  { deep: true }
+  { deep: true },
 );
 
 const niceInterval = computed(() => {
@@ -333,7 +365,7 @@ const drawOverlay = () => {
     const x = (props.columnCount - 1 - hoveredColumn.value) * columnWidth;
 
     if (isValidColumnData(hoveredColumn.value)) {
-      ctx.value.strokeStyle = 'white';
+      ctx.value.strokeStyle = "white";
       ctx.value.lineWidth = 2;
       ctx.value.strokeRect(x, 0, columnWidth, overlayCanvas.value.height);
 
@@ -342,9 +374,9 @@ const drawOverlay = () => {
         ((columnData.depth - props.minDepth) / (virtualMaxDepth.value - props.minDepth)) *
         overlayCanvas.value.height;
 
-      ctx.value.fillStyle = 'rgba(255, 0, 0, 0.5)';
+      ctx.value.fillStyle = "rgba(255, 0, 0, 0.5)";
       ctx.value.fillRect(x, y - 5, columnWidth, 10);
-      ctx.value.strokeStyle = 'red';
+      ctx.value.strokeStyle = "red";
       ctx.value.strokeRect(x, y - 5, columnWidth, 10);
     }
   }
@@ -359,12 +391,12 @@ const resizeOverlayCanvas = () => {
 };
 
 onMounted(() => {
-  ctx.value = overlayCanvas.value.getContext('2d');
+  ctx.value = overlayCanvas.value.getContext("2d");
   resizeOverlayCanvas();
-  window.addEventListener('resize', resizeOverlayCanvas);
+  window.addEventListener("resize", resizeOverlayCanvas);
 
   // Add resize observer to handle container size changes
-  const container = document.querySelector('.waterfall-display');
+  const container = document.querySelector(".waterfall-display");
   if (container) {
     const observer = new ResizeObserver(() => {
       const newPosition = loadSavedPosition();
@@ -376,7 +408,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', resizeOverlayCanvas);
+  window.removeEventListener("resize", resizeOverlayCanvas);
 });
 </script>
 
@@ -386,112 +418,114 @@ onUnmounted(() => {
 
 <style scoped>
 .waterfall-display {
-	position: relative;
-	box-sizing: border-box;
+  position: relative;
+  box-sizing: border-box;
 }
 
 .depth-ruler {
-	z-index: 5;
+  z-index: 5;
 }
 
 .depth-label {
-	-webkit-text-stroke: 1px rgba(0, 0, 0, 0.7);
-	paint-order: stroke fill;
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.7);
+  paint-order: stroke fill;
 }
 
 .measurements-box {
-	position: absolute !important;
-	top: 0;
-	left: 0;
-	cursor: move;
-	border-radius: 8px;
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  cursor: move;
+  border-radius: 8px;
 }
 
 .measurements-content {
-	display: grid;
-	line-height: 1.2;
-	user-select: none;
+  display: grid;
+  line-height: 1.2;
+  user-select: none;
 }
 
 :deep(.vdr) {
-	border: 1px solid rgba(255, 255, 255, 0.15);
-	border-radius: 8px;
-	transition: border-color 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  transition: border-color 0.2s ease;
 }
 
 :deep(.vdr:hover) {
-	border-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 :deep(.handle) {
-	background: none !important;
-	border: none !important;
-	width: 16px !important;
-	height: 16px !important;
-	opacity: 0;
-	transition: opacity 0.2s ease;
+  background: none !important;
+  border: none !important;
+  width: 16px !important;
+  height: 16px !important;
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
 :deep(.vdr:hover .handle) {
-	opacity: 1;
+  opacity: 1;
 }
 
 :deep(.handle-tl) {
-	top: -2px !important;
-	left: -2px !important;
-	border-top: 2px solid rgba(255, 255, 255, 0.7) !important;
-	border-left: 2px solid rgba(255, 255, 255, 0.7) !important;
-	border-radius: 6px 0 0 0 !important;
+  top: -2px !important;
+  left: -2px !important;
+  border-top: 2px solid rgba(255, 255, 255, 0.7) !important;
+  border-left: 2px solid rgba(255, 255, 255, 0.7) !important;
+  border-radius: 6px 0 0 0 !important;
 }
 
 :deep(.handle-tr) {
-	top: -2px !important;
-	right: -2px !important;
-	border-top: 2px solid rgba(255, 255, 255, 0.7) !important;
-	border-right: 2px solid rgba(255, 255, 255, 0.7) !important;
-	border-radius: 0 6px 0 0 !important;
+  top: -2px !important;
+  right: -2px !important;
+  border-top: 2px solid rgba(255, 255, 255, 0.7) !important;
+  border-right: 2px solid rgba(255, 255, 255, 0.7) !important;
+  border-radius: 0 6px 0 0 !important;
 }
 
 :deep(.handle-bl) {
-	bottom: -2px !important;
-	left: -2px !important;
-	border-bottom: 2px solid rgba(255, 255, 255, 0.7) !important;
-	border-left: 2px solid rgba(255, 255, 255, 0.7) !important;
-	border-radius: 0 0 0 6px !important;
+  bottom: -2px !important;
+  left: -2px !important;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.7) !important;
+  border-left: 2px solid rgba(255, 255, 255, 0.7) !important;
+  border-radius: 0 0 0 6px !important;
 }
 
 :deep(.handle-br) {
-	bottom: -2px !important;
-	right: -2px !important;
-	border-bottom: 2px solid rgba(255, 255, 255, 0.7) !important;
-	border-right: 2px solid rgba(255, 255, 255, 0.7) !important;
-	border-radius: 0 0 6px 0 !important;
+  bottom: -2px !important;
+  right: -2px !important;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.7) !important;
+  border-right: 2px solid rgba(255, 255, 255, 0.7) !important;
+  border-radius: 0 0 6px 0 !important;
 }
 
 :deep(.handle-tl:hover),
 :deep(.handle-tr:hover),
 :deep(.handle-bl:hover),
 :deep(.handle-br:hover) {
-	filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
 }
 
 :deep(.handle-tm),
 :deep(.handle-bm),
 :deep(.handle-ml),
 :deep(.handle-mr) {
-	display: none !important;
+  display: none !important;
 }
 
 .shader-container {
-	z-index: 10;
+  z-index: 10;
 }
 
 .glass-panel {
-	background-color: rgba(0, 0, 0, 0.10);
-	color: rgba(255, 255, 255, 1);
-	border: 1px solid rgba(255, 255, 255, 0.15);
-	backdrop-filter: blur(25px);
-	-webkit-backdrop-filter: blur(16px);
-	box-shadow: 0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016;
+  background-color: rgba(0, 0, 0, 0.1);
+  color: rgba(255, 255, 255, 1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow:
+    0px 8px 8px 0px #00000033,
+    0px 8px 12px 6px #00000016;
 }
 </style>

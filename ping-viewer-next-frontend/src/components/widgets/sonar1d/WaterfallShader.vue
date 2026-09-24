@@ -3,8 +3,8 @@
 </template>
 
 <script setup lang="ts">
-import { onKeyStroke } from '@vueuse/core';
-import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { onKeyStroke } from "@vueuse/core";
+import { onMounted, onBeforeUnmount, ref, watch } from "vue";
 
 const props = withDefaults(
   defineProps<{
@@ -17,10 +17,10 @@ const props = withDefaults(
     colorPalette: string;
     getColorFromPalette: (value: number, palette: string) => number[];
   }>(),
-  { columnCount: 200 }
+  { columnCount: 200 },
 );
 
-defineEmits<{ 'update:columnCount': [value: number] }>();
+defineEmits<{ "update:columnCount": [value: number] }>();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 
@@ -328,7 +328,7 @@ function clearWaterfall() {
     0,
     gl.RED,
     gl.UNSIGNED_BYTE,
-    null
+    null,
   );
 
   gl.activeTexture(gl.TEXTURE2);
@@ -343,7 +343,7 @@ function clearWaterfall() {
   scheduleRender();
 }
 
-onKeyStroke(['r', 'R'], clearWaterfall);
+onKeyStroke(["r", "R"], clearWaterfall);
 
 function syncCanvasSize() {
   const canvas = canvasRef.value;
@@ -362,9 +362,9 @@ function syncCanvasSize() {
 
 onMounted(() => {
   const canvas = canvasRef.value!;
-  gl = canvas.getContext('webgl2', { antialias: false, alpha: true, premultipliedAlpha: false });
+  gl = canvas.getContext("webgl2", { antialias: false, alpha: true, premultipliedAlpha: false });
   if (!gl) {
-    console.error('WaterfallShader: WebGL 2 not available');
+    console.error("WaterfallShader: WebGL 2 not available");
     return;
   }
 
@@ -374,14 +374,14 @@ onMounted(() => {
 
   // Shader program
   program = buildProgram(VERT_SRC, FRAG_SRC);
-  locCols = gl.getUniformLocation(program, 'u_cols');
-  locStartCol = gl.getUniformLocation(program, 'u_startCol');
-  locValidCols = gl.getUniformLocation(program, 'u_validCols');
-  locData = gl.getUniformLocation(program, 'u_data');
-  locPalette = gl.getUniformLocation(program, 'u_palette');
-  locDepth = gl.getUniformLocation(program, 'u_depth');
-  locMinDepth = gl.getUniformLocation(program, 'u_minDepth');
-  locMaxDepth = gl.getUniformLocation(program, 'u_maxDepth');
+  locCols = gl.getUniformLocation(program, "u_cols");
+  locStartCol = gl.getUniformLocation(program, "u_startCol");
+  locValidCols = gl.getUniformLocation(program, "u_validCols");
+  locData = gl.getUniformLocation(program, "u_data");
+  locPalette = gl.getUniformLocation(program, "u_palette");
+  locDepth = gl.getUniformLocation(program, "u_depth");
+  locMinDepth = gl.getUniformLocation(program, "u_minDepth");
+  locMaxDepth = gl.getUniformLocation(program, "u_maxDepth");
 
   // Fullscreen quad (triangle strip: BL → BR → TL → TR)
   const positions = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
@@ -390,7 +390,7 @@ onMounted(() => {
   vbo = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
   gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
-  const aPos = gl.getAttribLocation(program, 'a_position');
+  const aPos = gl.getAttribLocation(program, "a_position");
   gl.enableVertexAttribArray(aPos);
   gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
   gl.bindVertexArray(null);
@@ -424,7 +424,7 @@ onBeforeUnmount(() => {
     if (vbo) gl.deleteBuffer(vbo);
     if (vao) gl.deleteVertexArray(vao);
     if (program) gl.deleteProgram(program);
-    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
   }
 
   gl = null;
@@ -442,7 +442,7 @@ watch(
   () => props.sensorData,
   (data) => {
     if (data && data.length > 0) pushColumn(data);
-  }
+  },
 );
 
 watch([() => props.colorPalette, () => props.getColorFromPalette], () => {
@@ -459,7 +459,7 @@ watch(
       createDataTexture(next, currentBinCount || 200);
       scheduleRender();
     }
-  }
+  },
 );
 
 watch([() => props.width, () => props.height], syncCanvasSize);

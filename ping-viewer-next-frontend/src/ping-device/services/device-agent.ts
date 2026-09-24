@@ -1,27 +1,27 @@
-import { ref, watch } from 'vue';
-import type { Ref } from 'vue';
-import type { DeviceAgentState, DeviceType } from '../types/common';
-import type { Ping1DSettings } from '../types/ping1d';
-import type { Ping360Settings } from '../types/ping360';
-import type { DeviceRequest } from '../types/requests';
-import type { DeviceResponse } from '../types/responses';
+import { ref, watch } from "vue";
+import type { Ref } from "vue";
+import type { DeviceAgentState, DeviceType } from "../types/common";
+import type { Ping1DSettings } from "../types/ping1d";
+import type { Ping360Settings } from "../types/ping360";
+import type { DeviceRequest } from "../types/requests";
+import type { DeviceResponse } from "../types/responses";
 import type {
   GainSettingResponse,
   ModeAutoResponse,
   RangeResponse,
   SettingsResponse,
   SpeedOfSoundResponse,
-} from '../types/responses';
-import { DEFAULT_MAX_RECONNECT_ATTEMPTS, DEFAULT_RECONNECT_DELAY } from '../utils/constants';
-import { ApiService } from './api-service';
+} from "../types/responses";
+import { DEFAULT_MAX_RECONNECT_ATTEMPTS, DEFAULT_RECONNECT_DELAY } from "../utils/constants";
+import { ApiService } from "./api-service";
 
 import {
   calculateRange,
   calculateSamplePeriod,
   calculateTransmitDuration,
-} from '../utils/ping360-utils';
+} from "../utils/ping360-utils";
 
-import { MAX_NUMBER_OF_POINTS, MAX_SAMPLE_PERIOD, MIN_SAMPLE_PERIOD } from '../utils/constants';
+import { MAX_NUMBER_OF_POINTS, MAX_SAMPLE_PERIOD, MIN_SAMPLE_PERIOD } from "../utils/constants";
 
 /**
  * Creates and manages a WebSocket connection to a device
@@ -34,9 +34,9 @@ export class DeviceAgent implements DeviceAgentState {
   latestPing360Data = ref(null);
   latestPing1DData = ref(null);
   ping360Settings = ref(null);
-  polarMode: Ref<string> = ref('full');
+  polarMode: Ref<string> = ref("full");
   ping1DSettings = ref(null);
-  deviceType: Ref<DeviceType> = ref('unknown');
+  deviceType: Ref<DeviceType> = ref("unknown");
   error: Ref<string | null> = ref(null);
   reconnectAttempts: Ref<number> = ref(0);
   reconnecting: Ref<boolean> = ref(false);
@@ -54,7 +54,7 @@ export class DeviceAgent implements DeviceAgentState {
 
   constructor(
     private uuid: string,
-    private serverUrl: string
+    private serverUrl: string,
   ) {
     this.apiService = new ApiService(serverUrl);
     this.connect();
@@ -104,7 +104,7 @@ export class DeviceAgent implements DeviceAgentState {
             const pingMessage = parsedMessage.DeviceMessage.PingMessage;
 
             if (pingMessage.Ping360) {
-              this.deviceType.value = 'ping360';
+              this.deviceType.value = "ping360";
               this.latestPing360Data.value = pingMessage.Ping360.AutoDeviceData;
 
               if (!this.settingsRequested.ping360) {
@@ -116,11 +116,11 @@ export class DeviceAgent implements DeviceAgentState {
                     }
                   })
                   .catch((err) => {
-                    console.error('Failed to auto-request Ping360 settings:', err);
+                    console.error("Failed to auto-request Ping360 settings:", err);
                   });
               }
             } else if (pingMessage.Ping1D) {
-              this.deviceType.value = 'ping1d';
+              this.deviceType.value = "ping1d";
               this.latestPing1DData.value = pingMessage.Ping1D.AutoDeviceData;
 
               if (this.latestPing1DData.value) {
@@ -152,7 +152,7 @@ export class DeviceAgent implements DeviceAgentState {
                     }
                   })
                   .catch((err) => {
-                    console.error('Failed to auto-request Ping1D settings:', err);
+                    console.error("Failed to auto-request Ping1D settings:", err);
                   });
               }
             }
@@ -170,7 +170,7 @@ export class DeviceAgent implements DeviceAgentState {
     };
 
     this.ws.onerror = () => {
-      this.error.value = 'WebSocket error';
+      this.error.value = "WebSocket error";
     };
 
     this.ws.onclose = (evt) => {
@@ -193,7 +193,7 @@ export class DeviceAgent implements DeviceAgentState {
     this.reconnectAttempts.value = 0;
 
     if (this.ws) {
-      this.ws.close(1000, 'Intentional disconnect');
+      this.ws.close(1000, "Intentional disconnect");
     }
   }
 
@@ -215,7 +215,7 @@ export class DeviceAgent implements DeviceAgentState {
 
   sendRequest(request: DeviceRequest): boolean {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      this.error.value = 'WebSocket not connected';
+      this.error.value = "WebSocket not connected";
       return false;
     }
     this.ws.send(JSON.stringify(request));
@@ -251,7 +251,7 @@ export class DeviceAgent implements DeviceAgentState {
 
       if (ping1D.SpeedOfSound) {
         this.ping1DSettings.value.speed_of_sound = Math.round(
-          ping1D.SpeedOfSound.speed_of_sound / 1000
+          ping1D.SpeedOfSound.speed_of_sound / 1000,
         );
       }
     }
@@ -290,7 +290,7 @@ export class DeviceAgent implements DeviceAgentState {
       }
       return null;
     } catch (error) {
-      console.error('Error fetching Ping360 settings:', error);
+      console.error("Error fetching Ping360 settings:", error);
       return this.ping360Settings.value;
     }
   }
@@ -313,7 +313,7 @@ export class DeviceAgent implements DeviceAgentState {
       }
 
       if (!this.ping360Settings.value) {
-        this.error.value = 'Unable to get current Ping360 settings';
+        this.error.value = "Unable to get current Ping360 settings";
         return false;
       }
     }
@@ -323,30 +323,30 @@ export class DeviceAgent implements DeviceAgentState {
 
     let newRange: number;
 
-    if (rangeTarget.endsWith('%')) {
-      const percentChange = Number.parseFloat(rangeTarget.replace('%', ''));
+    if (rangeTarget.endsWith("%")) {
+      const percentChange = Number.parseFloat(rangeTarget.replace("%", ""));
       if (Number.isNaN(percentChange)) {
         this.error.value = `Invalid percentage value: ${rangeTarget}`;
         return false;
       }
 
-      if (rangeTarget.startsWith('+')) {
+      if (rangeTarget.startsWith("+")) {
         newRange = currentRange * (1 + percentChange / 100);
-      } else if (rangeTarget.startsWith('-')) {
+      } else if (rangeTarget.startsWith("-")) {
         newRange = currentRange * (1 - Math.abs(percentChange) / 100);
       } else {
         newRange = currentRange * (percentChange / 100);
       }
     } else {
-      const metersValue = Number.parseFloat(rangeTarget.replace('m', ''));
+      const metersValue = Number.parseFloat(rangeTarget.replace("m", ""));
       if (Number.isNaN(metersValue)) {
         this.error.value = `Invalid range value: ${rangeTarget}`;
         return false;
       }
 
-      if (rangeTarget.startsWith('+')) {
+      if (rangeTarget.startsWith("+")) {
         newRange = currentRange + metersValue;
-      } else if (rangeTarget.startsWith('-')) {
+      } else if (rangeTarget.startsWith("-")) {
         newRange = currentRange - Math.abs(metersValue);
       } else {
         newRange = metersValue;
@@ -362,7 +362,7 @@ export class DeviceAgent implements DeviceAgentState {
 
     const clampedSamplePeriod = Math.max(
       MIN_SAMPLE_PERIOD,
-      Math.min(MAX_SAMPLE_PERIOD, samplePeriod)
+      Math.min(MAX_SAMPLE_PERIOD, samplePeriod),
     );
 
     const transmitDuration = calculateTransmitDuration(newRange, speedOfSound, clampedSamplePeriod);
@@ -395,12 +395,12 @@ export class DeviceAgent implements DeviceAgentState {
         try {
           await this.getPing360Settings(true);
         } catch (error) {
-          console.error('Failed to get settings:', error);
-          return 'full';
+          console.error("Failed to get settings:", error);
+          return "full";
         }
 
         if (!this.ping360Settings.value) {
-          return 'full';
+          return "full";
         }
       }
 
@@ -414,14 +414,14 @@ export class DeviceAgent implements DeviceAgentState {
         const isStopInUpperRange = stopAngleDegrees >= 100 && stopAngleDegrees <= 300;
 
         if (isStartInUpperRange && isStopInUpperRange) {
-          return 'upper-sector';
+          return "upper-sector";
         }
-        return 'full';
+        return "full";
       }
     } catch (error) {
-      console.error('Error checking view sector', error);
+      console.error("Error checking view sector", error);
     }
-    return 'full';
+    return "full";
   }
 
   async getPing1DSettings(forceUpdate = false): Promise<Ping1DSettings | null> {
@@ -432,13 +432,13 @@ export class DeviceAgent implements DeviceAgentState {
     try {
       const settings: Partial<Ping1DSettings> = {};
 
-      const modeAutoResponse = await this.sendPing1DCommand('ModeAuto');
+      const modeAutoResponse = await this.sendPing1DCommand("ModeAuto");
       const modeAutoData = modeAutoResponse as ModeAutoResponse;
       if (modeAutoData?.DeviceMessage?.PingMessage?.Ping1D?.ModeAuto) {
         settings.mode_auto = modeAutoData.DeviceMessage.PingMessage.Ping1D.ModeAuto.mode_auto;
       }
 
-      const rangeResponse = await this.sendPing1DCommand('Range');
+      const rangeResponse = await this.sendPing1DCommand("Range");
       const rangeData = rangeResponse as RangeResponse;
       if (rangeData?.DeviceMessage?.PingMessage?.Ping1D?.Range) {
         const range = rangeData.DeviceMessage.PingMessage.Ping1D.Range;
@@ -446,31 +446,31 @@ export class DeviceAgent implements DeviceAgentState {
         settings.scan_length = range.scan_length / 1000;
       }
 
-      const gainResponse = await this.sendPing1DCommand('GainSetting');
+      const gainResponse = await this.sendPing1DCommand("GainSetting");
       const gainData = gainResponse as GainSettingResponse;
       if (gainData?.DeviceMessage?.PingMessage?.Ping1D?.GainSetting) {
         settings.gain_setting = gainData.DeviceMessage.PingMessage.Ping1D.GainSetting.gain_setting;
       }
 
-      const speedResponse = await this.sendPing1DCommand('SpeedOfSound');
+      const speedResponse = await this.sendPing1DCommand("SpeedOfSound");
       const speedData = speedResponse as SpeedOfSoundResponse;
       if (speedData?.DeviceMessage?.PingMessage?.Ping1D?.SpeedOfSound) {
         settings.speed_of_sound = Math.round(
-          speedData.DeviceMessage.PingMessage.Ping1D.SpeedOfSound.speed_of_sound / 1000
+          speedData.DeviceMessage.PingMessage.Ping1D.SpeedOfSound.speed_of_sound / 1000,
         );
       }
 
       this.ping1DSettings.value = settings as Ping1DSettings;
       return this.ping1DSettings.value;
     } catch (error) {
-      console.error('Error fetching Ping1D settings:', error);
+      console.error("Error fetching Ping1D settings:", error);
       return this.ping1DSettings.value;
     }
   }
 
   async sendPing1DCommand(
     command: string,
-    payload: Record<string, unknown> | null = null
+    payload: Record<string, unknown> | null = null,
   ): Promise<unknown> {
     try {
       const response = await this.apiService.sendPing1DCommand(this.uuid, command, payload);

@@ -20,7 +20,10 @@
               <span class="setting-label">Units:</span>
               <v-select
                 v-model="unitSystem"
-                :items="[{ title: 'Metric', value: 'metric' }, { title: 'Imperial', value: 'imperial' }]"
+                :items="[
+                  { title: 'Metric', value: 'metric' },
+                  { title: 'Imperial', value: 'imperial' },
+                ]"
                 hide-details
                 density="compact"
                 class="setting-select"
@@ -97,7 +100,6 @@
                 class="custom-bg-swatch"
               />
             </div>
-
           </div>
         </v-window-item>
 
@@ -157,7 +159,7 @@
                   @click="toggleMavlinkConnection"
                   :loading="mavlinkStatus === 'Connecting'"
                 >
-                  {{ mavlinkStatus === 'Connected' ? 'Disconnect' : 'Connect' }}
+                  {{ mavlinkStatus === "Connected" ? "Disconnect" : "Connect" }}
                 </v-btn>
               </div>
             </section>
@@ -169,9 +171,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { colorPalettes } from '../widgets/SonarColorOptions.vue';
-import { useUnits } from '../../composables/useUnits';
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { colorPalettes } from "../widgets/SonarColorOptions.vue";
+import { useUnits } from "../../composables/useUnits";
 
 const { unitSystem } = useUnits();
 
@@ -190,64 +192,64 @@ const props = defineProps({
   },
   serverUrl: {
     type: String,
-    default: '',
+    default: "",
   },
   yawConnectionStatus: {
     type: String,
-    default: 'Disconnected',
+    default: "Disconnected",
   },
 });
 
 const emit = defineEmits([
-  'update:displaySettings',
-  'update:isDarkMode',
-  'update:serverUrl',
-  'updateMavlink',
+  "update:displaySettings",
+  "update:isDarkMode",
+  "update:serverUrl",
+  "updateMavlink",
 ]);
 
-const activeTab = ref('display');
+const activeTab = ref("display");
 const localSettings = reactive({ ...props.displaySettings });
 
 const useGradientBackground = computed({
-  get: () => localSettings.backgroundMode !== 'custom',
+  get: () => localSettings.backgroundMode !== "custom",
   set: (val) => {
-    localSettings.backgroundMode = val ? 'gradient' : 'custom';
+    localSettings.backgroundMode = val ? "gradient" : "custom";
   },
 });
-const mavlinkStatus = ref('Disconnected');
+const mavlinkStatus = ref("Disconnected");
 
 const paletteOptions = Object.keys(colorPalettes);
 
 const serverSettings = reactive({
   url: props.serverUrl,
-  mavlinkUrl: localStorage.getItem('mavlinkUrl') || 'ws://localhost:6040/ws/mavlink',
-  autoConnectMavlink: localStorage.getItem('autoConnectMavlink') === 'true',
+  mavlinkUrl: localStorage.getItem("mavlinkUrl") || "ws://localhost:6040/ws/mavlink",
+  autoConnectMavlink: localStorage.getItem("autoConnectMavlink") === "true",
 });
 
 const mavlinkStatusColor = computed(() => {
   switch (mavlinkStatus.value) {
-    case 'Connected':
-      return 'success';
-    case 'Connecting':
-      return 'warning';
-    case 'Error':
-      return 'error';
+    case "Connected":
+      return "success";
+    case "Connecting":
+      return "warning";
+    case "Error":
+      return "error";
     default:
-      return 'grey';
+      return "grey";
   }
 });
 
 const handleThemeChange = (value) => {
-  emit('update:isDarkMode', value === 'Dark');
+  emit("update:isDarkMode", value === "Dark");
 };
 
 const toggleMavlinkConnection = async () => {
-  if (mavlinkStatus.value === 'Connected') {
-    emit('updateMavlink', { action: 'disconnect', url: serverSettings.mavlinkUrl });
+  if (mavlinkStatus.value === "Connected") {
+    emit("updateMavlink", { action: "disconnect", url: serverSettings.mavlinkUrl });
   } else {
-    mavlinkStatus.value = 'Connecting';
-    emit('updateMavlink', {
-      action: 'connect',
+    mavlinkStatus.value = "Connecting";
+    emit("updateMavlink", {
+      action: "connect",
       url: serverSettings.mavlinkUrl,
       autoConnect: serverSettings.autoConnectMavlink,
     });
@@ -255,22 +257,22 @@ const toggleMavlinkConnection = async () => {
 };
 
 const persistServerSettings = () => {
-  localStorage.setItem('mavlinkUrl', serverSettings.mavlinkUrl);
-  localStorage.setItem('autoConnectMavlink', serverSettings.autoConnectMavlink.toString());
+  localStorage.setItem("mavlinkUrl", serverSettings.mavlinkUrl);
+  localStorage.setItem("autoConnectMavlink", serverSettings.autoConnectMavlink.toString());
   if (!serverSettings.url) return;
-  const host = serverSettings.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-  localStorage.setItem('pingviewer-server', JSON.stringify({ address: host }));
+  const host = serverSettings.url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  localStorage.setItem("pingviewer-server", JSON.stringify({ address: host }));
 };
 
 const applyMavlinkUrl = () => {
-  const changed = serverSettings.mavlinkUrl !== localStorage.getItem('mavlinkUrl');
+  const changed = serverSettings.mavlinkUrl !== localStorage.getItem("mavlinkUrl");
   persistServerSettings();
   if (!changed) return;
-  if (mavlinkStatus.value === 'Connected') {
-    emit('updateMavlink', { action: 'reconnect', url: serverSettings.mavlinkUrl });
+  if (mavlinkStatus.value === "Connected") {
+    emit("updateMavlink", { action: "reconnect", url: serverSettings.mavlinkUrl });
   } else if (serverSettings.autoConnectMavlink) {
-    emit('updateMavlink', {
-      action: 'connect',
+    emit("updateMavlink", {
+      action: "connect",
       url: serverSettings.mavlinkUrl,
       autoConnect: true,
     });
@@ -280,11 +282,11 @@ const applyMavlinkUrl = () => {
 const applyServerUrl = () => {
   persistServerSettings();
   if (!serverSettings.url) return;
-  const url = serverSettings.url.includes('://')
+  const url = serverSettings.url.includes("://")
     ? serverSettings.url
     : `${window.location.protocol}//${serverSettings.url}`;
   if (url !== props.serverUrl) {
-    emit('update:serverUrl', url);
+    emit("update:serverUrl", url);
   }
 };
 
@@ -292,10 +294,10 @@ watch(
   () => serverSettings.autoConnectMavlink,
   (enabled) => {
     persistServerSettings();
-    if (enabled && mavlinkStatus.value === 'Disconnected') {
+    if (enabled && mavlinkStatus.value === "Disconnected") {
       toggleMavlinkConnection();
     }
-  }
+  },
 );
 
 watch(
@@ -303,15 +305,15 @@ watch(
   (newSettings) => {
     Object.assign(localSettings, newSettings);
   },
-  { deep: true }
+  { deep: true },
 );
 
 watch(
   localSettings,
   (newSettings) => {
-    emit('update:displaySettings', { ...newSettings });
+    emit("update:displaySettings", { ...newSettings });
   },
-  { deep: true }
+  { deep: true },
 );
 
 watch(
@@ -319,18 +321,17 @@ watch(
   (newStatus) => {
     mavlinkStatus.value = newStatus;
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 onMounted(() => {
-  if (serverSettings.autoConnectMavlink && mavlinkStatus.value === 'Disconnected') {
+  if (serverSettings.autoConnectMavlink && mavlinkStatus.value === "Disconnected") {
     toggleMavlinkConnection();
   }
 });
 </script>
 
 <style>
-
 .settings-window {
   /* flex: 1; */
   overflow-y: auto;

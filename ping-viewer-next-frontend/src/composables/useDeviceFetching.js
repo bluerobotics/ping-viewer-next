@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from "vue";
 
 export function useDeviceFetching(serverUrl) {
   const deviceInfo = ref({ DeviceInfo: [] });
@@ -8,7 +8,7 @@ export function useDeviceFetching(serverUrl) {
   const fetchDevices = async () => {
     try {
       const response = await fetch(`${serverUrl}/device_manager/List`, {
-        mode: 'cors',
+        mode: "cors",
       });
       if (response.ok) {
         const data = await response.json();
@@ -16,7 +16,7 @@ export function useDeviceFetching(serverUrl) {
         fetchingError.value = null;
         return true;
       }
-      fetchingError.value = 'Failed to fetch devices';
+      fetchingError.value = "Failed to fetch devices";
     } catch (err) {
       console.error(`Error connecting to ${serverUrl}:`, err);
       fetchingError.value = err.message;

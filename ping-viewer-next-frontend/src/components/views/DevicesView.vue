@@ -7,16 +7,16 @@
         </div>
 
         <div class="p-4">
-          <DeviceSettings
-            :server-url="serverUrl"
-            @openDevice="selectDevice"
-          />
+          <DeviceSettings :server-url="serverUrl" @openDevice="selectDevice" />
         </div>
       </div>
 
       <div v-else class="flex-1 flex flex-col overflow-hidden" ref="deviceView">
         <div class="flex-none bg-gray-800 p-4 flex justify-between items-center">
-          <button @click="backToDevices" class="flex items-center text-blue-400 hover:text-blue-300">
+          <button
+            @click="backToDevices"
+            class="flex items-center text-blue-400 hover:text-blue-300"
+          >
             <v-icon icon="mdi-arrow-left" class="mr-2" />
             Back to Devices
           </button>
@@ -26,8 +26,11 @@
               <span class="font-bold">{{ selectedDevice.device_type }}</span>
               <span class="text-gray-400 ml-2">{{ selectedDevice.id }}</span>
             </div>
-            <v-tooltip location="bottom" :text="deviceStatusReason(selectedDevice.status)"
-              :disabled="!deviceStatusReason(selectedDevice.status)">
+            <v-tooltip
+              location="bottom"
+              :text="deviceStatusReason(selectedDevice.status)"
+              :disabled="!deviceStatusReason(selectedDevice.status)"
+            >
               <template v-slot:activator="{ props }">
                 <v-chip v-bind="props" :color="getStatusColor(selectedDevice.status)" size="small">
                   {{ getStatusLabel(selectedDevice.status) }}
@@ -37,9 +40,17 @@
           </div>
         </div>
 
-        <div class="flex-1 overflow-hidden bg-black flex items-center justify-center p-4" ref="contentContainer">
+        <div
+          class="flex-1 overflow-hidden bg-black flex items-center justify-center p-4"
+          ref="contentContainer"
+        >
           <Transition name="fade" mode="out-in">
-            <div v-if="isComponentReady" ref="componentContainer" class="relative" :style="containerStyle">
+            <div
+              v-if="isComponentReady"
+              ref="componentContainer"
+              class="relative"
+              :style="containerStyle"
+            >
               <component
                 :is="deviceComponent"
                 :device="selectedDevice"
@@ -59,15 +70,15 @@
 </template>
 
 <script setup>
-import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue';
-import DeviceSettings from '../utils/DeviceManager.vue';
-import Ping1DLoader from '../widgets/sonar1d/Ping1DLoader.vue';
-import Ping360Loader from '../widgets/sonar360/Ping360Loader.vue';
+import { computed, inject, nextTick, onMounted, onUnmounted, ref } from "vue";
+import DeviceSettings from "../utils/DeviceManager.vue";
+import Ping1DLoader from "../widgets/sonar1d/Ping1DLoader.vue";
+import Ping360Loader from "../widgets/sonar360/Ping360Loader.vue";
 import {
   deviceStatusColor as getStatusColor,
   deviceStatusLabel as getStatusLabel,
   deviceStatusReason,
-} from '@/ping-device/utils/device-status';
+} from "@/ping-device/utils/device-status";
 
 const props = defineProps({
   serverUrl: {
@@ -76,7 +87,7 @@ const props = defineProps({
   },
 });
 
-const { commonSettings, ping1DSettings, ping360Settings } = inject('deviceSettings');
+const { commonSettings, ping1DSettings, ping360Settings } = inject("deviceSettings");
 const componentContainer = ref(null);
 const contentContainer = ref(null);
 const deviceView = ref(null);
@@ -90,14 +101,14 @@ const componentDimensions = ref({
 
 const deviceComponent = computed(() => {
   if (!selectedDevice.value) return null;
-  return selectedDevice.value.device_type === 'Ping360' ? Ping360Loader : Ping1DLoader;
+  return selectedDevice.value.device_type === "Ping360" ? Ping360Loader : Ping1DLoader;
 });
 
 const deviceSettings = computed(() => {
   if (!selectedDevice.value) return {};
 
   const settings =
-    selectedDevice.value.device_type === 'Ping360' ? ping360Settings : ping1DSettings;
+    selectedDevice.value.device_type === "Ping360" ? ping360Settings : ping1DSettings;
 
   return {
     ...commonSettings,
@@ -110,8 +121,8 @@ const deviceSettings = computed(() => {
 const containerStyle = computed(() => ({
   width: `${componentDimensions.value.width}px`,
   height: `${componentDimensions.value.height}px`,
-  maxWidth: '100%',
-  maxHeight: '100%',
+  maxWidth: "100%",
+  maxHeight: "100%",
 }));
 
 const selectDevice = async (device) => {
@@ -131,9 +142,9 @@ const backToDevices = () => {
 };
 
 const getWebSocketUrl = (device) => {
-  if (!device) return '';
+  if (!device) return "";
   const url = new URL(props.serverUrl);
-  const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  const protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${url.host}/ws?device_number=${device.id}`;
 };
 
@@ -172,11 +183,11 @@ const handleResize = () => {
 };
 
 onMounted(() => {
-  window.addEventListener('resize', handleResize);
+  window.addEventListener("resize", handleResize);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize);
+  window.removeEventListener("resize", handleResize);
 });
 </script>
 

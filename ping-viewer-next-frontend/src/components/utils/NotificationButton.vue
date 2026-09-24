@@ -44,11 +44,11 @@
             <v-list-item
               v-for="notification in notifications"
               :key="notification.id"
-              :class="{ 'unread': !notification.read }"
+              :class="{ unread: !notification.read }"
             >
               <template v-slot:prepend>
                 <v-icon :color="notification.color || 'primary'">
-                  {{ notification.icon || 'mdi-information' }}
+                  {{ notification.icon || "mdi-information" }}
                 </v-icon>
               </template>
 
@@ -72,8 +72,8 @@
 </template>
 
 <script setup>
-import { useNotificationStore } from '@/stores/notificationStore';
-import { computed, ref } from 'vue';
+import { useNotificationStore } from "@/stores/notificationStore";
+import { computed, ref } from "vue";
 
 const notificationStore = useNotificationStore();
 const showNotifications = ref(false);
@@ -127,7 +127,7 @@ const clearNotifications = () => {
 }
 
 .notification-list .v-list-item.unread::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 0;
@@ -135,4 +135,4 @@ const clearNotifications = () => {
   width: 4px;
   background-color: rgb(var(--v-theme-primary));
 }
-</style> 
+</style>

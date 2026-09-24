@@ -1,276 +1,414 @@
 <template>
-
   <ServerConnection v-if="!serverUrl" @serverConnected="onServerConnected" />
 
-        <div v-if="activeDevice" class="device-viewer" :class="{ 'glass-inner disable-hover': glass }">
-          <component :is="activeDevice.component" :device="activeDevice.device"
-            :websocketUrl="getWebSocketUrl(activeDevice.device)" v-bind="deviceSettings" class="device-content" />
+  <div v-if="activeDevice" class="device-viewer" :class="{ 'glass-inner disable-hover': glass }">
+    <component
+      :is="activeDevice.component"
+      :device="activeDevice.device"
+      :websocketUrl="getWebSocketUrl(activeDevice.device)"
+      v-bind="deviceSettings"
+      class="device-content"
+    />
+  </div>
+
+  <div v-if="isReplayActive" class="device-viewer" :class="{ 'glass-inner disable-hover': glass }">
+    <v-dialog v-model="isReplayProgressDialogOpen" persistent max-width="400">
+      <v-card :class="{ glass: glass }">
+        <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+          <div class="text-h6 text-center w-full ml-6">File Loader</div>
+          <v-btn icon="mdi-close" variant="text" @click="closeFileLoaderDialog" />
         </div>
 
-        <div v-if="isReplayActive" class="device-viewer" :class="{ 'glass-inner disable-hover': glass }">
-
-          <v-dialog v-model="isReplayProgressDialogOpen" persistent max-width="400">
-            <v-card :class="{ 'glass': glass }">
-              <div class="windowHeader flex justify-between items-center pl-4 pt-0">
-                <div class="text-h6 text-center w-full ml-6">File Loader</div>
-                <v-btn icon="mdi-close" variant="text" @click="closeFileLoaderDialog" />
-              </div>
-
-              <v-card-text v-if="replayError" class="d-flex flex-column align-center justify-center pa-6">
-                <v-icon size="64" color="error" class="mb-4">mdi-file-alert-outline</v-icon>
-                <div class="text-subtitle-1 font-weight-medium mb-2">Failed to Load File</div>
-                <div class="text-body-2 text-medium-emphasis text-center mb-6" style="word-break: break-word;">
-                  {{ replayError }}
-                </div>
-              </v-card-text>
-
-              <v-card-text v-else class="d-flex flex-column align-center justify-center pa-6">
-                <v-progress-circular
-                  :model-value="isReplayLoading ? replayDownloadProgress : replayParsingProgress"
-                  color="primary"
-                  :size="100"
-                  :width="15"
-                  class="mb-4"
-                >
-                  <template v-slot:default>
-                    {{ isReplayLoading ? replayDownloadProgress : replayParsingProgress }}%
-                  </template>
-                </v-progress-circular>
-                <div class="mt-2 text-subtitle-1 text-medium-emphasis">
-                  {{ isReplayLoading ? 'Downloading replay...' : 'Parsing MCAP file...' }}
-                </div>
-              </v-card-text>
-            </v-card>
-          </v-dialog>
-
-          <ReplayView ref="replayViewRef" class="device-content" v-bind="deviceSettings" />
-        </div>
-
-        <div class="glassMenu speed-dial-container" :class="{ 'speed-dial-open': isSpeedDialOpen, glass: glass }"
-          :style="{ '--items-count': speedDialItems.length }">
-          <v-btn class="main-trigger square-button" :class="{ 'glass-inner': glass }" style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); border-bottom-left-radius: 0; border-bottom-right-radius: 0;"
-            @click="isSpeedDialOpen = !isSpeedDialOpen" variant="text">
-            <v-icon :icon="isSpeedDialOpen ? 'mdi-menu-open' : 'mdi-menu'" :size="30" :color="iconColor" class="mb-[2px]" />
-          </v-btn>
-          <transition-group name="speed-dial-items">
-            <template v-for="(item, index) in speedDialItems" :key="item.icon + index">
-              <v-btn v-show="isSpeedDialOpen" class="speed-dial-item" :class="{ 'glass-inner': glass }"
-                :style="{ '--delay': `${index * 0.05}s` }" @click="item.action && item.action()">
-                <v-icon :icon="item.icon" :size="speedDialItems[index].size" :color="iconColor" />
-              </v-btn>
-            </template>
-          </transition-group>
-        </div>
-
-        <v-card class="glassMenu connection-menu-wrapper" :class="{ 'glass': glass }" v-if="isConnectionMenuOpen">
-          <div class="windowHeader flex justify-between items-center pl-4 pt-0">
-            <div class="text-h6 text-center w-full">Device Management</div>
-            <v-btn icon="mdi-close" variant="text" @click="isConnectionMenuOpen = false" />
-          </div>
-          <ConnectionManager v-if="serverUrl" :server-url="serverUrl" :glass="glass" :is-open="isConnectionMenuOpen"
-            @update:is-open="isConnectionMenuOpen = $event" @select-device="handleDeviceSelection" />
-        </v-card>
-
-        <v-card class="glassMenu connection-menu-wrapper" :class="{ 'glass': glass }" v-if="showSettings">
-           <div class="windowHeader flex justify-between items-center pl-4 pt-0">
-            <div class="text-h6 text-center w-full ml-6">Settings</div>
-            <v-btn icon="mdi-close" variant="text" @click="showSettings = false" />
-          </div>
-          <VisualSettings :glass="glass"
-            :display-settings="displaySettings" :is-dark-mode="isDarkMode"
-            :server-url="serverUrl" :yaw-connection-status="yawConnectionStatus"
-            @update:displaySettings="updateDisplaySettings"
-            @update:isDarkMode="updateDarkMode"
-            @update:serverUrl="handleServerUrlUpdate" @updateMavlink="handleMavlinkUpdate" />
-        </v-card>
-
-        <div v-if="activeDevice" class="middle-section" :class="{ 'menu-open': isMenuOpen }">
-          <v-btn v-if="!isMenuOpen" class="glassMenu middle-button square-button" :class="{ glass }" @click="toggleMenu">
-            <v-icon icon="mdi-contactless-payment" :size="28" :color="iconColor" class="rotate-90" />
-          </v-btn>
-
-          <div class="glassMenu connection-menu" :class="{ 'glass disable-hover': glass }" v-show="isMenuOpen">
-            <div :class="[{ 'glass-inner disable-hover': glass }]">
-              <component :class="['menu-content', { 'glass-inner disable-hover': glass }]"
-                :is="getDeviceSettingsComponent" :server-url="serverUrl" :device-id="activeDevice.device.id"
-                :initial-angles="currentDeviceAngles" :is-open="isMenuOpen" @update:angles="handleAngleUpdate"
-                @rangeChange="debouncedSaveSettings" @close="isMenuOpen = false" />
-            </div>
-          </div>
-        </div>
-
-        <v-card class="glassMenu recordings-menu-wrapper" :class="{ 'glass': glass }"
-          v-if="showRecordingsMenu || isReplayActive" v-show="showRecordingsMenu">
-          <div :class="['menu-content pa-0', { 'glass-inner disable-hover': glass }]">
-            <div class="windowHeader flex justify-between items-center pl-4 pt-0">
-              <div class="text-h6 text-center w-full ml-6">Recordings</div>
-              <v-btn icon="mdi-close" variant="text" @click="showRecordingsMenu = false" />
-            </div>
-
-            <div class="section-header" @click="recordingsPanel = recordingsPanel === 'files' ? null : 'files'">
-              <v-icon class="mr-2" size="small">mdi-folder-open</v-icon>
-              <span>Files</span>
-              <v-chip v-if="recordings.length" size="x-small" color="primary" variant="tonal" class="ml-2">
-                {{ recordings.length }}
-              </v-chip>
-              <v-spacer />
-              <v-icon size="small" class="section-chevron" :class="{ open: recordingsPanel === 'files' }">mdi-chevron-down</v-icon>
-            </div>
-            <div class="section-body files-section-body" :class="{ open: recordingsPanel === 'files' }">
-              <div>
-                <div class="pt-1 pb-2 px-3">
-                  <input ref="mcapFileInput" type="file" accept=".mcap" style="display: none" @change="loadLocalMcapFile" />
-                  <v-btn block class="glassButton" elevation="0" prepend-icon="mdi-folder-open" @click="mcapFileInput?.click()">
-                    Load Local MCAP File
-                  </v-btn>
-                </div>
-
-                <v-divider v-if="serverUrl" />
-
-                <template v-if="serverUrl">
-                  <div v-if="isLoadingRecordings" class="text-center pa-4">
-                    <v-progress-circular indeterminate color="primary" />
-                    <div class="mt-2">Loading recordings...</div>
-                  </div>
-
-                  <div v-else-if="recordings.length === 0" class="text-center pa-4 text-medium-emphasis">
-                    <v-icon size="48" class="mb-2">mdi-video-off</v-icon>
-                    <div>No server recordings available</div>
-                    <div class="text-caption mt-2">
-                      MCAP recordings will appear here when you capture data from devices
-                    </div>
-                  </div>
-
-                  <v-list v-else class="recordings-file-list" :class="{ 'glass-inner': glass }">
-                    <v-list-item v-for="recording in recordings" :key="recording.id"
-                      :class="{ 'new-recording': !recording.downloaded }">
-                      <template v-slot:prepend>
-                        <v-icon :icon="recording.deviceType === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'" />
-                      </template>
-
-                      <v-list-item-title class="text-truncate">
-                        {{ recording.fileName }}
-                      </v-list-item-title>
-
-                      <v-list-item-subtitle>
-                        {{ formatRecordingDate(recording.timestamp) }}
-                      </v-list-item-subtitle>
-
-                      <v-list-item-subtitle class="text-caption">
-                        {{ formatRecordingDetails(recording) }}
-                      </v-list-item-subtitle>
-
-                      <template v-slot:append>
-                        <div class="d-flex gap-2">
-                          <v-tooltip location="top" text="Play Recording">
-                            <template v-slot:activator="{ props }">
-                              <v-btn v-bind="props" icon="mdi-play" variant="text" size="small"
-                                @click="playRecording(recording)" />
-                            </template>
-                          </v-tooltip>
-
-                          <v-tooltip location="top" text="Download Recording">
-                            <template v-slot:activator="{ props }">
-                              <v-btn v-bind="props" icon="mdi-download" variant="text" size="small"
-                                @click="downloadRecording(recording)" />
-                            </template>
-                          </v-tooltip>
-
-                          <v-tooltip location="top" text="Delete Recording">
-                            <template v-slot:activator="{ props }">
-                              <v-btn v-bind="props" icon="mdi-delete" variant="text" size="small"
-                                color="error" @click="deleteRecording(recording)" />
-                            </template>
-                          </v-tooltip>
-                        </div>
-                      </template>
-                    </v-list-item>
-                  </v-list>
-                </template>
-              </div>
-            </div>
-
-            <div class="section-header" @click="recordingsPanel = recordingsPanel === 'playback' ? null : 'playback'">
-              <v-icon class="mr-2" size="small">mdi-play-circle-outline</v-icon>
-              <span>Playback</span>
-              <v-spacer />
-              <v-icon size="small" class="section-chevron" :class="{ open: recordingsPanel === 'playback' }">mdi-chevron-down</v-icon>
-            </div>
-            <div class="section-body" :class="{ open: recordingsPanel === 'playback' }">
-              <div>
-                <template v-if="isReplayActive">
-                  <div class="replay-player-section pa-3">
-                    <DataPlayer
-                      ref="dataPlayer"
-                      :mcap-data="replayData?.data"
-                      :auto-play="true"
-                      @update:currentFrame="handleReplayFrame"
-                      @loadedData="handleReplayDataLoaded"
-                      @parsingProgress="handleReplayParsingProgress"
-                      @error="handleReplayError"
-                    />
-                    <v-btn block variant="tonal" color="error" prepend-icon="mdi-stop" class="mt-3" @click="closeReplay">
-                      Stop Playback
-                    </v-btn>
-                  </div>
-                </template>
-                <div v-else class="text-center pa-4 text-medium-emphasis">
-                  <v-icon size="48" class="mb-2">mdi-play-circle-outline</v-icon>
-                  <div>No active playback</div>
-                  <div class="text-caption mt-2">
-                    Play a recording or load a file to start
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </v-card>
-
-        <v-btn class="glassMenu bottom-button square-button" :class="{ glass }" @click="showRecordingsMenu = !showRecordingsMenu">
-          <v-badge :content="recordings.length.toString()" :model-value="recordings.length > 0"
-            color="primary" location="top end" offset-x="-6" offset-y="-6">
-            <v-icon icon="mdi-record-circle" :size="30" :color="iconColor" />
-          </v-badge>
-        </v-btn>
-
-        <v-btn class="glassMenu bottom-right-button square-button" :class="{ glass }" @click="showNotifications = !showNotifications">
-          <v-badge
-            v-if="unreadCount > 0"
-            :content="unreadCount"
-            color="error"
-            location="top end"
-            offset-x="-6"
-            offset-y="-6"
+        <v-card-text v-if="replayError" class="d-flex flex-column align-center justify-center pa-6">
+          <v-icon size="64" color="error" class="mb-4">mdi-file-alert-outline</v-icon>
+          <div class="text-subtitle-1 font-weight-medium mb-2">Failed to Load File</div>
+          <div
+            class="text-body-2 text-medium-emphasis text-center mb-6"
+            style="word-break: break-word"
           >
-            <v-icon icon="mdi-bell" :size="iconSize" :color="iconColor" />
-          </v-badge>
-          <v-icon v-else icon="mdi-bell" :size="iconSize" :color="iconColor" />
-        </v-btn>
-
-        <v-card class="glassMenu notification-menu-wrapper" :class="{ 'glass': glass }" v-if="showNotifications">
-           <div class="windowHeader flex justify-between items-center pl-4 pt-0">
-           <div class="text-h6 text-center w-full ml-6">Notifications</div>
-            <v-btn icon="mdi-close" variant="text" @click="showNotifications = false" />
+            {{ replayError }}
           </div>
-          <NotificationMenu
-            :glass="glass"
-            :icon-size="iconSize"
-            :is-open="showNotifications"
-            @update:is-open="showNotifications = $event"
-          />
-        </v-card>
+        </v-card-text>
 
-        <DebugPanel
-          v-if="displaySettings.debugMode"
-          :active-device="activeDevice"
-          :device-data="deviceData"
+        <v-card-text v-else class="d-flex flex-column align-center justify-center pa-6">
+          <v-progress-circular
+            :model-value="isReplayLoading ? replayDownloadProgress : replayParsingProgress"
+            color="primary"
+            :size="100"
+            :width="15"
+            class="mb-4"
+          >
+            <template v-slot:default>
+              {{ isReplayLoading ? replayDownloadProgress : replayParsingProgress }}%
+            </template>
+          </v-progress-circular>
+          <div class="mt-2 text-subtitle-1 text-medium-emphasis">
+            {{ isReplayLoading ? "Downloading replay..." : "Parsing MCAP file..." }}
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <ReplayView ref="replayViewRef" class="device-content" v-bind="deviceSettings" />
+  </div>
+
+  <div
+    class="glassMenu speed-dial-container"
+    :class="{ 'speed-dial-open': isSpeedDialOpen, glass: glass }"
+    :style="{ '--items-count': speedDialItems.length }"
+  >
+    <v-btn
+      class="main-trigger square-button"
+      :class="{ 'glass-inner': glass }"
+      style="
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+      "
+      @click="isSpeedDialOpen = !isSpeedDialOpen"
+      variant="text"
+    >
+      <v-icon
+        :icon="isSpeedDialOpen ? 'mdi-menu-open' : 'mdi-menu'"
+        :size="30"
+        :color="iconColor"
+        class="mb-[2px]"
+      />
+    </v-btn>
+    <transition-group name="speed-dial-items">
+      <template v-for="(item, index) in speedDialItems" :key="item.icon + index">
+        <v-btn
+          v-show="isSpeedDialOpen"
+          class="speed-dial-item"
+          :class="{ 'glass-inner': glass }"
+          :style="{ '--delay': `${index * 0.05}s` }"
+          @click="item.action && item.action()"
+        >
+          <v-icon :icon="item.icon" :size="speedDialItems[index].size" :color="iconColor" />
+        </v-btn>
+      </template>
+    </transition-group>
+  </div>
+
+  <v-card
+    class="glassMenu connection-menu-wrapper"
+    :class="{ glass: glass }"
+    v-if="isConnectionMenuOpen"
+  >
+    <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+      <div class="text-h6 text-center w-full">Device Management</div>
+      <v-btn icon="mdi-close" variant="text" @click="isConnectionMenuOpen = false" />
+    </div>
+    <ConnectionManager
+      v-if="serverUrl"
+      :server-url="serverUrl"
+      :glass="glass"
+      :is-open="isConnectionMenuOpen"
+      @update:is-open="isConnectionMenuOpen = $event"
+      @select-device="handleDeviceSelection"
+    />
+  </v-card>
+
+  <v-card class="glassMenu connection-menu-wrapper" :class="{ glass: glass }" v-if="showSettings">
+    <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+      <div class="text-h6 text-center w-full ml-6">Settings</div>
+      <v-btn icon="mdi-close" variant="text" @click="showSettings = false" />
+    </div>
+    <VisualSettings
+      :glass="glass"
+      :display-settings="displaySettings"
+      :is-dark-mode="isDarkMode"
+      :server-url="serverUrl"
+      :yaw-connection-status="yawConnectionStatus"
+      @update:displaySettings="updateDisplaySettings"
+      @update:isDarkMode="updateDarkMode"
+      @update:serverUrl="handleServerUrlUpdate"
+      @updateMavlink="handleMavlinkUpdate"
+    />
+  </v-card>
+
+  <div v-if="activeDevice" class="middle-section" :class="{ 'menu-open': isMenuOpen }">
+    <v-btn
+      v-if="!isMenuOpen"
+      class="glassMenu middle-button square-button"
+      :class="{ glass }"
+      @click="toggleMenu"
+    >
+      <v-icon icon="mdi-contactless-payment" :size="28" :color="iconColor" class="rotate-90" />
+    </v-btn>
+
+    <div
+      class="glassMenu connection-menu"
+      :class="{ 'glass disable-hover': glass }"
+      v-show="isMenuOpen"
+    >
+      <div :class="[{ 'glass-inner disable-hover': glass }]">
+        <component
+          :class="['menu-content', { 'glass-inner disable-hover': glass }]"
+          :is="getDeviceSettingsComponent"
           :server-url="serverUrl"
-          :websocket-status="websocketStatus"
+          :device-id="activeDevice.device.id"
+          :initial-angles="currentDeviceAngles"
+          :is-open="isMenuOpen"
+          @update:angles="handleAngleUpdate"
+          @rangeChange="debouncedSaveSettings"
+          @close="isMenuOpen = false"
         />
+      </div>
+    </div>
+  </div>
+
+  <v-card
+    class="glassMenu recordings-menu-wrapper"
+    :class="{ glass: glass }"
+    v-if="showRecordingsMenu || isReplayActive"
+    v-show="showRecordingsMenu"
+  >
+    <div :class="['menu-content pa-0', { 'glass-inner disable-hover': glass }]">
+      <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+        <div class="text-h6 text-center w-full ml-6">Recordings</div>
+        <v-btn icon="mdi-close" variant="text" @click="showRecordingsMenu = false" />
+      </div>
+
+      <div
+        class="section-header"
+        @click="recordingsPanel = recordingsPanel === 'files' ? null : 'files'"
+      >
+        <v-icon class="mr-2" size="small">mdi-folder-open</v-icon>
+        <span>Files</span>
+        <v-chip
+          v-if="recordings.length"
+          size="x-small"
+          color="primary"
+          variant="tonal"
+          class="ml-2"
+        >
+          {{ recordings.length }}
+        </v-chip>
+        <v-spacer />
+        <v-icon size="small" class="section-chevron" :class="{ open: recordingsPanel === 'files' }"
+          >mdi-chevron-down</v-icon
+        >
+      </div>
+      <div class="section-body files-section-body" :class="{ open: recordingsPanel === 'files' }">
+        <div>
+          <div class="pt-1 pb-2 px-3">
+            <input
+              ref="mcapFileInput"
+              type="file"
+              accept=".mcap"
+              style="display: none"
+              @change="loadLocalMcapFile"
+            />
+            <v-btn
+              block
+              class="glassButton"
+              elevation="0"
+              prepend-icon="mdi-folder-open"
+              @click="mcapFileInput?.click()"
+            >
+              Load Local MCAP File
+            </v-btn>
+          </div>
+
+          <v-divider v-if="serverUrl" />
+
+          <template v-if="serverUrl">
+            <div v-if="isLoadingRecordings" class="text-center pa-4">
+              <v-progress-circular indeterminate color="primary" />
+              <div class="mt-2">Loading recordings...</div>
+            </div>
+
+            <div v-else-if="recordings.length === 0" class="text-center pa-4 text-medium-emphasis">
+              <v-icon size="48" class="mb-2">mdi-video-off</v-icon>
+              <div>No server recordings available</div>
+              <div class="text-caption mt-2">
+                MCAP recordings will appear here when you capture data from devices
+              </div>
+            </div>
+
+            <v-list v-else class="recordings-file-list" :class="{ 'glass-inner': glass }">
+              <v-list-item
+                v-for="recording in recordings"
+                :key="recording.id"
+                :class="{ 'new-recording': !recording.downloaded }"
+              >
+                <template v-slot:prepend>
+                  <v-icon
+                    :icon="recording.deviceType === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'"
+                  />
+                </template>
+
+                <v-list-item-title class="text-truncate">
+                  {{ recording.fileName }}
+                </v-list-item-title>
+
+                <v-list-item-subtitle>
+                  {{ formatRecordingDate(recording.timestamp) }}
+                </v-list-item-subtitle>
+
+                <v-list-item-subtitle class="text-caption">
+                  {{ formatRecordingDetails(recording) }}
+                </v-list-item-subtitle>
+
+                <template v-slot:append>
+                  <div class="d-flex gap-2">
+                    <v-tooltip location="top" text="Play Recording">
+                      <template v-slot:activator="{ props }">
+                        <v-btn
+                          v-bind="props"
+                          icon="mdi-play"
+                          variant="text"
+                          size="small"
+                          @click="playRecording(recording)"
+                        />
+                      </template>
+                    </v-tooltip>
+
+                    <v-tooltip location="top" text="Download Recording">
+                      <template v-slot:activator="{ props }">
+                        <v-btn
+                          v-bind="props"
+                          icon="mdi-download"
+                          variant="text"
+                          size="small"
+                          @click="downloadRecording(recording)"
+                        />
+                      </template>
+                    </v-tooltip>
+
+                    <v-tooltip location="top" text="Delete Recording">
+                      <template v-slot:activator="{ props }">
+                        <v-btn
+                          v-bind="props"
+                          icon="mdi-delete"
+                          variant="text"
+                          size="small"
+                          color="error"
+                          @click="deleteRecording(recording)"
+                        />
+                      </template>
+                    </v-tooltip>
+                  </div>
+                </template>
+              </v-list-item>
+            </v-list>
+          </template>
+        </div>
+      </div>
+
+      <div
+        class="section-header"
+        @click="recordingsPanel = recordingsPanel === 'playback' ? null : 'playback'"
+      >
+        <v-icon class="mr-2" size="small">mdi-play-circle-outline</v-icon>
+        <span>Playback</span>
+        <v-spacer />
+        <v-icon
+          size="small"
+          class="section-chevron"
+          :class="{ open: recordingsPanel === 'playback' }"
+          >mdi-chevron-down</v-icon
+        >
+      </div>
+      <div class="section-body" :class="{ open: recordingsPanel === 'playback' }">
+        <div>
+          <template v-if="isReplayActive">
+            <div class="replay-player-section pa-3">
+              <DataPlayer
+                ref="dataPlayer"
+                :mcap-data="replayData?.data"
+                :auto-play="true"
+                @update:currentFrame="handleReplayFrame"
+                @loadedData="handleReplayDataLoaded"
+                @parsingProgress="handleReplayParsingProgress"
+                @error="handleReplayError"
+              />
+              <v-btn
+                block
+                variant="tonal"
+                color="error"
+                prepend-icon="mdi-stop"
+                class="mt-3"
+                @click="closeReplay"
+              >
+                Stop Playback
+              </v-btn>
+            </div>
+          </template>
+          <div v-else class="text-center pa-4 text-medium-emphasis">
+            <v-icon size="48" class="mb-2">mdi-play-circle-outline</v-icon>
+            <div>No active playback</div>
+            <div class="text-caption mt-2">Play a recording or load a file to start</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </v-card>
+
+  <v-btn
+    class="glassMenu bottom-button square-button"
+    :class="{ glass }"
+    @click="showRecordingsMenu = !showRecordingsMenu"
+  >
+    <v-badge
+      :content="recordings.length.toString()"
+      :model-value="recordings.length > 0"
+      color="primary"
+      location="top end"
+      offset-x="-6"
+      offset-y="-6"
+    >
+      <v-icon icon="mdi-record-circle" :size="30" :color="iconColor" />
+    </v-badge>
+  </v-btn>
+
+  <v-btn
+    class="glassMenu bottom-right-button square-button"
+    :class="{ glass }"
+    @click="showNotifications = !showNotifications"
+  >
+    <v-badge
+      v-if="unreadCount > 0"
+      :content="unreadCount"
+      color="error"
+      location="top end"
+      offset-x="-6"
+      offset-y="-6"
+    >
+      <v-icon icon="mdi-bell" :size="iconSize" :color="iconColor" />
+    </v-badge>
+    <v-icon v-else icon="mdi-bell" :size="iconSize" :color="iconColor" />
+  </v-btn>
+
+  <v-card
+    class="glassMenu notification-menu-wrapper"
+    :class="{ glass: glass }"
+    v-if="showNotifications"
+  >
+    <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+      <div class="text-h6 text-center w-full ml-6">Notifications</div>
+      <v-btn icon="mdi-close" variant="text" @click="showNotifications = false" />
+    </div>
+    <NotificationMenu
+      :glass="glass"
+      :icon-size="iconSize"
+      :is-open="showNotifications"
+      @update:is-open="showNotifications = $event"
+    />
+  </v-card>
+
+  <DebugPanel
+    v-if="displaySettings.debugMode"
+    :active-device="activeDevice"
+    :device-data="deviceData"
+    :server-url="serverUrl"
+    :websocket-status="websocketStatus"
+  />
 </template>
 
 <script setup>
-import { watchOnce } from '@vueuse/core';
+import { watchOnce } from "@vueuse/core";
 import {
   computed,
   markRaw,
@@ -281,23 +419,23 @@ import {
   reactive,
   ref,
   watch,
-} from 'vue';
-import { useDisplay, useTheme } from 'vuetify';
+} from "vue";
+import { useDisplay, useTheme } from "vuetify";
 
-import ConnectionManager from '../components/utils/ConnectionManager.vue';
-import DebugPanel from '../components/utils/DebugPanel.vue';
-import NotificationMenu from '../components/utils/NotificationMenu.vue';
-import ServerConnection from '../components/utils/ServerConnection.vue';
-import VisualSettings from '../components/utils/VisualSettings.vue';
-import ReplayView from '../components/views/ReplayView.vue';
-import Ping1DLoader from '../components/widgets/sonar1d/Ping1DLoader.vue';
-import Ping1DSettings from '../components/widgets/sonar1d/Ping1DSettings.vue';
-import Ping360Loader from '../components/widgets/sonar360/Ping360Loader.vue';
-import Ping360Settings from '../components/widgets/sonar360/Ping360Settings.vue';
-import { useMenuCoordination } from '../composables/useMenuCoordination';
-import { wsManager } from '../composables/useRecordingSessions';
-import { useUnits } from '../composables/useUnits';
-import { useNotificationStore } from '../stores/notificationStore';
+import ConnectionManager from "../components/utils/ConnectionManager.vue";
+import DebugPanel from "../components/utils/DebugPanel.vue";
+import NotificationMenu from "../components/utils/NotificationMenu.vue";
+import ServerConnection from "../components/utils/ServerConnection.vue";
+import VisualSettings from "../components/utils/VisualSettings.vue";
+import ReplayView from "../components/views/ReplayView.vue";
+import Ping1DLoader from "../components/widgets/sonar1d/Ping1DLoader.vue";
+import Ping1DSettings from "../components/widgets/sonar1d/Ping1DSettings.vue";
+import Ping360Loader from "../components/widgets/sonar360/Ping360Loader.vue";
+import Ping360Settings from "../components/widgets/sonar360/Ping360Settings.vue";
+import { useMenuCoordination } from "../composables/useMenuCoordination";
+import { wsManager } from "../composables/useRecordingSessions";
+import { useUnits } from "../composables/useUnits";
+import { useNotificationStore } from "../stores/notificationStore";
 
 const { formatDepth } = useUnits();
 
@@ -306,7 +444,7 @@ const theme = useTheme();
 
 const serverUrl = ref(null);
 const websocket = ref(null);
-const websocketStatus = ref('Disconnected');
+const websocketStatus = ref("Disconnected");
 const deviceData = reactive({});
 const activeDevice = ref(null);
 const isConnectionMenuOpen = ref(false);
@@ -324,7 +462,7 @@ const isReplayActive = ref(false);
 const replayViewRef = ref(null);
 const dataPlayer = ref(null);
 const isLoadingRecordings = ref(false);
-const recordingsPanel = ref('files');
+const recordingsPanel = ref("files");
 const mcapFileInput = ref(null);
 const isReplayLoading = ref(false);
 const isReplayParsing = ref(false);
@@ -342,47 +480,47 @@ const menus = {
 useMenuCoordination(menus);
 
 const yawAngle = ref(0);
-const yawConnectionStatus = ref('Disconnected');
+const yawConnectionStatus = ref("Disconnected");
 let yawWebSocket = null;
 let reconnectTimeout = null;
 
 const commonSettings = reactive({});
 
 const displaySettings = reactive({
-  units: 'Metric',
+  units: "Metric",
   aScan: true,
-  colorPalette: 'Thermal Blue',
+  colorPalette: "Thermal Blue",
   debugMode: false,
-  backgroundMode: 'gradient',
-  backgroundColor: '#001a2e',
+  backgroundMode: "gradient",
+  backgroundColor: "#001a2e",
 });
 
 const ping1DSettings = reactive({
   columnCount: 500,
   tickCount: 5,
-  depthLineColor: '#ffeb3b',
-  depthTextColor: '#ffeb3b',
-  currentDepthColor: '#ffeb3b',
-  confidenceColor: '#4caf50',
-  textBackground: 'rgba(0, 0, 0, 0.8)',
+  depthLineColor: "#ffeb3b",
+  depthTextColor: "#ffeb3b",
+  currentDepthColor: "#ffeb3b",
+  confidenceColor: "#4caf50",
+  textBackground: "rgba(0, 0, 0, 0.8)",
   debug: false,
-  depthArrowColor: '#f44336',
-  colorPalette: 'Thermal Blue',
+  depthArrowColor: "#f44336",
+  colorPalette: "Thermal Blue",
   customPalette: [],
 });
 
 const ping360Settings = reactive({
-  lineColor: '#f44336',
+  lineColor: "#f44336",
   lineWidth: 0.5,
   maxDistance: 300,
   numMarkers: 5,
   showRadiusLines: true,
   showMarkers: true,
-  radiusLineColor: 'rgba(255, 255, 255, 0.7)',
-  markerColor: 'white',
+  radiusLineColor: "rgba(255, 255, 255, 0.7)",
+  markerColor: "white",
   radiusLineWidth: 1,
   debug: false,
-  colorPalette: 'Thermal Blue',
+  colorPalette: "Thermal Blue",
   customPalette: [],
 });
 
@@ -391,7 +529,7 @@ const glass = computed(() => isGlassMode.value);
 const deviceSettings = computed(() => {
   if (!activeDevice.value) return {};
   const deviceType = activeDevice.value.device.device_type;
-  const settings = deviceType === 'Ping360' ? ping360Settings : ping1DSettings;
+  const settings = deviceType === "Ping360" ? ping360Settings : ping1DSettings;
   return {
     ...settings,
     width: activeDevice.value?.width || window.innerWidth,
@@ -403,53 +541,53 @@ const deviceSettings = computed(() => {
 
 const getDeviceSettingsComponent = computed(() => {
   if (!activeDevice.value) return null;
-  return activeDevice.value.device.device_type === 'Ping360' ? Ping360Settings : Ping1DSettings;
+  return activeDevice.value.device.device_type === "Ping360" ? Ping360Settings : Ping1DSettings;
 });
 
 const currentDeviceAngles = computed(() => {
-  if (!activeDevice.value || activeDevice.value.device.device_type !== 'Ping360') {
+  if (!activeDevice.value || activeDevice.value.device.device_type !== "Ping360") {
     return { startAngle: 0, endAngle: 360 };
   }
   return { startAngle: 0, endAngle: 360 };
 });
 
-const iconColor = computed(() => (theme.global.current.value.dark ? 'white' : 'black'));
+const iconColor = computed(() => (theme.global.current.value.dark ? "white" : "black"));
 
 const iconSize = computed(() => {
   const sizes = {
-    xs: 'default',
-    sm: 'large',
-    default: 'x-large',
+    xs: "default",
+    sm: "large",
+    default: "x-large",
   };
   return sizes[breakpoint.value] || sizes.default;
 });
 
 const speedDialItems = ref([
   {
-    icon: 'mdi-connection',
+    icon: "mdi-connection",
     action: () => {
       isConnectionMenuOpen.value = !isConnectionMenuOpen.value;
     },
     size: 25,
   },
   {
-    icon: 'mdi-cog',
+    icon: "mdi-cog",
     action: () => {
       showSettings.value = !showSettings.value;
     },
     size: 24,
   },
   {
-    icon: 'mdi-tune',
+    icon: "mdi-tune",
     action: () => {},
     size: 30,
   },
 ]);
 
 const getWebSocketUrl = (device) => {
-  if (!device || !serverUrl.value) return '';
+  if (!device || !serverUrl.value) return "";
   const url = new URL(serverUrl.value);
-  const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  const protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${url.host}/ws?device_number=${device.id}`;
 };
 
@@ -462,7 +600,7 @@ const connectWebSocket = () => {
   websocket.value = new WebSocket(wsUrl);
 
   websocket.value.onopen = () => {
-    websocketStatus.value = 'Connected';
+    websocketStatus.value = "Connected";
   };
 
   websocket.value.onmessage = (event) => {
@@ -470,12 +608,12 @@ const connectWebSocket = () => {
       const data = JSON.parse(event.data);
       processWebSocketMessage(data);
     } catch (error) {
-      console.error('Error processing WebSocket message:', error);
+      console.error("Error processing WebSocket message:", error);
     }
   };
 
   websocket.value.onclose = () => {
-    websocketStatus.value = 'Disconnected';
+    websocketStatus.value = "Disconnected";
     setTimeout(() => {
       if (serverUrl.value) {
         connectWebSocket();
@@ -484,14 +622,14 @@ const connectWebSocket = () => {
   };
 
   websocket.value.onerror = (error) => {
-    console.error('WebSocket error:', error);
-    websocketStatus.value = 'Error';
+    console.error("WebSocket error:", error);
+    websocketStatus.value = "Error";
   };
 };
 
 const processWebSocketMessage = (data) => {
   if (!data) {
-    console.warn('Received invalid data:', data);
+    console.warn("Received invalid data:", data);
     return;
   }
 
@@ -503,13 +641,13 @@ const processWebSocketMessage = (data) => {
   if (data.DeviceMessage) {
     const deviceId = data.DeviceMessage.device_id;
     if (!deviceId) {
-      console.warn('Received DeviceMessage without device_id:', data);
+      console.warn("Received DeviceMessage without device_id:", data);
       return;
     }
 
     const messageType = Object.keys(data.DeviceMessage.PingMessage)[0];
     if (!messageType) {
-      console.warn('Received DeviceMessage without PingMessage type:', data);
+      console.warn("Received DeviceMessage without PingMessage type:", data);
       return;
     }
 
@@ -525,7 +663,7 @@ const handleDeviceSelection = (device) => {
   if (isReplayActive.value) {
     isReplayActive.value = false;
     replayData.value = null;
-    recordingsPanel.value = 'files';
+    recordingsPanel.value = "files";
   }
   selectDevice(device);
   isConnectionMenuOpen.value = false;
@@ -545,7 +683,7 @@ const selectDevice = async (device) => {
     await nextTick();
   }
 
-  const component = markRaw(device.device_type === 'Ping360' ? Ping360Loader : Ping1DLoader);
+  const component = markRaw(device.device_type === "Ping360" ? Ping360Loader : Ping1DLoader);
   activeDevice.value = {
     device,
     component,
@@ -555,15 +693,15 @@ const selectDevice = async (device) => {
 
 const loadSettings = () => {
   try {
-    const savedCommon = localStorage.getItem('common-settings');
-    const savedPing1D = localStorage.getItem('ping1d-settings');
-    const savedPing360 = localStorage.getItem('ping360-settings');
-    const savedDisplay = localStorage.getItem('display-settings');
-    const savedCustomPalette = localStorage.getItem('customColorPalette');
-    const savedGlassMode = localStorage.getItem('glassMode');
+    const savedCommon = localStorage.getItem("common-settings");
+    const savedPing1D = localStorage.getItem("ping1d-settings");
+    const savedPing360 = localStorage.getItem("ping360-settings");
+    const savedDisplay = localStorage.getItem("display-settings");
+    const savedCustomPalette = localStorage.getItem("customColorPalette");
+    const savedGlassMode = localStorage.getItem("glassMode");
 
     if (savedGlassMode !== null) {
-      isGlassMode.value = savedGlassMode === 'true';
+      isGlassMode.value = savedGlassMode === "true";
     }
     if (savedCommon) Object.assign(commonSettings, JSON.parse(savedCommon));
     if (savedPing1D) Object.assign(ping1DSettings, JSON.parse(savedPing1D));
@@ -586,22 +724,22 @@ const loadSettings = () => {
       commonSettings.customPalette = JSON.parse(savedCustomPalette);
     }
   } catch (error) {
-    console.error('Error loading settings:', error);
+    console.error("Error loading settings:", error);
   }
 };
 
 const saveSettings = () => {
   try {
-    localStorage.setItem('common-settings', JSON.stringify(commonSettings));
-    localStorage.setItem('ping1d-settings', JSON.stringify(ping1DSettings));
-    localStorage.setItem('ping360-settings', JSON.stringify(ping360Settings));
-    localStorage.setItem('display-settings', JSON.stringify(displaySettings));
-    localStorage.setItem('glassMode', isGlassMode.value.toString());
+    localStorage.setItem("common-settings", JSON.stringify(commonSettings));
+    localStorage.setItem("ping1d-settings", JSON.stringify(ping1DSettings));
+    localStorage.setItem("ping360-settings", JSON.stringify(ping360Settings));
+    localStorage.setItem("display-settings", JSON.stringify(displaySettings));
+    localStorage.setItem("glassMode", isGlassMode.value.toString());
     if (commonSettings.customPalette?.length > 0) {
-      localStorage.setItem('customColorPalette', JSON.stringify(commonSettings.customPalette));
+      localStorage.setItem("customColorPalette", JSON.stringify(commonSettings.customPalette));
     }
   } catch (error) {
-    console.error('Error saving settings:', error);
+    console.error("Error saving settings:", error);
   }
 };
 
@@ -609,7 +747,7 @@ const updateDisplaySettings = (newSettings) => {
   Object.assign(displaySettings, newSettings);
   ping1DSettings.colorPalette = newSettings.colorPalette;
   ping360Settings.colorPalette = newSettings.colorPalette;
-  localStorage.setItem('display-settings', JSON.stringify(displaySettings));
+  localStorage.setItem("display-settings", JSON.stringify(displaySettings));
 };
 
 const updateDarkMode = (value) => {
@@ -628,9 +766,9 @@ const playRecording = async (recording) => {
 
   try {
     const response = await fetch(`${serverUrl.value}/recordings/download/${recording.fileName}`);
-    if (!response.ok) throw new Error('Failed to download recording for playback');
+    if (!response.ok) throw new Error("Failed to download recording for playback");
 
-    const contentLength = response.headers.get('Content-Length');
+    const contentLength = response.headers.get("Content-Length");
     const total = contentLength ? Number.parseInt(contentLength, 10) : 0;
     const reader = response.body.getReader();
     let received = 0;
@@ -653,7 +791,7 @@ const playRecording = async (recording) => {
     isReplayLoading.value = false;
     isReplayParsing.value = true;
 
-    recordingsPanel.value = 'playback';
+    recordingsPanel.value = "playback";
 
     if (dataPlayer.value && isReplayActive.value) {
       await nextTick();
@@ -669,10 +807,10 @@ const playRecording = async (recording) => {
       activeDevice.value = null;
     }
   } catch (error) {
-    console.error('Error loading recording for playback:', error);
+    console.error("Error loading recording for playback:", error);
     isReplayLoading.value = false;
     isReplayParsing.value = false;
-    replayError.value = error.message || 'Failed to download recording from server';
+    replayError.value = error.message || "Failed to download recording from server";
   }
 };
 
@@ -680,8 +818,8 @@ const loadLocalMcapFile = async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
 
-  if (!file.name.endsWith('.mcap')) {
-    alert('Please select a valid .mcap file.');
+  if (!file.name.endsWith(".mcap")) {
+    alert("Please select a valid .mcap file.");
     return;
   }
 
@@ -694,7 +832,7 @@ const loadLocalMcapFile = async (event) => {
   try {
     const arrayBuffer = await file.arrayBuffer();
 
-    recordingsPanel.value = 'playback';
+    recordingsPanel.value = "playback";
 
     if (dataPlayer.value && isReplayActive.value) {
       await nextTick();
@@ -712,12 +850,12 @@ const loadLocalMcapFile = async (event) => {
       activeDevice.value = null;
     }
   } catch (error) {
-    console.error('Error loading local MCAP file:', error);
+    console.error("Error loading local MCAP file:", error);
     isReplayParsing.value = false;
-    replayError.value = error.message || 'Failed to read the selected file';
+    replayError.value = error.message || "Failed to read the selected file";
   } finally {
     if (mcapFileInput.value) {
-      mcapFileInput.value.value = '';
+      mcapFileInput.value.value = "";
     }
   }
 };
@@ -725,7 +863,7 @@ const loadLocalMcapFile = async (event) => {
 const closeReplay = () => {
   isReplayActive.value = false;
   replayData.value = null;
-  recordingsPanel.value = 'files';
+  recordingsPanel.value = "files";
 };
 
 const formatRecordingDate = (timestamp) => {
@@ -737,10 +875,10 @@ const formatRecordingDetails = (recording) => {
     return `${formatFileSize(recording.fileSize)}`;
   }
 
-  if (!recording.settings) return '';
+  if (!recording.settings) return "";
 
   const details = [];
-  if (recording.deviceType === 'Ping360') {
+  if (recording.deviceType === "Ping360") {
     if (recording.settings.startAngle !== undefined) {
       details.push(`${recording.settings.startAngle}° - ${recording.settings.endAngle}°`);
     }
@@ -752,7 +890,7 @@ const formatRecordingDetails = (recording) => {
       details.push(`${formatDepth(recording.settings.maxDepth, 1)} depth`);
     }
   }
-  return details.join(' | ');
+  return details.join(" | ");
 };
 
 const downloadRecording = async (recording) => {
@@ -761,14 +899,14 @@ const downloadRecording = async (recording) => {
   try {
     const response = await fetch(`${serverUrl.value}/recordings/download/${recording.fileName}`);
     if (!response.ok) {
-      throw new Error('Failed to download recording');
+      throw new Error("Failed to download recording");
     }
 
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', url);
-    linkElement.setAttribute('download', recording.fileName);
+    const linkElement = document.createElement("a");
+    linkElement.setAttribute("href", url);
+    linkElement.setAttribute("download", recording.fileName);
     linkElement.click();
     window.URL.revokeObjectURL(url);
 
@@ -777,7 +915,7 @@ const downloadRecording = async (recording) => {
       recordings.value[index] = { ...recordings.value[index], downloaded: true };
     }
   } catch (error) {
-    console.error('Error downloading recording:', error);
+    console.error("Error downloading recording:", error);
   }
 };
 
@@ -786,16 +924,16 @@ const deleteRecording = async (recording) => {
   if (!confirm(`Are you sure you want to delete ${recording.fileName}?`)) return;
   try {
     const response = await fetch(`${serverUrl.value}/v1/recordings/delete/${recording.fileName}`, {
-      method: 'DELETE',
-      headers: { accept: 'application/json' },
+      method: "DELETE",
+      headers: { accept: "application/json" },
     });
     if (!response.ok) {
-      throw new Error('Failed to delete recording');
+      throw new Error("Failed to delete recording");
     }
     await fetchRecordings();
   } catch (error) {
-    console.error('Error deleting recording:', error);
-    alert('Failed to delete recording.');
+    console.error("Error deleting recording:", error);
+    alert("Failed to delete recording.");
   }
 };
 
@@ -806,7 +944,7 @@ const handleReplayFrame = (frame) => {
 const handleReplayDataLoaded = (data) => {
   isReplayParsing.value = false;
   replayViewRef.value?.onDataLoaded(data);
-  recordingsPanel.value = 'playback';
+  recordingsPanel.value = "playback";
   showRecordingsMenu.value = true;
 };
 
@@ -829,8 +967,8 @@ const closeFileLoaderDialog = () => {
 };
 
 const toggleTheme = () => {
-  theme.global.name.value = isDarkMode.value ? 'dark' : 'light';
-  localStorage.setItem('theme', theme.global.name.value);
+  theme.global.name.value = isDarkMode.value ? "dark" : "light";
+  localStorage.setItem("theme", theme.global.name.value);
 };
 
 const handleFullscreenChange = () => {
@@ -854,19 +992,19 @@ const onServerConnected = (url) => {
       if (statusChanged) {
         if (sessionData.is_active) {
           notificationStore.addNotification({
-            title: 'Recording Started',
+            title: "Recording Started",
             message: `Recording started for device ${sessionData.device_id}`,
-            icon: 'mdi-record',
-            color: 'success',
+            icon: "mdi-record",
+            color: "success",
             device_type: sessionData.device_type,
             device_id: sessionData.device_id,
           });
         } else {
           notificationStore.addNotification({
-            title: 'Recording Stopped',
+            title: "Recording Stopped",
             message: `Recording stopped for device ${sessionData.device_id}`,
-            icon: 'mdi-stop',
-            color: 'error',
+            icon: "mdi-stop",
+            color: "error",
             device_type: sessionData.device_type,
             device_id: sessionData.device_id,
           });
@@ -890,9 +1028,9 @@ const handleServerUrlUpdate = async (newUrl) => {
   await nextTick();
   connectWebSocket();
 
-  const autoConnectMavlink = localStorage.getItem('autoConnectMavlink') === 'true';
+  const autoConnectMavlink = localStorage.getItem("autoConnectMavlink") === "true";
   if (autoConnectMavlink) {
-    const mavlinkUrl = localStorage.getItem('mavlinkUrl');
+    const mavlinkUrl = localStorage.getItem("mavlinkUrl");
     if (mavlinkUrl) {
       connectYawWebSocket(mavlinkUrl);
     }
@@ -900,7 +1038,7 @@ const handleServerUrlUpdate = async (newUrl) => {
 };
 
 const initializeYawConnection = () => {
-  const savedUrl = localStorage.getItem('yawWebsocketUrl');
+  const savedUrl = localStorage.getItem("yawWebsocketUrl");
   if (savedUrl) {
     connectYawWebSocket(savedUrl);
   }
@@ -913,34 +1051,34 @@ const connectYawWebSocket = (url) => {
 
   try {
     yawWebSocket = new WebSocket(url);
-    yawConnectionStatus.value = 'Connecting';
+    yawConnectionStatus.value = "Connecting";
 
     yawWebSocket.onopen = () => {
-      yawConnectionStatus.value = 'Connected';
-      localStorage.setItem('yawWebsocketUrl', url);
+      yawConnectionStatus.value = "Connected";
+      localStorage.setItem("yawWebsocketUrl", url);
     };
 
     yawWebSocket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.message && data.message.type === 'ATTITUDE') {
+        if (data.message && data.message.type === "ATTITUDE") {
           yawAngle.value = 180 - (data.message.yaw * 180) / Math.PI;
         }
       } catch (error) {
-        console.error('Error parsing yaw message:', error);
+        console.error("Error parsing yaw message:", error);
       }
     };
 
     yawWebSocket.onerror = (error) => {
-      console.error('Yaw WebSocket error:', error);
-      yawConnectionStatus.value = 'Error';
+      console.error("Yaw WebSocket error:", error);
+      yawConnectionStatus.value = "Error";
     };
 
     yawWebSocket.onclose = () => {
-      yawConnectionStatus.value = 'Disconnected';
+      yawConnectionStatus.value = "Disconnected";
       yawWebSocket = null;
 
-      const autoConnectMavlink = localStorage.getItem('autoConnectMavlink') === 'true';
+      const autoConnectMavlink = localStorage.getItem("autoConnectMavlink") === "true";
       if (autoConnectMavlink) {
         if (reconnectTimeout) clearTimeout(reconnectTimeout);
         reconnectTimeout = setTimeout(() => {
@@ -949,16 +1087,16 @@ const connectYawWebSocket = (url) => {
       }
     };
   } catch (error) {
-    console.error('Failed to create Yaw WebSocket:', error);
-    yawConnectionStatus.value = 'Error';
+    console.error("Failed to create Yaw WebSocket:", error);
+    yawConnectionStatus.value = "Error";
   }
 };
 
 const handleMavlinkUpdate = async ({ action, url, autoConnect }) => {
-  if (action === 'disconnect') {
+  if (action === "disconnect") {
     cleanupYawConnection();
-  } else if (action === 'connect' || action === 'reconnect') {
-    if (action === 'reconnect') {
+  } else if (action === "connect" || action === "reconnect") {
+    if (action === "reconnect") {
       cleanupYawConnection();
       await nextTick();
     }
@@ -983,7 +1121,7 @@ const toggleMenu = () => {
 };
 
 const handleAngleUpdate = (angles) => {
-  if (activeDevice.value && activeDevice.value.device.device_type === 'Ping360') {
+  if (activeDevice.value && activeDevice.value.device.device_type === "Ping360") {
   }
 };
 
@@ -1004,21 +1142,21 @@ watchOnce(serverUrl, (newUrl) => {
     const autoSelectSingleDevice = async () => {
       try {
         const response = await fetch(`${newUrl}/device_manager/request`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            command: 'List',
-            module: 'DeviceManager',
+            command: "List",
+            module: "DeviceManager",
           }),
         });
 
-        if (!response.ok) throw new Error('Failed to fetch devices');
+        if (!response.ok) throw new Error("Failed to fetch devices");
 
         const data = await response.json();
         const availableDevices =
-          data.DeviceInfo?.filter((device) => ['ContinuousMode'].includes(device.status)) || [];
+          data.DeviceInfo?.filter((device) => ["ContinuousMode"].includes(device.status)) || [];
 
         if (availableDevices.length === 1) {
           selectDevice(availableDevices[0]);
@@ -1026,7 +1164,7 @@ watchOnce(serverUrl, (newUrl) => {
           isConnectionMenuOpen.value = true;
         }
       } catch (error) {
-        console.error('Error auto-selecting device:', error);
+        console.error("Error auto-selecting device:", error);
         isConnectionMenuOpen.value = true;
       }
     };
@@ -1047,7 +1185,7 @@ const fetchInitialRecordingStatuses = async () => {
   try {
     const response = await fetch(`${serverUrl.value}/v1/device_manager/GetAllRecordingStatus`);
     if (!response.ok) {
-      throw new Error('Failed to fetch recording statuses');
+      throw new Error("Failed to fetch recording statuses");
     }
     const data = await response.json();
     if (data.AllRecordingStatus) {
@@ -1056,7 +1194,7 @@ const fetchInitialRecordingStatuses = async () => {
       }
     }
   } catch (err) {
-    console.error('Error fetching initial recording statuses:', err);
+    console.error("Error fetching initial recording statuses:", err);
   }
 };
 
@@ -1067,7 +1205,7 @@ const fetchRecordings = async () => {
   try {
     const response = await fetch(`${serverUrl.value}/recordings/list`);
     if (!response.ok) {
-      throw new Error('Failed to fetch recordings');
+      throw new Error("Failed to fetch recordings");
     }
 
     const files = await response.json();
@@ -1083,7 +1221,7 @@ const fetchRecordings = async () => {
       isMcap: true,
     }));
   } catch (error) {
-    console.error('Error fetching recordings:', error);
+    console.error("Error fetching recordings:", error);
     recordings.value = [];
   } finally {
     isLoadingRecordings.value = false;
@@ -1093,25 +1231,25 @@ const fetchRecordings = async () => {
 const extractDeviceTypeFromFileName = (fileName) => {
   // Extract device type from filename pattern
   // Example: device_00000000-0000-0000-c82c-5029143af4e9_20250626_164121.mcap
-  if (fileName.includes('ping360') || fileName.includes('Ping360')) {
-    return 'Ping360';
+  if (fileName.includes("ping360") || fileName.includes("Ping360")) {
+    return "Ping360";
   }
-  if (fileName.includes('ping1d') || fileName.includes('Ping1D')) {
-    return 'Ping1D';
+  if (fileName.includes("ping1d") || fileName.includes("Ping1D")) {
+    return "Ping1D";
   }
-  return 'Unknown';
+  return "Unknown";
 };
 
 const extractDeviceIdFromFileName = (fileName) => {
   // Extract device ID from filename pattern
   const match = fileName.match(/device_([a-f0-9-]+)_/);
-  return match ? match[1] : 'unknown';
+  return match ? match[1] : "unknown";
 };
 
 const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Bytes';
+  if (bytes === 0) return "0 Bytes";
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const sizes = ["Bytes", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 };
@@ -1136,7 +1274,7 @@ watch(
     if (newValue && serverUrl.value) {
       fetchRecordings();
     }
-  }
+  },
 );
 
 onMounted(() => {
@@ -1144,25 +1282,25 @@ onMounted(() => {
   initializeYawConnection();
   fetchInitialRecordingStatuses();
 
-  const savedTheme = localStorage.getItem('theme');
+  const savedTheme = localStorage.getItem("theme");
   if (savedTheme) {
     theme.global.name.value = savedTheme;
-    isDarkMode.value = savedTheme === 'dark';
+    isDarkMode.value = savedTheme === "dark";
   } else {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: light)').matches;
-    theme.global.name.value = prefersDark ? 'dark' : 'light';
+    const prefersDark = window.matchMedia("(prefers-color-scheme: light)").matches;
+    theme.global.name.value = prefersDark ? "dark" : "light";
     isDarkMode.value = prefersDark;
   }
 
-  const autoConnectMavlink = localStorage.getItem('autoConnectMavlink') === 'true';
+  const autoConnectMavlink = localStorage.getItem("autoConnectMavlink") === "true";
   if (autoConnectMavlink) {
-    const mavlinkUrl = localStorage.getItem('mavlinkUrl');
+    const mavlinkUrl = localStorage.getItem("mavlinkUrl");
     if (mavlinkUrl) {
       connectYawWebSocket(mavlinkUrl);
     }
   }
 
-  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  document.addEventListener("fullscreenchange", handleFullscreenChange);
 });
 
 onUnmounted(() => {
@@ -1173,7 +1311,7 @@ onUnmounted(() => {
     websocket.value.close();
   }
   wsManager.disconnect();
-  document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  document.removeEventListener("fullscreenchange", handleFullscreenChange);
   cleanupYawConnection();
 });
 
@@ -1181,28 +1319,28 @@ watch(
   () => theme.global.name.value,
   (newTheme) => {
     document.documentElement.className = newTheme;
-  }
+  },
 );
 
-provide('deviceSettings', {
+provide("deviceSettings", {
   commonSettings,
   ping1DSettings,
   ping360Settings,
   displaySettings,
 });
 
-provide('recordings', {
+provide("recordings", {
   recordings,
   fetchRecordings,
 });
 
 const updateAppBackground = () => {
-  if (displaySettings.backgroundMode === 'custom' && displaySettings.backgroundColor) {
-    document.documentElement.style.setProperty('--app-bg', displaySettings.backgroundColor);
+  if (displaySettings.backgroundMode === "custom" && displaySettings.backgroundColor) {
+    document.documentElement.style.setProperty("--app-bg", displaySettings.backgroundColor);
   } else {
     document.documentElement.style.setProperty(
-      '--app-bg',
-      'radial-gradient(ellipse at 50% 40%, #005C84, #00223A)'
+      "--app-bg",
+      "radial-gradient(ellipse at 50% 40%, #005C84, #00223A)",
     );
   }
 };
@@ -1210,19 +1348,19 @@ const updateAppBackground = () => {
 watch(
   () => [displaySettings.backgroundMode, displaySettings.backgroundColor],
   updateAppBackground,
-  { immediate: true }
+  { immediate: true },
 );
 
-provide('glass', glass);
-provide('yawAngle', yawAngle);
-provide('yawConnectionStatus', yawConnectionStatus);
-provide('connectYawWebSocket', connectYawWebSocket);
-provide('cleanupYawConnection', cleanupYawConnection);
-provide('wsManager', wsManager);
-provide('recordingSessions', recordingSessions);
+provide("glass", glass);
+provide("yawAngle", yawAngle);
+provide("yawConnectionStatus", yawConnectionStatus);
+provide("connectYawWebSocket", connectYawWebSocket);
+provide("cleanupYawConnection", cleanupYawConnection);
+provide("wsManager", wsManager);
+provide("recordingSessions", recordingSessions);
 
 const isReplayProgressDialogOpen = computed(
-  () => isReplayLoading.value || isReplayParsing.value || !!replayError.value
+  () => isReplayLoading.value || isReplayParsing.value || !!replayError.value,
 );
 </script>
 
@@ -1231,7 +1369,8 @@ const isReplayProgressDialogOpen = computed(
   --button-size: 3.25rem;
   --button-gap: 0.5rem;
   --border-radius: 0.5rem;
-  box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.3),
+  box-shadow:
+    0px 4px 4px 0px rgba(0, 0, 0, 0.3),
     0px 8px 12px 6px rgba(0, 0, 0, 0.15) !important;
 }
 
@@ -1336,7 +1475,9 @@ const isReplayProgressDialogOpen = computed(
 }
 
 .speed-dial-container.speed-dial-open {
-  height: calc((var(--button-size) * var(--items-count)) + (var(--button-gap) * (var(--items-count) - 1)) + 8px);
+  height: calc(
+    (var(--button-size) * var(--items-count)) + (var(--button-gap) * (var(--items-count) - 1)) + 8px
+  );
 }
 
 .speed-dial-menu-section {
@@ -1399,7 +1540,8 @@ const isReplayProgressDialogOpen = computed(
   border-radius: var(--border-radius);
   background: rgb(var(--v-theme-background));
   border: 1px solid rgba(203, 203, 203, 0.13) !important;
-  box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.3),
+  box-shadow:
+    0px 4px 4px 0px rgba(0, 0, 0, 0.3),
     0px 8px 12px 6px rgba(0, 0, 0, 0.15) !important;
 }
 
@@ -1415,7 +1557,8 @@ const isReplayProgressDialogOpen = computed(
   border-radius: var(--border-radius);
   background: rgb(var(--v-theme-background));
   border: 1px solid rgba(203, 203, 203, 0.13) !important;
-  box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.3),
+  box-shadow:
+    0px 4px 4px 0px rgba(0, 0, 0, 0.3),
     0px 8px 12px 6px rgba(0, 0, 0, 0.15) !important;
 }
 
@@ -1465,11 +1608,7 @@ const isReplayProgressDialogOpen = computed(
 }
 
 .animated-background {
-  background: linear-gradient(-45deg,
-      #0501ff,
-      #004b92,
-      #23a6d5,
-      #23d5ab);
+  background: linear-gradient(-45deg, #0501ff, #004b92, #23a6d5, #23d5ab);
   background-size: 400% 400%;
   animation: gradient 5s ease infinite;
   min-height: 100vh;
@@ -1493,7 +1632,6 @@ const isReplayProgressDialogOpen = computed(
 
 /* Safe area handling for mobile devices */
 @supports (padding: max(0px)) {
-
   .bottom-button,
   .bottom-right-button {
     bottom: max(0px, env(safe-area-inset-bottom));
@@ -1607,7 +1745,7 @@ const isReplayProgressDialogOpen = computed(
 }
 
 .notification-list .v-list-item.unread::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 0;
@@ -1706,9 +1844,12 @@ const isReplayProgressDialogOpen = computed(
 
 .replay-loading-overlay {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 2000;
-  background: rgba(0,0,0,0.4);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
   align-items: center;

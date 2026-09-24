@@ -2,38 +2,64 @@
   <div class="flex flex-col h-full">
     <div class="flex-1 min-h-0" :class="showControls ? 'mx-10 my-10' : ''">
       <FloatingControls v-if="showControls" :is-recording="isRecording">
-        <DataRecorder :device="device" :server-url="serverUrl"
-          @recording-started="handleRecordingStarted" @recording-stopped="handleRecordingStopped" />
+        <DataRecorder
+          :device="device"
+          :server-url="serverUrl"
+          @recording-started="handleRecordingStarted"
+          @recording-stopped="handleRecordingStopped"
+        />
         <v-btn icon @click="toggleFreeze" class="glass-button" size="x-large">
-          <v-icon :color="isFreeze ? '#ef4444' : undefined" size="36">{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
+          <v-icon :color="isFreeze ? '#ef4444' : undefined" size="36">{{
+            isFreeze ? "mdi-play" : "mdi-pause"
+          }}</v-icon>
         </v-btn>
         <v-btn icon @click="openSettings" class="glass-button" size="x-large">
           <v-icon size="36">mdi-cog</v-icon>
         </v-btn>
         <v-dialog v-model="isSettingsOpen" max-width="300px">
-
-          <Ping360Settings ref="settingsRef" :server-url="serverUrl" :device-id="device.id"
-            :initial-angles="{ startAngle, endAngle }" :isOpen="isSettingsOpen" @update:angles="handleAngleUpdate"
-            @rangeChange="handleRangeChange" />
+          <Ping360Settings
+            ref="settingsRef"
+            :server-url="serverUrl"
+            :device-id="device.id"
+            :initial-angles="{ startAngle, endAngle }"
+            :isOpen="isSettingsOpen"
+            @update:angles="handleAngleUpdate"
+            @rangeChange="handleRangeChange"
+          />
         </v-dialog>
       </FloatingControls>
 
-      <Ping360 :measurement="displayMeasurement" :angle="displayAngle" :colorPalette="colorPalette"
-        :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="currentRange" :numMarkers="numMarkers"
-        :showRadiusLines="showRadiusLines" :showMarkers="showMarkers" :radiusLineColor="radiusLineColor"
-        :markerColor="markerColor" :textBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"
-        :debug="debug" :startAngle="startAngle" :endAngle="endAngle" :yaw_angle="yawAngle" v-bind="$attrs"
-        class="h-full w-full" />
+      <Ping360
+        :measurement="displayMeasurement"
+        :angle="displayAngle"
+        :colorPalette="colorPalette"
+        :lineColor="lineColor"
+        :lineWidth="lineWidth"
+        :maxDistance="currentRange"
+        :numMarkers="numMarkers"
+        :showRadiusLines="showRadiusLines"
+        :showMarkers="showMarkers"
+        :radiusLineColor="radiusLineColor"
+        :markerColor="markerColor"
+        :textBackgroundColor="markerBackgroundColor"
+        :radiusLineWidth="radiusLineWidth"
+        :debug="debug"
+        :startAngle="startAngle"
+        :endAngle="endAngle"
+        :yaw_angle="yawAngle"
+        v-bind="$attrs"
+        class="h-full w-full"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
-import DataRecorder from '../DataRecorder.vue';
-import FloatingControls from '../FloatingControls.vue';
-import Ping360 from './Ping360.vue';
-import Ping360Settings from './Ping360Settings.vue';
+import { computed, inject, onMounted, onUnmounted, ref, watch } from "vue";
+import DataRecorder from "../DataRecorder.vue";
+import FloatingControls from "../FloatingControls.vue";
+import Ping360 from "./Ping360.vue";
+import Ping360Settings from "./Ping360Settings.vue";
 
 const props = defineProps({
   device: {
@@ -50,7 +76,7 @@ const props = defineProps({
   },
   lineColor: {
     type: String,
-    default: 'red',
+    default: "red",
   },
   lineWidth: {
     type: Number,
@@ -74,15 +100,15 @@ const props = defineProps({
   },
   radiusLineColor: {
     type: String,
-    default: 'rgba(255, 255, 255, 0.7)',
+    default: "rgba(255, 255, 255, 0.7)",
   },
   markerColor: {
     type: String,
-    default: 'white',
+    default: "white",
   },
   markerBackgroundColor: {
     type: String,
-    default: 'rgba(0, 0, 0, 0.5)',
+    default: "rgba(0, 0, 0, 0.5)",
   },
   radiusLineWidth: {
     type: Number,
@@ -98,7 +124,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['settings-change']);
+const emit = defineEmits(["settings-change"]);
 
 const liveMeasurement = ref(null);
 const liveAngle = ref(0);
@@ -107,28 +133,28 @@ const displayAngle = ref(0);
 const currentRange = ref(props.maxDistance);
 const startAngle = ref(0);
 const endAngle = ref(360);
-const connectionStatus = ref('Disconnected');
+const connectionStatus = ref("Disconnected");
 const socket = ref(null);
 const settingsRef = ref(null);
 const isFreeze = ref(false);
 const isSettingsOpen = ref(false);
 
-const recordingSessions = inject('recordingSessions', ref(new Map()));
+const recordingSessions = inject("recordingSessions", ref(new Map()));
 const isRecording = computed(() => {
   const session = recordingSessions.value.get(props.device.id);
   return session?.is_active ?? false;
 });
 const offset = ref(0);
 
-const yawAngle = inject('yawAngle', ref(0));
+const yawAngle = inject("yawAngle", ref(0));
 
 const serverUrl = computed(() => {
   try {
     const url = new URL(props.websocketUrl);
-    return `http${url.protocol === 'wss:' ? 's' : ''}://${url.host}`;
+    return `http${url.protocol === "wss:" ? "s" : ""}://${url.host}`;
   } catch (error) {
-    console.error('Error parsing WebSocket URL:', error);
-    return '';
+    console.error("Error parsing WebSocket URL:", error);
+    return "";
   }
 });
 
@@ -145,22 +171,22 @@ const handleRecordingStopped = () => {};
 
 const sendGetConfigRequest = () => {
   if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-    console.error('WebSocket is not connected');
+    console.error("WebSocket is not connected");
     return;
   }
 
   const configRequest = {
-    command: 'ModifyDevice',
-    module: 'DeviceManager',
+    command: "ModifyDevice",
+    module: "DeviceManager",
     payload: {
       uuid: props.device.id,
-      modify: 'GetPing360Config',
+      modify: "GetPing360Config",
     },
   };
 
   socket.value.send(JSON.stringify(configRequest));
   if (props.debug) {
-    console.debug('Sent GetPing360Config request:', configRequest);
+    console.debug("Sent GetPing360Config request:", configRequest);
   }
 };
 
@@ -170,7 +196,7 @@ const connectWebSocket = () => {
   socket.value = new WebSocket(props.websocketUrl);
 
   socket.value.onopen = () => {
-    connectionStatus.value = 'Connected';
+    connectionStatus.value = "Connected";
     sendGetConfigRequest();
   };
 
@@ -178,7 +204,7 @@ const connectWebSocket = () => {
     try {
       const parsedData = JSON.parse(event.data);
       if (props.debug) {
-        console.debug('Ping360 data:', parsedData);
+        console.debug("Ping360 data:", parsedData);
       }
 
       const config =
@@ -188,7 +214,8 @@ const connectWebSocket = () => {
       if (config) {
         const SAMPLE_PERIOD_TICK_DURATION = 25e-9;
         currentRange.value = Math.round(
-          (config.sample_period * SAMPLE_PERIOD_TICK_DURATION * config.number_of_samples * 1500) / 2
+          (config.sample_period * SAMPLE_PERIOD_TICK_DURATION * config.number_of_samples * 1500) /
+            2,
         );
 
         const isFullCircle = (config.stop_angle + 1) % 400 === config.start_angle % 400;
@@ -208,7 +235,7 @@ const connectWebSocket = () => {
           mechanicalCenterGrad = (config.start_angle + sectorLenGrad / 2) % 400;
         }
         offset.value = (((200 - mechanicalCenterGrad) % 400) + 400) % 400;
-        emit('settings-change', {
+        emit("settings-change", {
           range: currentRange.value,
           gain: config.gain_setting,
           sector,
@@ -237,20 +264,20 @@ const connectWebSocket = () => {
       }
 
       if (props.debug) {
-        console.debug('Processed Ping360 data:', messageData);
+        console.debug("Processed Ping360 data:", messageData);
       }
     } catch (error) {
-      console.error('Error parsing Ping360 WebSocket data:', error);
+      console.error("Error parsing Ping360 WebSocket data:", error);
     }
   };
 
   socket.value.onerror = (error) => {
-    console.error('Ping360 WebSocket error:', error);
-    connectionStatus.value = 'Error';
+    console.error("Ping360 WebSocket error:", error);
+    connectionStatus.value = "Error";
   };
 
   socket.value.onclose = () => {
-    connectionStatus.value = 'Disconnected';
+    connectionStatus.value = "Disconnected";
     socket.value = null;
     setTimeout(connectWebSocket, 5000);
   };
@@ -283,12 +310,12 @@ watch(
       disconnectWebSocket();
       connectWebSocket();
     }
-  }
+  },
 );
 
 watch(yawAngle, (newYaw) => {
   if (props.debug) {
-    console.debug('Yaw angle updated:', newYaw);
+    console.debug("Yaw angle updated:", newYaw);
   }
 });
 
@@ -317,10 +344,12 @@ onUnmounted(() => {
 }
 
 .glass-button {
-  background-color: rgba(var(--v-theme-surface), 0.10) !important;
+  background-color: rgba(var(--v-theme-surface), 0.1) !important;
   border: 1px solid rgba(var(--v-theme-on-surface), 0.15) !important;
   backdrop-filter: blur(25px) !important;
   -webkit-backdrop-filter: blur(25px) !important;
-  box-shadow: 0px 8px 8px 0px rgba(0, 0, 0, 0.2), 0px 8px 12px 6px rgba(0, 0, 0, 0.09) !important;
+  box-shadow:
+    0px 8px 8px 0px rgba(0, 0, 0, 0.2),
+    0px 8px 12px 6px rgba(0, 0, 0, 0.09) !important;
 }
 </style>

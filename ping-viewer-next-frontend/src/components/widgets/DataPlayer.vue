@@ -7,25 +7,32 @@
 
       <template v-if="loadedData.length > 0">
         <v-col cols="auto" class="d-flex align-center justify-center">
-          <v-btn
-            class="player-btn"
-            @click="togglePlayPause"
-            icon
-            variant="outlined"
-            size="48"
-          >
-            <v-icon size="24">{{ isPlaying ? 'mdi-pause' : 'mdi-play' }}</v-icon>
+          <v-btn class="player-btn" @click="togglePlayPause" icon variant="outlined" size="48">
+            <v-icon size="24">{{ isPlaying ? "mdi-pause" : "mdi-play" }}</v-icon>
           </v-btn>
         </v-col>
 
         <v-col cols="2" class="d-flex flex-column justify-center mr-4 pr-0">
-          <input type="range" v-model.number="playbackSpeed" min="0.1" max="10" step="0.1" class="w-100" />
+          <input
+            type="range"
+            v-model.number="playbackSpeed"
+            min="0.1"
+            max="10"
+            step="0.1"
+            class="w-100"
+          />
           <div class="text-caption">Speed: {{ playbackSpeed }}x</div>
         </v-col>
 
         <v-col class="d-flex flex-column justify-center">
-          <input type="range" v-model.number="currentFrame" :min="0" :max="loadedData.length - 1" class="w-100"
-            @input="handleFrameChange" />
+          <input
+            type="range"
+            v-model.number="currentFrame"
+            :min="0"
+            :max="loadedData.length - 1"
+            class="w-100"
+            @input="handleFrameChange"
+          />
           <div class="d-flex justify-space-between">
             <span class="text-caption">{{ formatTime(loadedData[currentFrame]?.timestamp) }}</span>
           </div>
@@ -35,10 +42,10 @@
   </v-container>
 </template>
 <script setup>
-import { BlobReadable } from '@mcap/browser';
-import { McapIndexedReader } from '@mcap/core';
-import { loadDecompressHandlers } from '@mcap/support';
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { BlobReadable } from "@mcap/browser";
+import { McapIndexedReader } from "@mcap/core";
+import { loadDecompressHandlers } from "@mcap/support";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 
 const props = defineProps({
   mcapData: {
@@ -59,7 +66,7 @@ let playTimer = null;
 let startTime = 0;
 let baseTimestamp = 0;
 
-const emit = defineEmits(['update:currentFrame', 'loadedData', 'parsingProgress', 'error']);
+const emit = defineEmits(["update:currentFrame", "loadedData", "parsingProgress", "error"]);
 
 const loadMcapFromBuffer = async (arrayBuffer) => {
   try {
@@ -67,10 +74,10 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
     try {
       decompressHandlers = await loadDecompressHandlers();
     } catch (error) {
-      console.warn('Could not load decompression handlers:', error);
+      console.warn("Could not load decompression handlers:", error);
     }
 
-    const blob = new Blob([arrayBuffer], { type: 'application/octet-stream' });
+    const blob = new Blob([arrayBuffer], { type: "application/octet-stream" });
     const reader = await McapIndexedReader.Initialize({
       readable: new BlobReadable(blob),
       decompressHandlers,
@@ -94,7 +101,7 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
       messageCount++;
       if (totalMessages > 0) {
         if (messageCount % 100 === 0 || messageCount === totalMessages) {
-          emit('parsingProgress', Math.floor((messageCount / totalMessages) * 100));
+          emit("parsingProgress", Math.floor((messageCount / totalMessages) * 100));
         }
       }
     }
@@ -110,13 +117,13 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
           } catch {
             parsedData = { raw: decoded };
           }
-        } else if (typeof msg.data === 'object') {
+        } else if (typeof msg.data === "object") {
           parsedData = msg.data;
         } else {
           parsedData = { raw: msg.data };
         }
       } catch (decodeError) {
-        console.warn('Error decoding message data:', decodeError);
+        console.warn("Error decoding message data:", decodeError);
         parsedData = { raw: Array.from(msg.data) };
       }
 
@@ -140,18 +147,18 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
       // Normalize device type to expected format
       let deviceType;
       switch (rawDeviceType.toLowerCase()) {
-        case 'ping1d':
-          deviceType = 'Ping1D';
+        case "ping1d":
+          deviceType = "Ping1D";
           break;
-        case 'ping360':
-          deviceType = 'Ping360';
+        case "ping360":
+          deviceType = "Ping360";
           break;
         default:
           return [];
       }
 
       // Transform to match your expected JSON structure based on device type
-      if (deviceType === 'Ping1D') {
+      if (deviceType === "Ping1D") {
         return [
           {
             timestamp,
@@ -173,7 +180,7 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
           },
         ];
       }
-      if (deviceType === 'Ping360') {
+      if (deviceType === "Ping360") {
         return [
           {
             timestamp,
@@ -199,7 +206,7 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
       baseTimestamp = new Date(loadedData.value[0].timestamp).getTime();
     }
 
-    emit('loadedData', loadedData.value);
+    emit("loadedData", loadedData.value);
     updateCurrentFrame();
 
     // Auto-play if enabled and we have data
@@ -210,9 +217,9 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
       }, 100);
     }
   } catch (error) {
-    console.error('Detailed error loading MCAP file:', error);
-    console.error('Error stack:', error.stack);
-    emit('error', error.message || 'Unknown error while parsing MCAP file');
+    console.error("Detailed error loading MCAP file:", error);
+    console.error("Error stack:", error.stack);
+    emit("error", error.message || "Unknown error while parsing MCAP file");
   }
 };
 
@@ -220,11 +227,11 @@ const loadFile = async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
 
-  if (file.name.endsWith('.mcap')) {
+  if (file.name.endsWith(".mcap")) {
     const arrayBuffer = await file.arrayBuffer();
     await loadMcapFromBuffer(arrayBuffer);
   } else {
-    alert('Unsupported file type. Please select a .mcap file.');
+    alert("Unsupported file type. Please select a .mcap file.");
   }
 };
 
@@ -235,7 +242,7 @@ watch(
       await loadMcapFromBuffer(newData);
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 const play = () => {
@@ -288,7 +295,7 @@ const playNextFrame = () => {
 
 const updateCurrentFrame = () => {
   currentFrame.value = Math.min(Math.max(0, currentFrame.value), loadedData.value.length - 1);
-  emit('update:currentFrame', loadedData.value[currentFrame.value]);
+  emit("update:currentFrame", loadedData.value[currentFrame.value]);
 };
 
 const handleFrameChange = () => {
@@ -300,7 +307,7 @@ const handleFrameChange = () => {
 };
 
 const formatTime = (timestamp) => {
-  if (!timestamp) return '';
+  if (!timestamp) return "";
   const date = new Date(timestamp);
   return date.toUTCString();
 };
@@ -329,11 +336,11 @@ const handleVisibilityChange = () => {
 };
 
 onMounted(() => {
-  document.addEventListener('visibilitychange', handleVisibilityChange);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
 });
 
 onUnmounted(() => {
-  document.removeEventListener('visibilitychange', handleVisibilityChange);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
   if (playTimer) {
     clearTimeout(playTimer);
   }

@@ -2,8 +2,6 @@
   <div class="connection-manager">
     <div class="config-menu" :class="{ 'glass-inner disable-hover': glass }" v-show="isOpen">
       <div :class="['menu-content', { 'glass-inner disable-hover': glass }]">
-
-
         <!-- Device List -->
         <div class="device-list mt-1 mb-2">
           <div v-if="isLoading" class="d-flex justify-center my-4">
@@ -17,12 +15,23 @@
           </div>
 
           <v-list v-else :class="{ 'glass-inner': glass }" density="compact">
-            <v-list-item v-for="device in devices" :key="device.id" :value="device" class="mb-2"
-              @click="selectDevice(device)">
+            <v-list-item
+              v-for="device in devices"
+              :key="device.id"
+              :value="device"
+              class="mb-2"
+              @click="selectDevice(device)"
+            >
               <template v-slot:prepend>
-                <v-badge :content="isDeviceRecording(device.id) ? 'Rec' : ''" :location="'top end'" color="error"
-                  :model-value="isDeviceRecording(device.id)">
-                  <v-icon :icon="device.device_type === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'" />
+                <v-badge
+                  :content="isDeviceRecording(device.id) ? 'Rec' : ''"
+                  :location="'top end'"
+                  color="error"
+                  :model-value="isDeviceRecording(device.id)"
+                >
+                  <v-icon
+                    :icon="device.device_type === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'"
+                  />
                 </v-badge>
               </template>
 
@@ -35,8 +44,8 @@
                       <span class="ml-1">{{ device.source.SerialStream.path }}</span>
                     </div>
                   </template>
-                  Port: {{ device.source.SerialStream.path }}
-                  Baudrate: {{ device.source.SerialStream.baudrate }}
+                  Port: {{ device.source.SerialStream.path }} Baudrate:
+                  {{ device.source.SerialStream.baudrate }}
                 </v-tooltip>
                 <v-tooltip v-else-if="device.source.UdpStream">
                   <template v-slot:activator="{ props }">
@@ -45,18 +54,25 @@
                       <span class="ml-1">{{ device.source.UdpStream.ip }}</span>
                     </div>
                   </template>
-                  Ip: {{ device.source.UdpStream.ip }}
-                  Port: {{ device.source.UdpStream.port }}
+                  Ip: {{ device.source.UdpStream.ip }} Port: {{ device.source.UdpStream.port }}
                 </v-tooltip>
               </v-list-item-subtitle>
 
               <template v-slot:append>
                 <div class="d-flex align-center gap-2">
-                  <v-tooltip location="bottom" :text="deviceStatusReason(device.status)"
-                    :disabled="!deviceStatusReason(device.status)">
+                  <v-tooltip
+                    location="bottom"
+                    :text="deviceStatusReason(device.status)"
+                    :disabled="!deviceStatusReason(device.status)"
+                  >
                     <template v-slot:activator="{ props }">
-                      <v-btn v-bind="props" variant="elevated" class="rounded-lg -mb-1"
-                        :color="getStatusColor(device.status)" size="small">
+                      <v-btn
+                        v-bind="props"
+                        variant="elevated"
+                        class="rounded-lg -mb-1"
+                        :color="getStatusColor(device.status)"
+                        size="small"
+                      >
                         {{ getStatusLabel(device.status) }}
                       </v-btn>
                     </template>
@@ -64,12 +80,19 @@
 
                   <v-menu location="start" offset="5">
                     <template v-slot:activator="{ props }">
-                      <v-btn v-bind="props" variant="text" icon size="22" density="compact" class="-mr-2 ml-2">
+                      <v-btn
+                        v-bind="props"
+                        variant="text"
+                        icon
+                        size="22"
+                        density="compact"
+                        class="-mr-2 ml-2"
+                      >
                         <v-icon>mdi-dots-vertical</v-icon>
                       </v-btn>
                     </template>
 
-                    <v-card :class="{ 'glass': glass }" min-width="200"   >
+                    <v-card :class="{ glass: glass }" min-width="200">
                       <v-list :class="{ 'glass-inner': glass }" density="compact" class="pa-0 pb-2">
                         <v-list-subheader class="windowHeader">Device Actions</v-list-subheader>
                         <v-list-item @click="selectDevice(device)" class="mt-2">
@@ -80,8 +103,11 @@
                           <v-list-item-subtitle>View device data</v-list-item-subtitle>
                         </v-list-item>
 
-                        <v-list-item v-if="device.status === 'ContinuousMode'" @click="disableContinuousMode(device.id)"
-                          :disabled="loadingStates[device.id]">
+                        <v-list-item
+                          v-if="device.status === 'ContinuousMode'"
+                          @click="disableContinuousMode(device.id)"
+                          :disabled="loadingStates[device.id]"
+                        >
                           <template v-slot:prepend>
                             <v-icon variant="tonal">mdi-pause</v-icon>
                           </template>
@@ -89,8 +115,11 @@
                           <v-list-item-subtitle>Pause device data stream</v-list-item-subtitle>
                         </v-list-item>
 
-                        <v-list-item v-else @click="enableContinuousMode(device.id)"
-                          :disabled="loadingStates[device.id]">
+                        <v-list-item
+                          v-else
+                          @click="enableContinuousMode(device.id)"
+                          :disabled="loadingStates[device.id]"
+                        >
                           <template v-slot:prepend>
                             <v-icon variant="tonal">mdi-play</v-icon>
                           </template>
@@ -98,10 +127,19 @@
                           <v-list-item-subtitle>Start device data stream</v-list-item-subtitle>
                         </v-list-item>
 
-                        <v-divider v-if="isDeviceRecording(device.id) || (device.status === 'ContinuousMode' || device.status === 'Running')" ></v-divider>
+                        <v-divider
+                          v-if="
+                            isDeviceRecording(device.id) ||
+                            device.status === 'ContinuousMode' ||
+                            device.status === 'Running'
+                          "
+                        ></v-divider>
 
-                        <v-list-item v-if="isDeviceRecording(device.id)" @click="stopRecording(device.id)"
-                          :disabled="loadingStates[device.id]">
+                        <v-list-item
+                          v-if="isDeviceRecording(device.id)"
+                          @click="stopRecording(device.id)"
+                          :disabled="loadingStates[device.id]"
+                        >
                           <template v-slot:prepend>
                             <v-icon color="error">mdi-stop</v-icon>
                           </template>
@@ -109,9 +147,13 @@
                           <v-list-item-subtitle>Stop recording device data</v-list-item-subtitle>
                         </v-list-item>
 
-                        <v-list-item v-else-if="device.status === 'ContinuousMode' || device.status === 'Running'"
+                        <v-list-item
+                          v-else-if="
+                            device.status === 'ContinuousMode' || device.status === 'Running'
+                          "
                           @click="startRecording(device.id)"
-                          :disabled="loadingStates[device.id]">
+                          :disabled="loadingStates[device.id]"
+                        >
                           <template v-slot:prepend>
                             <v-icon color="success">mdi-record</v-icon>
                           </template>
@@ -119,10 +161,20 @@
                           <v-list-item-subtitle>Start recording device data</v-list-item-subtitle>
                         </v-list-item>
 
-                        <v-divider v-if="isDeviceRecording(device.id) || (device.status === 'ContinuousMode' || device.status === 'Running')" class="my-2"></v-divider>
+                        <v-divider
+                          v-if="
+                            isDeviceRecording(device.id) ||
+                            device.status === 'ContinuousMode' ||
+                            device.status === 'Running'
+                          "
+                          class="my-2"
+                        ></v-divider>
                         <v-divider v-else class="my-2"></v-divider>
 
-                        <v-list-item @click="confirmDelete(device)" :disabled="loadingStates[device.id]">
+                        <v-list-item
+                          @click="confirmDelete(device)"
+                          :disabled="loadingStates[device.id]"
+                        >
                           <template v-slot:prepend>
                             <v-icon color="error">mdi-delete</v-icon>
                           </template>
@@ -140,16 +192,18 @@
 
         <v-menu location="end" offset="10">
           <template v-slot:activator="{ props }">
-            <div class="flex w-full justify-end" style="position: relative;">
+            <div class="flex w-full justify-end" style="position: relative">
               <v-btn v-bind="props" variant="plain" size="small" class="mb-1 mr-1">
                 Advanced settings
               </v-btn>
             </div>
           </template>
 
-          <v-card :class="{ 'glass': glass }" min-width="200">
+          <v-card :class="{ glass: glass }" min-width="200">
             <v-list :class="{ 'glass-inner': glass }" class="pa-0 pb-1">
-              <v-list-subheader class="windowHeader py-0 text-center">Device Manager Actions</v-list-subheader>
+              <v-list-subheader class="windowHeader py-0 text-center"
+                >Device Manager Actions</v-list-subheader
+              >
 
               <v-list-item class="py-2" @click="autoCreateDevices" :disabled="isAutoCreating">
                 <template v-slot:prepend>
@@ -159,7 +213,7 @@
                 <v-list-item-subtitle>Automatically run devices</v-list-item-subtitle>
               </v-list-item>
 
-              <v-list-item class="py-2"@click="toggleManualCreate">
+              <v-list-item class="py-2" @click="toggleManualCreate">
                 <template v-slot:prepend>
                   <v-icon variant="tonal">mdi-plus</v-icon>
                 </template>
@@ -167,7 +221,7 @@
                 <v-list-item-subtitle>Configure device manually</v-list-item-subtitle>
               </v-list-item>
 
-              <v-list-item class="py-2"@click="refreshDevices" :disabled="isRefreshing">
+              <v-list-item class="py-2" @click="refreshDevices" :disabled="isRefreshing">
                 <template v-slot:prepend>
                   <v-icon variant="tonal">mdi-refresh</v-icon>
                 </template>
@@ -180,34 +234,67 @@
 
         <!-- Manual Creation Dialog -->
         <v-dialog v-model="showManualCreate" max-width="500">
-          <v-card :class="{ 'glass': glass }">
+          <v-card :class="{ glass: glass }">
             <div class="windowHeader flex justify-between items-center pl-4 pt-0">
               <div class="text-h6 text-center w-full">Create New Device</div>
               <v-btn icon="mdi-close" variant="text" @click="showManualCreate = false" />
             </div>
             <v-card-text>
               <v-form @submit.prevent="createDevice">
-                <v-select v-model="newDevice.device_selection" :items="deviceTypes" label="Device Type" class="mb-4" />
-                <v-select v-model="newDevice.connectionType" :items="connectionTypes" label="Connection Type"
-                  class="mb-4" />
+                <v-select
+                  v-model="newDevice.device_selection"
+                  :items="deviceTypes"
+                  label="Device Type"
+                  class="mb-4"
+                />
+                <v-select
+                  v-model="newDevice.connectionType"
+                  :items="connectionTypes"
+                  label="Connection Type"
+                  class="mb-4"
+                />
 
                 <template v-if="newDevice.connectionType === 'UdpStream'">
-                  <v-text-field v-model="newDevice.udp.ip" label="IP Address" class="mb-4"
-                    :rules="[v => !!v || 'IP is required']" />
-                  <v-text-field v-model.number="newDevice.udp.port" type="number" label="Port" class="mb-4"
-                    :rules="[v => !!v || 'Port is required']" />
+                  <v-text-field
+                    v-model="newDevice.udp.ip"
+                    label="IP Address"
+                    class="mb-4"
+                    :rules="[(v) => !!v || 'IP is required']"
+                  />
+                  <v-text-field
+                    v-model.number="newDevice.udp.port"
+                    type="number"
+                    label="Port"
+                    class="mb-4"
+                    :rules="[(v) => !!v || 'Port is required']"
+                  />
                 </template>
 
                 <template v-else-if="newDevice.connectionType === 'SerialStream'">
-                  <v-text-field v-model="newDevice.serial.path" label="Serial Path" class="mb-4"
-                    :rules="[v => !!v || 'Path is required']" />
-                  <v-text-field v-model.number="newDevice.serial.baudrate" type="number" label="Baudrate" class="mb-4"
-                    :rules="[v => !!v || 'Baudrate is required']" />
+                  <v-text-field
+                    v-model="newDevice.serial.path"
+                    label="Serial Path"
+                    class="mb-4"
+                    :rules="[(v) => !!v || 'Path is required']"
+                  />
+                  <v-text-field
+                    v-model.number="newDevice.serial.baudrate"
+                    type="number"
+                    label="Baudrate"
+                    class="mb-4"
+                    :rules="[(v) => !!v || 'Baudrate is required']"
+                  />
                 </template>
               </v-form>
             </v-card-text>
             <div class="flex w-full justify-end">
-              <v-btn variant="plain" size="small" class="mb-1 mr-1" :loading="isCreating" @click="createDevice">
+              <v-btn
+                variant="plain"
+                size="small"
+                class="mb-1 mr-1"
+                :loading="isCreating"
+                @click="createDevice"
+              >
                 Create
               </v-btn>
             </div>
@@ -216,12 +303,12 @@
 
         <!-- Delete Confirmation Dialog -->
         <v-dialog v-model="showDeleteDialog" max-width="400">
-          <v-card :class="{ 'glass': glass }">
+          <v-card :class="{ glass: glass }">
             <v-card-title>Confirm Delete</v-card-title>
             <v-card-text>
               Are you sure you want to delete this device?
               <div class="mt-2">
-                <strong>Type:</strong> {{ deviceToDelete?.device_type }}<br>
+                <strong>Type:</strong> {{ deviceToDelete?.device_type }}<br />
                 <strong>ID:</strong> {{ deviceToDelete?.id }}
               </div>
             </v-card-text>
@@ -238,12 +325,12 @@
 </template>
 
 <script setup>
-import { inject, onMounted, onUnmounted, ref, watch } from 'vue';
+import { inject, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   deviceStatusColor as getStatusColor,
   deviceStatusLabel as getStatusLabel,
   deviceStatusReason,
-} from '@/ping-device/utils/device-status';
+} from "@/ping-device/utils/device-status";
 
 const props = defineProps({
   serverUrl: {
@@ -260,7 +347,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:isOpen', 'select-device']);
+const emit = defineEmits(["update:isOpen", "select-device"]);
 
 const devices = ref([]);
 const isLoading = ref(false);
@@ -274,7 +361,7 @@ const deviceToDelete = ref(null);
 const error = ref(null);
 const loadingStates = ref({});
 
-const recordingSessions = inject('recordingSessions');
+const recordingSessions = inject("recordingSessions");
 
 const isDeviceRecording = (deviceId) => {
   const session = recordingSessions.value.get(deviceId);
@@ -285,7 +372,7 @@ const fetchInitialRecordingStatuses = async () => {
   try {
     const response = await fetch(`${props.serverUrl}/v1/recordings_manager/list`);
     if (!response.ok) {
-      throw new Error('Failed to fetch recording statuses');
+      throw new Error("Failed to fetch recording statuses");
     }
     const data = await response.json();
     if (data.AllRecordingStatus) {
@@ -294,7 +381,7 @@ const fetchInitialRecordingStatuses = async () => {
       }
     }
   } catch (err) {
-    console.error('Error fetching initial recording statuses:', err);
+    console.error("Error fetching initial recording statuses:", err);
   }
 };
 
@@ -305,7 +392,7 @@ watch(
       await fetchInitialRecordingStatuses();
       logWidgetUrls();
     }
-  }
+  },
 );
 
 onMounted(async () => {
@@ -313,28 +400,28 @@ onMounted(async () => {
 });
 
 const newDevice = ref({
-  device_selection: 'Auto',
-  connectionType: 'UdpStream',
+  device_selection: "Auto",
+  connectionType: "UdpStream",
   udp: {
-    ip: 'blueos.local',
+    ip: "blueos.local",
     port: 12345,
   },
   serial: {
-    path: '/dev/ttyUSB0',
+    path: "/dev/ttyUSB0",
     baudrate: 2500000,
   },
 });
 
 const deviceTypes = [
-  { title: 'Auto Detect', value: 'Auto' },
-  { title: 'Ping1D', value: 'Ping1D' },
-  { title: 'Ping360', value: 'Ping360' },
+  { title: "Auto Detect", value: "Auto" },
+  { title: "Ping1D", value: "Ping1D" },
+  { title: "Ping360", value: "Ping360" },
 ];
 
 const connectionTypes = [
-  { title: 'UDP', value: 'UdpStream' },
-  { title: 'Serial', value: 'SerialStream' },
-  { title: 'Fake device', value: 'FakeStream' },
+  { title: "UDP", value: "UdpStream" },
+  { title: "Serial", value: "SerialStream" },
+  { title: "Fake device", value: "FakeStream" },
 ];
 
 const toggleManualCreate = () => {
@@ -359,22 +446,22 @@ const logWidgetUrls = () => {
 const fetchDevices = async () => {
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        command: 'List',
-        module: 'DeviceManager',
+        command: "List",
+        module: "DeviceManager",
       }),
     });
 
-    if (!response.ok) throw new Error('Failed to fetch devices');
+    if (!response.ok) throw new Error("Failed to fetch devices");
 
     const data = await response.json();
     devices.value = data.DeviceInfo || [];
     error.value = null;
     logWidgetUrls();
   } catch (err) {
-    console.error('Error fetching devices:', err);
+    console.error("Error fetching devices:", err);
     error.value = `Failed to fetch devices: ${err.message}`;
   }
 };
@@ -391,18 +478,18 @@ const autoCreateDevices = async () => {
 
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        command: 'AutoCreate',
-        module: 'DeviceManager',
+        command: "AutoCreate",
+        module: "DeviceManager",
       }),
     });
 
-    if (!response.ok) throw new Error('Failed to auto-create devices');
+    if (!response.ok) throw new Error("Failed to auto-create devices");
     await refreshDevices();
   } catch (err) {
-    console.error('Error auto-creating devices:', err);
+    console.error("Error auto-creating devices:", err);
     error.value = `Failed to auto-create devices: ${err.message}`;
   } finally {
     isAutoCreating.value = false;
@@ -416,7 +503,7 @@ const createDevice = async () => {
   try {
     let source;
     switch (newDevice.value.connectionType) {
-      case 'UdpStream':
+      case "UdpStream":
         source = {
           UdpStream: {
             ip: newDevice.value.udp.ip,
@@ -424,7 +511,7 @@ const createDevice = async () => {
           },
         };
         break;
-      case 'SerialStream':
+      case "SerialStream":
         source = {
           SerialStream: {
             path: newDevice.value.serial.path,
@@ -432,7 +519,7 @@ const createDevice = async () => {
           },
         };
         break;
-      case 'FakeStream':
+      case "FakeStream":
         source = {
           FakeStream: {},
         };
@@ -442,11 +529,11 @@ const createDevice = async () => {
     }
 
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        command: 'Create',
-        module: 'DeviceManager',
+        command: "Create",
+        module: "DeviceManager",
         payload: {
           device_selection: newDevice.value.device_selection,
           source,
@@ -454,12 +541,12 @@ const createDevice = async () => {
       }),
     });
 
-    if (!response.ok) throw new Error('Failed to create device');
+    if (!response.ok) throw new Error("Failed to create device");
 
     await refreshDevices();
     showManualCreate.value = false;
   } catch (err) {
-    console.error('Error creating device:', err);
+    console.error("Error creating device:", err);
     error.value = `Failed to create device: ${err.message}`;
   } finally {
     isCreating.value = false;
@@ -470,19 +557,19 @@ const enableContinuousMode = async (deviceId) => {
   loadingStates.value[deviceId] = true;
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        command: 'EnableContinuousMode',
-        module: 'DeviceManager',
+        command: "EnableContinuousMode",
+        module: "DeviceManager",
         payload: { uuid: deviceId },
       }),
     });
 
-    if (!response.ok) throw new Error('Failed to enable continuous mode');
+    if (!response.ok) throw new Error("Failed to enable continuous mode");
     await refreshDevices();
   } catch (err) {
-    console.error('Error enabling continuous mode:', err);
+    console.error("Error enabling continuous mode:", err);
     error.value = `Failed to enable continuous mode: ${err.message}`;
   } finally {
     loadingStates.value[deviceId] = false;
@@ -493,19 +580,19 @@ const disableContinuousMode = async (deviceId) => {
   loadingStates.value[deviceId] = true;
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        command: 'DisableContinuousMode',
-        module: 'DeviceManager',
+        command: "DisableContinuousMode",
+        module: "DeviceManager",
         payload: { uuid: deviceId },
       }),
     });
 
-    if (!response.ok) throw new Error('Failed to disable continuous mode');
+    if (!response.ok) throw new Error("Failed to disable continuous mode");
     await refreshDevices();
   } catch (err) {
-    console.error('Error disabling continuous mode:', err);
+    console.error("Error disabling continuous mode:", err);
     error.value = `Failed to disable continuous mode: ${err.message}`;
   } finally {
     loadingStates.value[deviceId] = false;
@@ -518,18 +605,18 @@ const startRecording = async (deviceId) => {
     const response = await fetch(
       `${props.serverUrl}/v1/recordings_manager/${deviceId}/StartRecording`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-      }
+      },
     );
 
     if (!response.ok) {
-      throw new Error('Failed to start recording');
+      throw new Error("Failed to start recording");
     }
   } catch (err) {
-    console.error('Error starting recording:', err);
+    console.error("Error starting recording:", err);
     error.value = `Failed to start recording: ${err.message}`;
   } finally {
     loadingStates.value[deviceId] = false;
@@ -542,18 +629,18 @@ const stopRecording = async (deviceId) => {
     const response = await fetch(
       `${props.serverUrl}/v1/recordings_manager/${deviceId}/StopRecording`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-      }
+      },
     );
 
     if (!response.ok) {
-      throw new Error('Failed to stop recording');
+      throw new Error("Failed to stop recording");
     }
   } catch (err) {
-    console.error('Error stopping recording:', err);
+    console.error("Error stopping recording:", err);
     error.value = `Failed to stop recording: ${err.message}`;
   } finally {
     loadingStates.value[deviceId] = false;
@@ -571,20 +658,20 @@ const deleteDevice = async () => {
 
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        command: 'Delete',
-        module: 'DeviceManager',
+        command: "Delete",
+        module: "DeviceManager",
         payload: { uuid: deviceToDelete.value.id },
       }),
     });
 
-    if (!response.ok) throw new Error('Failed to delete device');
+    if (!response.ok) throw new Error("Failed to delete device");
     await refreshDevices();
     showDeleteDialog.value = false;
   } catch (err) {
-    console.error('Error deleting device:', err);
+    console.error("Error deleting device:", err);
     error.value = `Failed to delete device: ${err.message}`;
   } finally {
     isDeleting.value = false;
@@ -594,16 +681,16 @@ const deleteDevice = async () => {
 
 const selectDevice = async (device) => {
   try {
-    if (device.status !== 'ContinuousMode') {
+    if (device.status !== "ContinuousMode") {
       loadingStates.value[device.id] = true;
       await enableContinuousMode(device.id);
       await fetchDevices();
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-    emit('select-device', device);
-    emit('update:isOpen', false);
+    emit("select-device", device);
+    emit("update:isOpen", false);
   } catch (error) {
-    console.error('Error selecting device:', error);
+    console.error("Error selecting device:", error);
   } finally {
     loadingStates.value[device.id] = false;
   }

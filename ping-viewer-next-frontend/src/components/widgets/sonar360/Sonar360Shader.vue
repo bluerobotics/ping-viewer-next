@@ -5,8 +5,8 @@
 </template>
 
 <script setup lang="ts">
-import { onKeyStroke } from '@vueuse/core';
-import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { onKeyStroke } from "@vueuse/core";
+import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 interface SonarMeasurement {
   angle: number;
@@ -35,7 +35,7 @@ const props = withDefaults(
     endAngle: 360,
     yaw_angle: 0,
     maxRadius: 0.99,
-  }
+  },
 );
 
 const canvas = ref<HTMLCanvasElement | null>(null);
@@ -94,14 +94,14 @@ const fsSource = `
 const initWebGL = () => {
   if (!canvas.value) return;
 
-  gl = canvas.value.getContext('webgl', {
+  gl = canvas.value.getContext("webgl", {
     alpha: true,
     premultipliedAlpha: false,
     preserveDrawingBuffer: true,
   });
 
   if (!gl) {
-    console.error('Unable to initialize WebGL.');
+    console.error("Unable to initialize WebGL.");
     return;
   }
 
@@ -118,11 +118,11 @@ const initWebGL = () => {
 const loadShader = (
   gl: WebGLRenderingContext,
   type: number,
-  source: string
+  source: string,
 ): WebGLShader | null => {
   const shader = gl.createShader(type);
   if (!shader) {
-    console.error('Unable to create shader.');
+    console.error("Unable to create shader.");
     return null;
   }
 
@@ -140,19 +140,19 @@ const loadShader = (
 const initShaderProgram = (
   gl: WebGLRenderingContext,
   vsSource: string,
-  fsSource: string
+  fsSource: string,
 ): WebGLProgram | null => {
   const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
   const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
 
   if (!vertexShader || !fragmentShader) {
-    console.error('Failed to load shaders.');
+    console.error("Failed to load shaders.");
     return null;
   }
 
   const shaderProgram = gl.createProgram();
   if (!shaderProgram) {
-    console.error('Unable to create shader program.');
+    console.error("Unable to create shader program.");
     return null;
   }
 
@@ -162,7 +162,7 @@ const initShaderProgram = (
 
   if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
     console.error(
-      `Unable to initialize the shader program: ${gl.getProgramInfoLog(shaderProgram)}`
+      `Unable to initialize the shader program: ${gl.getProgramInfoLog(shaderProgram)}`,
     );
     return null;
   }
@@ -182,14 +182,14 @@ const setupBuffers = () => {
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
 
-  const vertexPosition = gl.getAttribLocation(shaderProgram, 'aVertexPosition');
+  const vertexPosition = gl.getAttribLocation(shaderProgram, "aVertexPosition");
   gl.enableVertexAttribArray(vertexPosition);
   gl.vertexAttribPointer(vertexPosition, 2, gl.FLOAT, false, 0, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, textureCoords, gl.STATIC_DRAW);
 
-  const textureCoord = gl.getAttribLocation(shaderProgram, 'aTextureCoord');
+  const textureCoord = gl.getAttribLocation(shaderProgram, "aTextureCoord");
   gl.enableVertexAttribArray(textureCoord);
   gl.vertexAttribPointer(textureCoord, 2, gl.FLOAT, false, 0, 0);
 };
@@ -212,7 +212,7 @@ const resizeTextureBuffers = (newLineLength: number) => {
       0,
       gl.RGBA,
       gl.UNSIGNED_BYTE,
-      textureData
+      textureData,
     );
     render();
   }
@@ -251,7 +251,7 @@ const setupTexture = () => {
     0,
     gl.RGBA,
     gl.UNSIGNED_BYTE,
-    textureData
+    textureData,
   );
 };
 
@@ -263,10 +263,10 @@ const render = () => {
 
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.uniform1i(gl.getUniformLocation(shaderProgram, 'uSampler'), 0);
-  gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uStartAngle'), props.startAngle);
-  gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uEndAngle'), props.endAngle);
-  gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uMaxRadius'), props.maxRadius);
+  gl.uniform1i(gl.getUniformLocation(shaderProgram, "uSampler"), 0);
+  gl.uniform1f(gl.getUniformLocation(shaderProgram, "uStartAngle"), props.startAngle);
+  gl.uniform1f(gl.getUniformLocation(shaderProgram, "uEndAngle"), props.endAngle);
+  gl.uniform1f(gl.getUniformLocation(shaderProgram, "uMaxRadius"), props.maxRadius);
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 };
@@ -309,7 +309,7 @@ const updateSonarData = (angle: number, newData: Uint8Array) => {
     1,
     gl.RGBA,
     gl.UNSIGNED_BYTE,
-    textureData.subarray(textureStart, textureStart + currentLineLength * 4)
+    textureData.subarray(textureStart, textureStart + currentLineLength * 4),
   );
 
   currentAngle.value = angle;
@@ -345,13 +345,13 @@ const clearShaderContent = () => {
       0,
       gl.RGBA,
       gl.UNSIGNED_BYTE,
-      textureData
+      textureData,
     );
     render();
   }
 };
 
-onKeyStroke(['r', 'R'], () => {
+onKeyStroke(["r", "R"], () => {
   clearShaderContent();
 });
 
@@ -359,12 +359,12 @@ onMounted(() => {
   nextTick(() => {
     initWebGL();
     resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener("resize", resizeCanvas);
   });
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', resizeCanvas);
+  window.removeEventListener("resize", resizeCanvas);
 });
 
 watch(
@@ -388,12 +388,12 @@ watch(
           0,
           gl.RGBA,
           gl.UNSIGNED_BYTE,
-          textureData
+          textureData,
         );
       }
       render();
     }
-  }
+  },
 );
 
 watch(
@@ -403,7 +403,7 @@ watch(
       updateSonarData(newMeasurement.angle, newMeasurement.data);
     }
   },
-  { deep: true }
+  { deep: true },
 );
 
 watch([() => props.startAngle, () => props.endAngle, () => props.maxRadius], () => {

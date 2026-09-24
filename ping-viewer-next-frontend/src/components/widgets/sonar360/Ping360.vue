@@ -1,37 +1,58 @@
 <template>
-  <div ref="containerRef" class="w-full h-full flex items-center justify-center bg-transparent overflow-hidden">
+  <div
+    ref="containerRef"
+    class="w-full h-full flex items-center justify-center bg-transparent overflow-hidden"
+  >
     <div class="relative shrink-0" :style="containerStyle">
-			<Sonar360Mask :angle="angle" :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="maxDistance"
-				:numMarkers="numMarkers" :showRadiusLines="showRadiusLines" :showMarkers="showMarkers"
-				:radiusLineColor="radiusLineColor" :markerColor="markerColor"
-				:markerBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"
-				:startAngle="startAngle" :endAngle="endAngle">
-			<Sonar360Shader :measurement="measurement" :numLines="400"
-				:color-palette="colorPalette" :get-color-from-palette="getColorFromPalette" :startAngle="startAngle"
-				:endAngle="endAngle" :yaw_angle="yaw_angle" :max-radius="shaderMaxRadius" :debug=false />
-			</Sonar360Mask>
-		</div>
+      <Sonar360Mask
+        :angle="angle"
+        :lineColor="lineColor"
+        :lineWidth="lineWidth"
+        :maxDistance="maxDistance"
+        :numMarkers="numMarkers"
+        :showRadiusLines="showRadiusLines"
+        :showMarkers="showMarkers"
+        :radiusLineColor="radiusLineColor"
+        :markerColor="markerColor"
+        :markerBackgroundColor="markerBackgroundColor"
+        :radiusLineWidth="radiusLineWidth"
+        :startAngle="startAngle"
+        :endAngle="endAngle"
+      >
+        <Sonar360Shader
+          :measurement="measurement"
+          :numLines="400"
+          :color-palette="colorPalette"
+          :get-color-from-palette="getColorFromPalette"
+          :startAngle="startAngle"
+          :endAngle="endAngle"
+          :yaw_angle="yaw_angle"
+          :max-radius="shaderMaxRadius"
+          :debug="false"
+        />
+      </Sonar360Mask>
+    </div>
 
-		<div v-if="debug" class="absolute top-0 right-0 bg-black bg-opacity-50 text-white p-2 text-xs">
-			<div>Angle: {{ angle }}</div>
-			<div>Show Radius Lines: {{ showRadiusLines }}</div>
-			<div>Show Markers: {{ showMarkers }}</div>
-			<div>Radius Line Color: {{ radiusLineColor }}</div>
-			<div>Marker Color: {{ markerColor }}</div>
-			<div>Radius Line Width: {{ radiusLineWidth }}</div>
-			<div>Num Markers: {{ numMarkers }}</div>
-			<div>Max Distance: {{ maxDistance }}</div>
-			<div>Yaw Angle: {{ yaw_angle.toFixed(1) }}°</div>
-		</div>
-	</div>
+    <div v-if="debug" class="absolute top-0 right-0 bg-black bg-opacity-50 text-white p-2 text-xs">
+      <div>Angle: {{ angle }}</div>
+      <div>Show Radius Lines: {{ showRadiusLines }}</div>
+      <div>Show Markers: {{ showMarkers }}</div>
+      <div>Radius Line Color: {{ radiusLineColor }}</div>
+      <div>Marker Color: {{ markerColor }}</div>
+      <div>Radius Line Width: {{ radiusLineWidth }}</div>
+      <div>Num Markers: {{ numMarkers }}</div>
+      <div>Max Distance: {{ maxDistance }}</div>
+      <div>Yaw Angle: {{ yaw_angle.toFixed(1) }}°</div>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { getColorFromPalette } from '../SonarColorOptions.vue';
-import Sonar360Mask from './Sonar360Mask.vue';
-import Sonar360Shader from './Sonar360Shader.vue';
-import { useHeadDown } from './useHeadDown';
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { getColorFromPalette } from "../SonarColorOptions.vue";
+import Sonar360Mask from "./Sonar360Mask.vue";
+import Sonar360Shader from "./Sonar360Shader.vue";
+import { useHeadDown } from "./useHeadDown";
 
 // When headDown is on we mirror the whole sonar container horizontally.
 // `Sonar360Mask` applies a second `scaleX(-1)` to its depth markers so their
@@ -53,7 +74,7 @@ const props = defineProps({
   },
   lineColor: {
     type: String,
-    default: 'red',
+    default: "red",
   },
   lineWidth: {
     type: Number,
@@ -77,11 +98,11 @@ const props = defineProps({
   },
   radiusLineColor: {
     type: String,
-    default: 'rgba(255, 255, 255, 0.7)',
+    default: "rgba(255, 255, 255, 0.7)",
   },
   markerColor: {
     type: String,
-    default: 'white',
+    default: "white",
   },
   radiusLineWidth: {
     type: Number,
@@ -105,7 +126,7 @@ const props = defineProps({
   },
   markerBackgroundColor: {
     type: String,
-    default: 'rgba(0, 0, 0, 0.5)',
+    default: "rgba(0, 0, 0, 0.5)",
   },
 });
 
@@ -168,19 +189,19 @@ const sectorBoundingBox = computed(() => {
   };
 });
 
-const buildTransform = (...parts) => parts.filter(Boolean).join(' ');
+const buildTransform = (...parts) => parts.filter(Boolean).join(" ");
 
 const containerStyle = computed(() => {
-  const flip = headDown.value ? 'scaleX(-1)' : '';
+  const flip = headDown.value ? "scaleX(-1)" : "";
 
   if (isHalfCircleView.value) {
     return {
       width: `${size.value}px`,
       height: `${size.value}px`,
-      transform: buildTransform('translate(-50%, 48%)', flip),
-      position: 'fixed',
-      left: '50%',
-      bottom: '0',
+      transform: buildTransform("translate(-50%, 48%)", flip),
+      position: "fixed",
+      left: "50%",
+      bottom: "0",
     };
   }
 
@@ -195,7 +216,7 @@ const containerStyle = computed(() => {
     height: `${size.value}px`,
   };
 
-  const translate = offsetX !== 0 || offsetY !== 0 ? `translate(${offsetX}px, ${offsetY}px)` : '';
+  const translate = offsetX !== 0 || offsetY !== 0 ? `translate(${offsetX}px, ${offsetY}px)` : "";
   const transform = buildTransform(translate, flip);
   if (transform) {
     style.transform = transform;
@@ -226,15 +247,15 @@ let resizeObserver = null;
 
 onMounted(() => {
   updateSize();
-  window.addEventListener('resize', updateSize);
-  if (containerRef.value && typeof ResizeObserver !== 'undefined') {
+  window.addEventListener("resize", updateSize);
+  if (containerRef.value && typeof ResizeObserver !== "undefined") {
     resizeObserver = new ResizeObserver(() => updateSize());
     resizeObserver.observe(containerRef.value);
   }
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', updateSize);
+  window.removeEventListener("resize", updateSize);
   if (resizeObserver) {
     resizeObserver.disconnect();
     resizeObserver = null;

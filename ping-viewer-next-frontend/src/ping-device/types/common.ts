@@ -1,9 +1,9 @@
-import type { Ref } from 'vue';
-import type { Ping1DData, Ping1DSettings } from './ping1d';
-import type { Ping360Data, Ping360Settings } from './ping360';
-import type { DeviceResponse } from './responses';
+import type { Ref } from "vue";
+import type { Ping1DData, Ping1DSettings } from "./ping1d";
+import type { Ping360Data, Ping360Settings } from "./ping360";
+import type { DeviceResponse } from "./responses";
 
-export type DeviceType = 'ping360' | 'ping1d' | 'unknown';
+export type DeviceType = "ping360" | "ping1d" | "unknown";
 
 export interface BaseRequest {
   type: string;
@@ -12,7 +12,7 @@ export interface BaseRequest {
 
 export interface BaseResponse {
   type: string;
-  status: 'success' | 'error';
+  status: "success" | "error";
   uuid: string;
 }
 
@@ -40,7 +40,7 @@ export interface DeviceAgentState {
   getPing1DSettings: (forceUpdate?: boolean) => Promise<Ping1DSettings | null>;
   sendPing1DCommand: (
     command: string,
-    payload?: Record<string, unknown> | null
+    payload?: Record<string, unknown> | null,
   ) => Promise<unknown>;
   checkViewSector: () => Promise<string>;
 }
@@ -110,12 +110,12 @@ export interface PingDeviceAPI {
     calculateSamplePeriod: (
       desiredRange: number,
       numberOfSamples: number,
-      speedOfSound: number
+      speedOfSound: number,
     ) => number;
     calculateTransmitDuration: (
       range: number,
       speedOfSound: number,
-      samplePeriod: number
+      samplePeriod: number,
     ) => number;
     calculateTransmitDurationMax: (samplePeriod: number) => number;
     degreesToGradians: (degrees: number) => number;

@@ -1,13 +1,11 @@
 <template>
   <div class="debug-overlay">
-    <div class="debug-line dim">
-      {{ serverUrl || '—' }} · {{ websocketStatus }}
-    </div>
+    <div class="debug-line dim">{{ serverUrl || "—" }} · {{ websocketStatus }}</div>
 
     <template v-for="dev in devices" :key="dev.id">
       <div class="debug-separator" />
       <div class="debug-line label">
-        {{ dev.device_type || '?' }}
+        {{ dev.device_type || "?" }}
         <span class="dim"> · {{ dev.status }}</span>
       </div>
       <div class="debug-line dim">{{ dev.id }}</div>
@@ -39,14 +37,12 @@
       </template>
     </template>
 
-    <div v-if="devices.length === 0" class="debug-line dim">
-      No devices found
-    </div>
+    <div v-if="devices.length === 0" class="debug-line dim">No devices found</div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { onMounted, onUnmounted, reactive, ref, watch } from "vue";
 
 const props = defineProps({
   activeDevice: {
@@ -59,11 +55,11 @@ const props = defineProps({
   },
   serverUrl: {
     type: String,
-    default: '',
+    default: "",
   },
   websocketStatus: {
     type: String,
-    default: 'Disconnected',
+    default: "Disconnected",
   },
 });
 
@@ -79,9 +75,9 @@ const fetchDevices = async () => {
   if (!props.serverUrl) return;
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command: 'List', module: 'DeviceManager' }),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: "List", module: "DeviceManager" }),
     });
     if (!response.ok) return;
     const data = await response.json();
@@ -90,7 +86,7 @@ const fetchDevices = async () => {
 
     for (const dev of list) {
       extractProperties(dev);
-      if (dev.status === 'ContinuousMode') {
+      if (dev.status === "ContinuousMode") {
         connectDeviceWs(dev);
       }
     }
@@ -119,14 +115,14 @@ const extractProperties = (dev) => {
     p?.Common?.device_information;
 
   if (info) {
-    const major = info.firmware_version_major ?? '';
-    const minor = info.firmware_version_minor ?? '';
-    const patch = info.firmware_version_patch ?? '';
-    if (major !== '' || minor !== '' || patch !== '') {
+    const major = info.firmware_version_major ?? "";
+    const minor = info.firmware_version_minor ?? "";
+    const patch = info.firmware_version_patch ?? "";
+    if (major !== "" || minor !== "" || patch !== "") {
       props_data.FW = `${major}.${minor}.${patch}`;
     }
-    if (info.device_type !== undefined) props_data['Device type'] = info.device_type;
-    if (info.device_revision !== undefined) props_data['Device Revision'] = info.device_revision;
+    if (info.device_type !== undefined) props_data["Device type"] = info.device_type;
+    if (info.device_revision !== undefined) props_data["Device Revision"] = info.device_revision;
   }
 
   const proto =
@@ -147,7 +143,7 @@ const connectDeviceWs = (dev) => {
 
   try {
     const url = new URL(props.serverUrl);
-    const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = url.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${url.host}/ws?device_number=${dev.id}`;
     const ws = new WebSocket(wsUrl);
 
@@ -160,44 +156,44 @@ const connectDeviceWs = (dev) => {
         if (ping.Ping1D?.Profile) {
           const d = ping.Ping1D.Profile;
           liveData[dev.id] = {
-            'Distance (mm)': d.distance,
-            'Auto (bool)': d.mode_auto === 1 ? 'true' : 'false',
-            'Scan Start (mm)': d.scan_start,
-            'Scan Length (mm)': d.scan_length,
-            'Ping (#)': d.ping_number,
-            'Transmit duration (μs)': d.transmit_duration,
-            'Gain (setting)': d.gain_setting,
-            'Confidence (%)': d.confidence,
-            'Speed of sound (mm/s)': d.speed_of_sound,
+            "Distance (mm)": d.distance,
+            "Auto (bool)": d.mode_auto === 1 ? "true" : "false",
+            "Scan Start (mm)": d.scan_start,
+            "Scan Length (mm)": d.scan_length,
+            "Ping (#)": d.ping_number,
+            "Transmit duration (μs)": d.transmit_duration,
+            "Gain (setting)": d.gain_setting,
+            "Confidence (%)": d.confidence,
+            "Speed of sound (mm/s)": d.speed_of_sound,
           };
         } else if (ping.Ping1D?.AutoDeviceData) {
           const d = ping.Ping1D.AutoDeviceData;
           liveData[dev.id] = {
-            'Distance (mm)': d.distance,
-            'Auto (bool)': d.mode_auto === 1 ? 'true' : 'false',
-            'Scan Start (mm)': d.scan_start,
-            'Scan Length (mm)': d.scan_length,
-            'Ping (#)': d.ping_number,
-            'Transmit duration (μs)': d.transmit_duration,
-            'Gain (setting)': d.gain_setting,
-            'Confidence (%)': d.confidence,
-            'Speed of sound (mm/s)': d.speed_of_sound,
+            "Distance (mm)": d.distance,
+            "Auto (bool)": d.mode_auto === 1 ? "true" : "false",
+            "Scan Start (mm)": d.scan_start,
+            "Scan Length (mm)": d.scan_length,
+            "Ping (#)": d.ping_number,
+            "Transmit duration (μs)": d.transmit_duration,
+            "Gain (setting)": d.gain_setting,
+            "Confidence (%)": d.confidence,
+            "Speed of sound (mm/s)": d.speed_of_sound,
           };
         } else if (ping.Ping360?.AutoDeviceData) {
           const d = ping.Ping360.AutoDeviceData;
           liveData[dev.id] = {
             Angle: d.angle,
             Mode: d.mode,
-            'Gain (setting)': d.gain_setting,
-            'Start angle': d.start_angle,
-            'Stop angle': d.stop_angle,
-            'Num steps': d.num_steps,
+            "Gain (setting)": d.gain_setting,
+            "Start angle": d.start_angle,
+            "Stop angle": d.stop_angle,
+            "Num steps": d.num_steps,
             Samples: d.number_of_samples,
-            'Sample period': d.sample_period,
-            'Transmit duration': d.transmit_duration,
-            'Transmit frequency': d.transmit_frequency,
-            'Speed of sound (mm/s)': d.speed_of_sound,
-            'Data length': d.data_length,
+            "Sample period": d.sample_period,
+            "Transmit duration": d.transmit_duration,
+            "Transmit frequency": d.transmit_frequency,
+            "Speed of sound (mm/s)": d.speed_of_sound,
+            "Data length": d.data_length,
           };
         }
       } catch {
@@ -233,13 +229,13 @@ const disconnectAllWs = () => {
 const sendDeviceCommand = async (deviceId, deviceType, command) => {
   if (!props.serverUrl) return null;
   try {
-    const deviceKey = deviceType === 'Ping360' ? 'Ping360' : 'Ping1D';
+    const deviceKey = deviceType === "Ping360" ? "Ping360" : "Ping1D";
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
-        command: 'Ping',
-        module: 'DeviceManager',
+        command: "Ping",
+        module: "DeviceManager",
         payload: {
           device_request: { [deviceKey]: command },
           uuid: deviceId,
@@ -255,32 +251,32 @@ const sendDeviceCommand = async (deviceId, deviceType, command) => {
 
 const fetchExtraInfo = async () => {
   for (const dev of devices.value) {
-    if (dev.status !== 'ContinuousMode') continue;
+    if (dev.status !== "ContinuousMode") continue;
 
     const info = extraInfo[dev.id] || {};
 
-    if (dev.device_type === 'Ping1D' || dev.device_type === 'Common') {
+    if (dev.device_type === "Ping1D" || dev.device_type === "Common") {
       const [tempResp, pcbResp, voltResp, intervalResp] = await Promise.all([
-        sendDeviceCommand(dev.id, dev.device_type, 'ProcessorTemperature'),
-        sendDeviceCommand(dev.id, dev.device_type, 'PcbTemperature'),
-        sendDeviceCommand(dev.id, dev.device_type, 'Voltage5'),
-        sendDeviceCommand(dev.id, dev.device_type, 'PingInterval'),
+        sendDeviceCommand(dev.id, dev.device_type, "ProcessorTemperature"),
+        sendDeviceCommand(dev.id, dev.device_type, "PcbTemperature"),
+        sendDeviceCommand(dev.id, dev.device_type, "Voltage5"),
+        sendDeviceCommand(dev.id, dev.device_type, "PingInterval"),
       ]);
 
       const p1d = (r) => r?.DeviceMessage?.PingMessage?.Ping1D;
 
       const procTemp = p1d(tempResp)?.ProcessorTemperature;
       if (procTemp)
-        info['Processor temperature (C)'] = (procTemp.processor_temperature / 100).toFixed(1);
+        info["Processor temperature (C)"] = (procTemp.processor_temperature / 100).toFixed(1);
 
       const pcbTemp = p1d(pcbResp)?.PcbTemperature;
-      if (pcbTemp) info['PCB temperature (C)'] = (pcbTemp.pcb_temperature / 100).toFixed(1);
+      if (pcbTemp) info["PCB temperature (C)"] = (pcbTemp.pcb_temperature / 100).toFixed(1);
 
       const volt = p1d(voltResp)?.Voltage5;
-      if (volt) info['Board voltage (V)'] = (volt.voltage_5 / 1000).toFixed(2);
+      if (volt) info["Board voltage (V)"] = (volt.voltage_5 / 1000).toFixed(2);
 
       const interval = p1d(intervalResp)?.PingInterval;
-      if (interval) info['Ping interval (ms)'] = interval.ping_interval;
+      if (interval) info["Ping interval (ms)"] = interval.ping_interval;
     }
 
     extraInfo[dev.id] = { ...info };
@@ -314,7 +310,7 @@ watch(
       stopPolling();
       disconnectAllWs();
     }
-  }
+  },
 );
 
 onMounted(() => {
@@ -327,8 +323,8 @@ onUnmounted(() => {
 });
 
 const formatSource = (source) => {
-  if (!source) return '';
-  if (typeof source === 'string') return source;
+  if (!source) return "";
+  if (typeof source === "string") return source;
   if (source.Serial) return `Serial: ${source.Serial.port} @ ${source.Serial.baudrate}`;
   if (source.Udp) return `UDP: ${source.Udp.host}:${source.Udp.port}`;
   if (source.UdpStream) return `UDP: ${source.UdpStream.ip}:${source.UdpStream.port}`;
@@ -346,7 +342,7 @@ const formatSource = (source) => {
   transform: translate(-50%, -50%);
   z-index: 1100;
   pointer-events: none;
-  font-family: 'Roboto Mono', monospace;
+  font-family: "Roboto Mono", monospace;
   font-size: 0.72rem;
   line-height: 1.5;
   color: rgba(255, 255, 255, 1);
@@ -356,11 +352,13 @@ const formatSource = (source) => {
   overflow: hidden;
   padding: 0.75rem 1.25rem;
   border-radius: 0.5rem;
-  background-color: rgba(0, 0, 0, 0.10);
+  background-color: rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0px 8px 8px 0px #00000033, 0px 8px 12px 6px #00000016;
+  box-shadow:
+    0px 8px 8px 0px #00000033,
+    0px 8px 12px 6px #00000016;
 }
 
 .debug-line {

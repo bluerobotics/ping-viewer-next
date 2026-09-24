@@ -1,10 +1,10 @@
-import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
-import { ApiService } from '../ping-device/services/api-service';
-import { DeviceAgent } from '../ping-device/services/device-agent';
-export { PolarModeService } from '../ping-device/services/polar-mode-service';
-import type { PingDeviceAPI } from '../ping-device/types/common';
-import type { ConfigRequest, Ping1DRequest } from '../ping-device/types/requests';
+import { defineStore } from "pinia";
+import { computed, ref } from "vue";
+import { ApiService } from "../ping-device/services/api-service";
+import { DeviceAgent } from "../ping-device/services/device-agent";
+export { PolarModeService } from "../ping-device/services/polar-mode-service";
+import type { PingDeviceAPI } from "../ping-device/types/common";
+import type { ConfigRequest, Ping1DRequest } from "../ping-device/types/requests";
 import {
   MAX_NUMBER_OF_POINTS,
   MAX_SAMPLE_PERIOD,
@@ -13,7 +13,7 @@ import {
   MIN_SAMPLE_PERIOD,
   MIN_TRANSMIT_DURATION,
   SAMPLE_PERIOD_TICK_DURATION,
-} from '../ping-device/utils/constants';
+} from "../ping-device/utils/constants";
 import {
   calculateRange,
   calculateSamplePeriod,
@@ -21,7 +21,7 @@ import {
   calculateTransmitDurationMax,
   degreesToGradians,
   gradiansToDegrees,
-} from '../ping-device/utils/ping360-utils';
+} from "../ping-device/utils/ping360-utils";
 
 interface RecordingStatus {
   device_id: string;
@@ -38,7 +38,7 @@ interface RecordingStatusData {
   [key: string]: unknown;
 }
 
-export const usePingDeviceStore = defineStore('pingDevice', () => {
+export const usePingDeviceStore = defineStore("pingDevice", () => {
   const config = {
     serverUrl: ref(`${window.location.hostname}:6060`),
   };
@@ -57,7 +57,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
   }
 
   function setWsManager(
-    manager: { addListener: (cb: (data: RecordingStatusData) => void) => void } | null
+    manager: { addListener: (cb: (data: RecordingStatusData) => void) => void } | null,
   ) {
     wsManager.value = manager;
     if (manager) {
@@ -73,9 +73,9 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
   async function fetchInitialRecordingStatus(uuid: string) {
     try {
       const response = await apiService.sendHttpRequest(
-        'GetRecordingStatus',
-        'recordings_manager',
-        { uuid }
+        "GetRecordingStatus",
+        "recordings_manager",
+        { uuid },
       );
       const status = response as { RecordingStatus?: RecordingStatus };
       if (status?.RecordingStatus) {
@@ -84,7 +84,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
         recordingState.value.set(uuid, false);
       }
     } catch (error) {
-      console.error('Error fetching initial recording status:', error);
+      console.error("Error fetching initial recording status:", error);
       recordingState.value.set(uuid, false);
     }
   }
@@ -108,7 +108,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
     const agent = getAgent(uuid);
 
     const sendConfigRequest = (key: string, value: number | string | boolean): boolean => {
-      const request: ConfigRequest = { type: 'config', uuid, key, value };
+      const request: ConfigRequest = { type: "config", uuid, key, value };
       return agent.sendRequest(request);
     };
 
@@ -131,8 +131,8 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
     };
 
     // Device type checks
-    const isPing360 = computed(() => agent.deviceType.value === 'ping360');
-    const isPing1D = computed(() => agent.deviceType.value === 'ping1d');
+    const isPing360 = computed(() => agent.deviceType.value === "ping360");
+    const isPing1D = computed(() => agent.deviceType.value === "ping1d");
 
     // Recording functionality
     const isRecording = computed(() => recordingState.value.get(uuid) || false);
@@ -140,9 +140,9 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
     const getRecordingStatus = async () => {
       try {
         const response = await apiService.sendHttpRequest(
-          'GetRecordingStatus',
-          'recordings_manager',
-          { uuid }
+          "GetRecordingStatus",
+          "recordings_manager",
+          { uuid },
         );
         const status = response as { RecordingStatus?: RecordingStatus };
         if (status?.RecordingStatus) {
@@ -150,7 +150,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
         }
         return status?.RecordingStatus || null;
       } catch (error) {
-        console.error('Error getting recording status:', error);
+        console.error("Error getting recording status:", error);
         return null;
       }
     };
@@ -159,11 +159,11 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
       try {
         const currentStatus = await getRecordingStatus();
         if (currentStatus?.is_active) {
-          console.warn('Device is already recording');
+          console.warn("Device is already recording");
           return false;
         }
 
-        const response = await apiService.sendHttpRequest('StartRecording', 'recordings_manager', {
+        const response = await apiService.sendHttpRequest("StartRecording", "recordings_manager", {
           uuid,
         });
         if (response) {
@@ -172,7 +172,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
         }
         return false;
       } catch (error) {
-        console.error('Error starting recording:', error);
+        console.error("Error starting recording:", error);
         return false;
       }
     };
@@ -181,11 +181,11 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
       try {
         const currentStatus = await getRecordingStatus();
         if (!currentStatus?.is_active) {
-          console.warn('Device is not recording');
+          console.warn("Device is not recording");
           return false;
         }
 
-        const response = await apiService.sendHttpRequest('StopRecording', 'recordings_manager', {
+        const response = await apiService.sendHttpRequest("StopRecording", "recordings_manager", {
           uuid,
         });
         if (response) {
@@ -194,7 +194,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
         }
         return false;
       } catch (error) {
-        console.error('Error stopping recording:', error);
+        console.error("Error stopping recording:", error);
         return false;
       }
     };
@@ -225,7 +225,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
 
         return !!response;
       } catch (error) {
-        console.error('Error setting Ping360 settings:', error);
+        console.error("Error setting Ping360 settings:", error);
         return false;
       }
     };
@@ -247,7 +247,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
 
         return !!response;
       } catch (error) {
-        console.error('Error starting Ping360 scan:', error);
+        console.error("Error starting Ping360 scan:", error);
         agent.error.value = `Failed to start scan: ${error.message}`;
         return false;
       }
@@ -258,15 +258,15 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
         const response = await apiService.disableContinuousMode(uuid);
         return !!response;
       } catch (error) {
-        console.error('Error stopping Ping360 scan:', error);
+        console.error("Error stopping Ping360 scan:", error);
         agent.error.value = `Failed to stop scan: ${error.message}`;
         return false;
       }
     };
 
     const setRange_ping360 = async (rangeTarget: string) => {
-      if (!isPing360.value && agent.deviceType.value !== 'unknown') {
-        agent.error.value = 'Device is not a Ping360';
+      if (!isPing360.value && agent.deviceType.value !== "unknown") {
+        agent.error.value = "Device is not a Ping360";
         return false;
       }
 
@@ -283,7 +283,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
 
     const setAutoMode = async (autoMode: boolean) => {
       try {
-        await agent.sendPing1DCommand('SetModeAuto', {
+        await agent.sendPing1DCommand("SetModeAuto", {
           mode_auto: autoMode ? 1 : 0,
         });
 
@@ -299,7 +299,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
 
     const setRange = async (scanStart: number, scanLength: number) => {
       try {
-        await agent.sendPing1DCommand('SetRange', {
+        await agent.sendPing1DCommand("SetRange", {
           scan_start: Math.round(scanStart * 1000), // Convert to mm
           scan_length: Math.round(scanLength * 1000), // Convert to mm
         });
@@ -317,7 +317,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
 
     const setGainSetting = async (gainSetting: number) => {
       try {
-        await agent.sendPing1DCommand('SetGainSetting', {
+        await agent.sendPing1DCommand("SetGainSetting", {
           gain_setting: gainSetting,
         });
 
@@ -333,7 +333,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
 
     const setSpeedOfSound = async (speedOfSound: number) => {
       try {
-        await agent.sendPing1DCommand('SetSpeedOfSound', {
+        await agent.sendPing1DCommand("SetSpeedOfSound", {
           speed_of_sound: Math.round(speedOfSound * 1000),
         });
 
@@ -348,29 +348,29 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
     };
 
     const getDistance = () => {
-      if (!isPing1D.value && agent.deviceType.value !== 'unknown') {
-        agent.error.value = 'Device is not a Ping1D';
+      if (!isPing1D.value && agent.deviceType.value !== "unknown") {
+        agent.error.value = "Device is not a Ping1D";
         return false;
       }
 
       const request: Ping1DRequest = {
-        type: 'ping1d',
+        type: "ping1d",
         uuid,
-        command: 'get_distance',
+        command: "get_distance",
       };
       return agent.sendRequest(request);
     };
 
     const getProfile = () => {
-      if (!isPing1D.value && agent.deviceType.value !== 'unknown') {
-        agent.error.value = 'Device is not a Ping1D';
+      if (!isPing1D.value && agent.deviceType.value !== "unknown") {
+        agent.error.value = "Device is not a Ping1D";
         return false;
       }
 
       const request: Ping1DRequest = {
-        type: 'ping1d',
+        type: "ping1d",
         uuid,
-        command: 'get_profile',
+        command: "get_profile",
       };
       return agent.sendRequest(request);
     };

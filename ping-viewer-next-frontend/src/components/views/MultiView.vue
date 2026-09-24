@@ -4,7 +4,7 @@
       <div class="flex items-center">
         <h1 class="text-2xl font-bold text-white">Multi-Device Viewer</h1>
         <v-chip v-if="selectedDevices.length > 0" color="primary" class="ml-4">
-          {{ selectedDevices.length }} Device{{ selectedDevices.length !== 1 ? 's' : '' }} Selected
+          {{ selectedDevices.length }} Device{{ selectedDevices.length !== 1 ? "s" : "" }} Selected
         </v-chip>
       </div>
 
@@ -24,15 +24,29 @@
       </div>
 
       <div v-else ref="contentContainer" class="h-full p-4 grid gap-4" :style="gridStyle">
-        <div v-for="device in selectedDevices" :key="device.id"
-          class="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center">
+        <div
+          v-for="device in selectedDevices"
+          :key="device.id"
+          class="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center"
+        >
           <div class="absolute top-0 right-0 z-10 p-2 flex gap-2">
-            <v-btn icon="mdi-close" size="small" color="error" variant="text" @click="removeDevice(device)" />
+            <v-btn
+              icon="mdi-close"
+              size="small"
+              color="error"
+              variant="text"
+              @click="removeDevice(device)"
+            />
           </div>
 
           <div ref="componentContainer" class="relative" :style="containerStyle">
-            <component :is="getDeviceComponent(device)" :device="device" :websocketUrl="getWebSocketUrl(device)"
-              v-bind="getDeviceProps(device)" class="w-full h-full" />
+            <component
+              :is="getDeviceComponent(device)"
+              :device="device"
+              :websocketUrl="getWebSocketUrl(device)"
+              v-bind="getDeviceProps(device)"
+              class="w-full h-full"
+            />
           </div>
         </div>
       </div>
@@ -40,22 +54,24 @@
 
     <v-dialog v-model="showDeviceDialog" max-width="800px" @click:outside="closeDialog">
       <v-card>
-        <v-card-title class="text-h5 bg-gray-800 text-white">
-          Select Devices
-        </v-card-title>
+        <v-card-title class="text-h5 bg-gray-800 text-white"> Select Devices </v-card-title>
 
         <v-card-text class="pa-6">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <DeviceCard v-for="device in availableDevices" :key="device.id" :device="device"
-              :selected="isDeviceSelected(device)" :showActions="true" @toggle="toggleDevice(device)" />
+            <DeviceCard
+              v-for="device in availableDevices"
+              :key="device.id"
+              :device="device"
+              :selected="isDeviceSelected(device)"
+              :showActions="true"
+              @toggle="toggleDevice(device)"
+            />
           </div>
         </v-card-text>
 
         <v-card-actions class="pa-4">
           <v-spacer />
-          <v-btn color="primary" @click="closeDialog">
-            Done
-          </v-btn>
+          <v-btn color="primary" @click="closeDialog"> Done </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -63,11 +79,11 @@
 </template>
 
 <script setup>
-import { useDeviceFetching } from '@/composables/useDeviceFetching';
-import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import DeviceCard from '../utils/DeviceCard.vue';
-import Ping1DLoader from '../widgets/sonar1d/Ping1DLoader.vue';
-import Ping360Loader from '../widgets/sonar360/Ping360Loader.vue';
+import { useDeviceFetching } from "@/composables/useDeviceFetching";
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import DeviceCard from "../utils/DeviceCard.vue";
+import Ping1DLoader from "../widgets/sonar1d/Ping1DLoader.vue";
+import Ping360Loader from "../widgets/sonar360/Ping360Loader.vue";
 
 const props = defineProps({
   serverUrl: {
@@ -76,7 +92,7 @@ const props = defineProps({
   },
 });
 
-const { commonSettings, ping1DSettings, ping360Settings } = inject('deviceSettings');
+const { commonSettings, ping1DSettings, ping360Settings } = inject("deviceSettings");
 
 const { deviceInfo } = useDeviceFetching(props.serverUrl);
 const contentContainer = ref(null);
@@ -89,7 +105,7 @@ const componentDimensions = ref({
 });
 
 const availableDevices = computed(() => {
-  return deviceInfo.value.DeviceInfo?.filter((device) => device.status === 'ContinuousMode') || [];
+  return deviceInfo.value.DeviceInfo?.filter((device) => device.status === "ContinuousMode") || [];
 });
 
 const selectedDevices = ref([]);
@@ -99,34 +115,34 @@ const gridStyle = computed(() => {
   const count = selectedDevices.value.length;
   if (count <= 1) {
     return {
-      'grid-template-columns': '1fr',
-      'grid-template-rows': '1fr',
+      "grid-template-columns": "1fr",
+      "grid-template-rows": "1fr",
     };
   }
   if (count <= 2) {
     return {
-      'grid-template-columns': '1fr 1fr',
-      'grid-template-rows': '1fr',
+      "grid-template-columns": "1fr 1fr",
+      "grid-template-rows": "1fr",
     };
   }
   if (count <= 4) {
     return {
-      'grid-template-columns': '1fr 1fr',
-      'grid-template-rows': '1fr 1fr',
+      "grid-template-columns": "1fr 1fr",
+      "grid-template-rows": "1fr 1fr",
     };
   }
   const cols = Math.ceil(Math.sqrt(count));
   return {
-    'grid-template-columns': `repeat(${cols}, 1fr)`,
-    'grid-template-rows': `repeat(${Math.ceil(count / cols)}, 1fr)`,
+    "grid-template-columns": `repeat(${cols}, 1fr)`,
+    "grid-template-rows": `repeat(${Math.ceil(count / cols)}, 1fr)`,
   };
 });
 
 const containerStyle = computed(() => ({
   width: `${componentDimensions.value.width}px`,
   height: `${componentDimensions.value.height}px`,
-  maxWidth: '100%',
-  maxHeight: '100%',
+  maxWidth: "100%",
+  maxHeight: "100%",
 }));
 
 const updateComponentDimensions = () => {
@@ -195,11 +211,11 @@ const isDeviceSelected = (device) => {
 };
 
 const getDeviceComponent = (device) => {
-  return device.device_type === 'Ping360' ? Ping360Loader : Ping1DLoader;
+  return device.device_type === "Ping360" ? Ping360Loader : Ping1DLoader;
 };
 
 const getDeviceProps = (device) => {
-  const settings = device.device_type === 'Ping360' ? ping360Settings : ping1DSettings;
+  const settings = device.device_type === "Ping360" ? ping360Settings : ping1DSettings;
 
   return {
     ...commonSettings,
@@ -211,14 +227,14 @@ const getDeviceProps = (device) => {
 
 const triggerChildrenResize = () => {
   setTimeout(() => {
-    window.dispatchEvent(new Event('resize'));
+    window.dispatchEvent(new Event("resize"));
   }, 100);
 };
 
 const getWebSocketUrl = (device) => {
-  if (!device) return '';
+  if (!device) return "";
   const url = new URL(props.serverUrl);
-  const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  const protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${url.host}/ws?device_number=${device.id}`;
 };
 
@@ -233,11 +249,11 @@ watch(
       updateComponentDimensions();
     });
   },
-  { deep: true }
+  { deep: true },
 );
 
 onMounted(() => {
-  window.addEventListener('resize', handleResize);
+  window.addEventListener("resize", handleResize);
 
   resizeObserver = new ResizeObserver(() => {
     updateComponentDimensions();
@@ -253,7 +269,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize);
+  window.removeEventListener("resize", handleResize);
 
   if (resizeObserver) {
     resizeObserver.disconnect();

@@ -1,24 +1,24 @@
-import { URL, fileURLToPath } from 'node:url';
-import Vue from '@vitejs/plugin-vue';
-import autoprefixer from 'autoprefixer';
-import tailwindcss from 'tailwindcss';
-import AutoImport from 'unplugin-auto-import/vite';
-import Fonts from 'unplugin-fonts/vite';
-import Components from 'unplugin-vue-components/vite';
-import VueRouter from 'unplugin-vue-router/vite';
-import { defineConfig } from 'vite';
-import topLevelAwait from 'vite-plugin-top-level-await';
-import Layouts from 'vite-plugin-vue-layouts';
-import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify';
-import wasm from 'vite-plugin-wasm';
+import { URL, fileURLToPath } from "node:url";
+import Vue from "@vitejs/plugin-vue";
+import autoprefixer from "autoprefixer";
+import tailwindcss from "tailwindcss";
+import AutoImport from "unplugin-auto-import/vite";
+import Fonts from "unplugin-fonts/vite";
+import Components from "unplugin-vue-components/vite";
+import VueRouter from "unplugin-vue-router/vite";
+import { defineConfig } from "vite";
+import topLevelAwait from "vite-plugin-top-level-await";
+import Layouts from "vite-plugin-vue-layouts";
+import Vuetify, { transformAssetUrls } from "vite-plugin-vuetify";
+import wasm from "vite-plugin-wasm";
 
 const removeMdiPreload = {
-  name: 'remove-eot-preload',
-  order: 'post',
+  name: "remove-eot-preload",
+  order: "post",
   transformIndexHtml: {
-    order: 'post',
+    order: "post",
     handler(html) {
-      return html.replace(/<link[^>]*?materialdesignicons[^>]*?>/g, '');
+      return html.replace(/<link[^>]*?materialdesignicons[^>]*?>/g, "");
     },
   },
 };
@@ -35,7 +35,7 @@ export default defineConfig({
     Vuetify({
       autoImport: true,
       styles: {
-        configFile: 'src/styles/settings.scss',
+        configFile: "src/styles/settings.scss",
       },
     }),
     Components(),
@@ -43,14 +43,14 @@ export default defineConfig({
       google: {
         families: [
           {
-            name: 'Roboto',
-            styles: 'wght@100;300;400;500;700;900',
+            name: "Roboto",
+            styles: "wght@100;300;400;500;700;900",
           },
         ],
       },
     }),
     AutoImport({
-      imports: ['vue', 'vue-router'],
+      imports: ["vue", "vue-router"],
       eslintrc: {
         enabled: true,
       },
@@ -58,18 +58,18 @@ export default defineConfig({
     }),
     removeMdiPreload,
   ],
-  define: { 'process.env': {} },
+  define: { "process.env": {} },
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '@components': fileURLToPath(new URL('./src/components', import.meta.url)),
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@components": fileURLToPath(new URL("./src/components", import.meta.url)),
     },
-    extensions: ['.js', '.json', '.jsx', '.mjs', '.ts', '.tsx', '.vue'],
+    extensions: [".js", ".json", ".jsx", ".mjs", ".ts", ".tsx", ".vue"],
   },
   server: {
     port: 3000,
     cors: {
-      origin: '*',
+      origin: "*",
     },
   },
   css: {
@@ -78,24 +78,24 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@syntect/wasm', '@foxglove/wasm-zstd', '@foxglove/wasm-lz4', '@foxglove/wasm-bz2'],
+    exclude: ["@syntect/wasm", "@foxglove/wasm-zstd", "@foxglove/wasm-lz4", "@foxglove/wasm-bz2"],
   },
   build: {
-    target: 'esnext',
+    target: "esnext",
     rollupOptions: {
       external: [
-        '@foxglove/wasm-lz4',
-        '@foxglove/wasm-zstd',
-        '@foxglove/wasm-bz2',
-        '@syntect/wasm',
+        "@foxglove/wasm-lz4",
+        "@foxglove/wasm-zstd",
+        "@foxglove/wasm-bz2",
+        "@syntect/wasm",
       ],
       output: {
-        assetFileNames: 'assets/[name][extname]',
+        assetFileNames: "assets/[name][extname]",
         globals: {
-          '@foxglove/wasm-lz4': 'WasmLz4',
-          '@foxglove/wasm-zstd': 'WasmZstd',
-          '@foxglove/wasm-bz2': 'WasmBz2',
-          '@syntect/wasm': 'SyntectWasm',
+          "@foxglove/wasm-lz4": "WasmLz4",
+          "@foxglove/wasm-zstd": "WasmZstd",
+          "@foxglove/wasm-bz2": "WasmBz2",
+          "@syntect/wasm": "SyntectWasm",
         },
       },
     },

@@ -1,13 +1,13 @@
-import { type Ref, ref } from 'vue';
-import type { PingDeviceAPI } from '../types/common';
+import { type Ref, ref } from "vue";
+import type { PingDeviceAPI } from "../types/common";
 
-type PolarModeType = 'full' | 'upper-sector' | 'lower-sector';
+type PolarModeType = "full" | "upper-sector" | "lower-sector";
 
 /**
  * Service to monitor Ping360 settings and adjust polar mode accordingly
  */
 export class PolarModeService {
-  private polarMode: Ref<PolarModeType> = ref('full');
+  private polarMode: Ref<PolarModeType> = ref("full");
   private deviceApi: PingDeviceAPI;
   private intervalId: number | null = null;
 
@@ -50,13 +50,13 @@ export class PolarModeService {
         const isStopInUpperRange = stopAngleDegrees >= 100 && stopAngleDegrees <= 300;
 
         if (isStartInUpperRange && isStopInUpperRange) {
-          this.polarMode.value = 'upper-sector';
+          this.polarMode.value = "upper-sector";
         } else {
-          this.polarMode.value = 'full';
+          this.polarMode.value = "full";
         }
       }
     } catch (error) {
-      console.error('Error checking angle settings:', error);
+      console.error("Error checking angle settings:", error);
     }
   }
 

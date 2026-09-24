@@ -14,26 +14,26 @@
 </template>
 
 <script setup>
-import { computed, watchEffect } from 'vue';
-import { useRoute } from 'vue-router';
-import { useTheme } from 'vuetify';
-import MainView from './views/Main.vue';
-import '@/styles/main.css';
+import { computed, watchEffect } from "vue";
+import { useRoute } from "vue-router";
+import { useTheme } from "vuetify";
+import MainView from "./views/Main.vue";
+import "@/styles/main.css";
 
 const route = useRoute();
-const isWidgetRoute = computed(() => route.path.startsWith('/addons/widget/'));
+const isWidgetRoute = computed(() => route.path.startsWith("/addons/widget/"));
 const theme = useTheme();
 
 watchEffect(() => {
   if (isWidgetRoute.value) {
-    theme.global.name.value = 'light';
+    theme.global.name.value = "light";
   }
 });
 </script>
 
 <style>
 :root {
-  --app-bg: radial-gradient(ellipse at 50% 40%, #005C84, #00223A);
+  --app-bg: radial-gradient(ellipse at 50% 40%, #005c84, #00223a);
 }
 
 .app-main-bg {
