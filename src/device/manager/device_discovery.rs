@@ -1,4 +1,4 @@
-use std::{net::Ipv4Addr, time::Duration};
+use std::{net::Ipv4Addr, num::NonZeroU16, time::Duration};
 
 use tokio::{io::AsyncWriteExt, task::JoinSet, time::timeout};
 use tokio_serial::{available_ports, SerialPort, SerialPortBuilderExt, SerialStream};
@@ -19,6 +19,7 @@ pub struct DiscoveryResponse {
     pub manufacturer: String,
     pub mac_address: String,
     pub ip_address: Ipv4Addr,
+    pub port: Option<NonZeroU16>,
 }
 
 #[cfg(feature = "blueos-extension")]
@@ -54,15 +55,17 @@ impl DiscoveryResponse {
     fn from_response(response: &str) -> Option<Self> {
         let device_name_part = r"(?P<device_name>.+)";
         let manufacturer_part = r"(?P<manufacturer>.+)";
-        let mac_address_part = r"MAC\sAddress:-\s(?P<mac_address>[A-Fa-f0-9\-]+)";
+        let mac_address_part = r"MAC\sAddress:-\s*(?P<mac_address>[A-Fa-f0-9\-]+)";
         let ip_address_part = r"IP\sAddress:-\s*0{0,2}(?<octet_1>[0-9]{1,3})\.0{0,2}(?<octet_2>[0-9]{1,3})\.0{0,2}(?<octet_3>[0-9]{1,3})\.0{0,2}(?<octet_4>[0-9]{1,3})";
+        let port_part = r"Port:-\s*(?P<port>\d+)";
 
         let regex_pattern = format!(
             r"(?x)
             ^{device_name_part}\r\n
             {manufacturer_part}\r\n
             {mac_address_part}\r\n
-            {ip_address_part}\r\n$
+            {ip_address_part}\r\n
+            ({port_part}\r\n)?
             "
         );
 
@@ -83,6 +86,9 @@ impl DiscoveryResponse {
             "{}.{}.{}.{}",
             &captures["octet_1"], &captures["octet_2"], &captures["octet_3"], &captures["octet_4"],
         );
+        let port_str = captures
+            .name("port")
+            .map(|port_match| port_match.as_str().to_string());
 
         let ip_address = match ip_address_str.parse::<Ipv4Addr>() {
             Ok(ip) => ip,
@@ -94,11 +100,14 @@ impl DiscoveryResponse {
             }
         };
 
+        let port = port_str.and_then(|port_str| port_str.parse::<NonZeroU16>().ok());
+
         Some(DiscoveryResponse {
             device_name,
             manufacturer,
             mac_address,
             ip_address,
+            port,
         })
     }
 }
@@ -211,7 +220,7 @@ pub async fn network_discovery() -> Option<Vec<SourceSelection>> {
     for device in responses {
         let source = SourceSelection::UdpStream(SourceUdpStruct {
             ip: device.ip_address,
-            port: 12345,
+            port: device.port.map(u16::from).unwrap_or(12345),
         });
 
         available_sources.push(source);
@@ -571,6 +580,7 @@ mod tests {
             manufacturer: "Blue Robotics".to_string(),
             mac_address: "54-10-EC-79-7D-D1".to_string(),
             ip_address: Ipv4Addr::new(192, 168, 0, 197),
+            port: None,
         };
 
         let parsed = DiscoveryResponse::from_response(response);
@@ -590,18 +600,22 @@ mod tests {
         let response_1 = "SONAR PING360\r\n\
                           Blue Robotics\r\n\
                           MAC Address:- 54-10-EC-79-7D-D1\r\n\
-                          IP Address:- 192.168.000.197\r\n";
+                          IP Address:- 192.168.000.197\r\n\
+                          Port:- 50000\r\n";
 
         let response_2 = "SONAR PING360\r\n\
                           Blue Robotics\r\n\
                           MAC Address:- 54-10-EC-79-7D-D2\r\n\
-                          IP Address:- 192.168.000.198\r\n";
+                          IP Address:- 192.168.000.198\r\n\
+                          Port:- 50001\r\n\
+                          Firmware Version:- 1.2.3\r\n";
 
         let expected_1 = DiscoveryResponse {
             device_name: "SONAR PING360".to_string(),
             manufacturer: "Blue Robotics".to_string(),
             mac_address: "54-10-EC-79-7D-D1".to_string(),
             ip_address: Ipv4Addr::new(192, 168, 0, 197),
+            port: Some(50000.try_into().unwrap()),
         };
 
         let expected_2 = DiscoveryResponse {
@@ -609,6 +623,7 @@ mod tests {
             manufacturer: "Blue Robotics".to_string(),
             mac_address: "54-10-EC-79-7D-D2".to_string(),
             ip_address: Ipv4Addr::new(192, 168, 0, 198),
+            port: Some(50001.try_into().unwrap()),
         };
 
         let responses = vec![response_1, response_2];
