@@ -1,4 +1,5 @@
 use vergen_gix::{BuildBuilder, CargoBuilder, DependencyKind, GixBuilder};
+use which::which;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     generate_build_details()?;
@@ -32,20 +33,17 @@ fn build_web() {
         .try_exists()
         .expect("Frontend directory does not exist");
 
-    Command::new("bun")
-        .args(["--version"])
-        .status()
-        .expect("Failed to build frontend, `bun` appears to be not installed.");
+    let npm = which("npm").expect("Failed to build frontend, `npm` appears to be not installed.");
 
-    Command::new("bun")
-        .args(["install", "--frozen-lockfile"])
+    Command::new(&npm)
+        .args(["ci"])
         .current_dir(frontend_dir)
         .status()
-        .expect("Bun install failed!");
+        .expect("npm install failed!");
 
-    Command::new("bun")
+    Command::new(&npm)
         .args(["run", "build"])
         .current_dir(frontend_dir)
         .status()
-        .expect("Bun build failed!");
+        .expect("npm build failed!");
 }
