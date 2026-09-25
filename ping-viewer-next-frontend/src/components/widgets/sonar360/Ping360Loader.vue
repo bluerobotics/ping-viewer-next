@@ -14,7 +14,7 @@
 
           <Ping360Settings ref="settingsRef" :server-url="serverUrl" :device-id="device.id"
             :initial-angles="{ startAngle, endAngle }" :isOpen="isSettingsOpen" @update:angles="handleAngleUpdate"
-            @rangeChange="handleRangeChange" />
+            @rangeChange="handleRangeChange" @close="closeSettings" />
         </v-dialog>
       </FloatingControls>
 
@@ -274,6 +274,10 @@ const handleRangeChange = (newRange) => {
 
 const openSettings = async () => {
   isSettingsOpen.value = true;
+};
+
+const closeSettings = async () => {
+  isSettingsOpen.value = false;
 };
 
 watch(
