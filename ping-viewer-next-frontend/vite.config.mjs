@@ -79,7 +79,7 @@ export default defineConfig({
     exclude: ['@syntect/wasm', '@foxglove/wasm-zstd', '@foxglove/wasm-lz4', '@foxglove/wasm-bz2'],
   },
   build: {
-    target: 'esnext',
+    target: 'es2022',
     rollupOptions: {
       external: [
         '@foxglove/wasm-lz4',
