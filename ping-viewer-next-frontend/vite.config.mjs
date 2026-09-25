@@ -7,7 +7,6 @@ import Fonts from 'unplugin-fonts/vite';
 import Components from 'unplugin-vue-components/vite';
 import VueRouter from 'unplugin-vue-router/vite';
 import { defineConfig } from 'vite';
-import topLevelAwait from 'vite-plugin-top-level-await';
 import Layouts from 'vite-plugin-vue-layouts-next';
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify';
 import wasm from 'vite-plugin-wasm';
@@ -26,7 +25,6 @@ const removeMdiPreload = {
 export default defineConfig({
   plugins: [
     wasm(),
-    topLevelAwait(),
     VueRouter(),
     Layouts(),
     Vue({
