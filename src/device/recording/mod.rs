@@ -1,6 +1,8 @@
 use bluerobotics_ping::{ping1d::ProfileStruct, ping360::AutoDeviceDataStruct};
 use foxglove::Context;
 use foxglove::McapWriterHandle;
+use futures_util::stream::FuturesUnordered;
+use futures_util::StreamExt;
 use paperclip::actix::Apiv2Schema;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -57,6 +59,8 @@ pub enum RecordingManagerCommand {
     GetRecordingStatus(UuidWrapper),
     GetAllRecordingStatus,
     GetSubscriber,
+    #[serde(skip)]
+    Shutdown,
 }
 
 #[derive(Clone)]
@@ -77,6 +81,8 @@ pub enum Answer {
     AllRecordingStatus(Vec<RecordingSession>),
     #[serde(skip)]
     RecordingManager(Receiver<RecordingSession>),
+    #[serde(skip)]
+    Shutdown,
 }
 
 impl RecordingManager {
@@ -145,6 +151,10 @@ impl RecordingManager {
                 .map(Answer::AllRecordingStatus),
             RecordingManagerCommand::GetSubscriber => {
                 Ok(Answer::RecordingManager(self.subscribe()))
+            }
+            RecordingManagerCommand::Shutdown => {
+                self.shutdown().await;
+                Ok(Answer::Shutdown)
             }
         };
 
@@ -377,6 +387,19 @@ impl RecordingManager {
 
         sessions.write().await.remove(&device_id);
         Ok(())
+    }
+
+    pub async fn shutdown(&self) {
+        let device_ids: Vec<_> = self.sessions.read().await.keys().copied().collect();
+        let mut futures: FuturesUnordered<_> = device_ids
+            .into_iter()
+            .map(|device_id| self.stop_recording(device_id))
+            .collect();
+        while let Some(result) = futures.next().await {
+            if let Err(error) = result {
+                warn!("RecordingManager shutdown failed: {error}");
+            }
+        }
     }
 }
 
