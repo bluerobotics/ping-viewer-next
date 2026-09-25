@@ -49,6 +49,7 @@ zenoh = "1.6.2"
 
 [build-dependencies]
 vergen-gix = { version = "1.0.9", default-features = false, features = ["build", "cargo"] }
+which = "8.0.6"
 
 [lib]
 name = "ping_viewer_next"
