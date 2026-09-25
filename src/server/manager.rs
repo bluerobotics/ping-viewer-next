@@ -42,7 +42,8 @@ pub async fn run(
             .service(protocols::v1::websocket::recording_websocket)
             .service(default)
             .build()
-    });
+    })
+    .shutdown_timeout(1);
 
     info!("ServerManager: HTTP server running at http://{server_address}");
     server.bind(server_address)?.run().await
