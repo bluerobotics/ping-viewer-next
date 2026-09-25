@@ -232,6 +232,8 @@ pub enum Answer {
     InnerDeviceHandler(DeviceActorHandler),
     DeviceInfo(Vec<DeviceInfo>),
     DeviceConfig(ModifyDeviceResult),
+    #[serde(skip)]
+    Shutdown,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, thiserror::Error)]
@@ -290,6 +292,8 @@ pub enum Request {
     DisableContinuousMode(UuidWrapper),
     #[serde(skip)]
     SpecialTurnOffContinuousMode(UuidWrapper),
+    #[serde(skip)]
+    Shutdown,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
@@ -417,12 +421,18 @@ impl DeviceManager {
                     );
                 }
             }
-            _ => {
+            Request::Search | Request::Ping(_) => {
                 if let Err(error) = actor_request
                     .respond_to
                     .send(Err(ManagerError::NotImplemented(actor_request.request)))
                 {
                     warn!(?error, "DeviceManager: Failed to return response");
+                }
+            }
+            Request::Shutdown => {
+                self.shutdown().await;
+                if let Err(e) = actor_request.respond_to.send(Ok(Answer::Shutdown)) {
+                    warn!("DeviceManager: Failed to return response: {e:?}");
                 }
             }
         }
@@ -1492,6 +1502,15 @@ impl DeviceManager {
             .send_to(command.as_bytes(), format!("{destination}:30303"))
             .map_err(|err| ManagerError::Other(err.to_string()))?;
         Ok(())
+    }
+
+    async fn shutdown(&mut self) {
+        let device_ids: Vec<_> = self.device.keys().copied().collect();
+        for device_id in device_ids {
+            if let Err(error) = self.stop_then_teardown_device_runtime(device_id).await {
+                warn!("DeviceManager shutdown failed: {error}");
+            }
+        }
     }
 }
 
