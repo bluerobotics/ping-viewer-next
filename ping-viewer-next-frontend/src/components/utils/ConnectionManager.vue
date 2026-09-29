@@ -343,7 +343,7 @@ const toggleManualCreate = () => {
 
 const getWidgetUrl = (device) => {
   const widgetType = device.device_type?.toLowerCase();
-  if (widgetType === undefine) return null;
+  if (widgetType === undefined) return null;
   return `${window.location.origin}/addons/widget/${widgetType}/?server=${props.serverUrl}&uuid=${device.id}`;
 };
 
