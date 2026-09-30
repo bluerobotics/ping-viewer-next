@@ -21,14 +21,14 @@ impl DeviceActor {
         match request.request.clone() {
             PingRequest::Ping1D(device_request) => match &self.device_type {
                 DeviceType::Ping1D(device) => {
-                    trace!("Handling Ping1D request: {device_request:?}");
+                    trace!(?device_request, "Handling Ping1D request");
                     let answer = device.handle(device_request).await;
                     let _ = request.respond_to.send(answer);
                 }
                 _ => {
                     warn!(
-                        "Unsupported request for device type: {:?}",
-                        &self.device_type
+                        device_type = ?self.device_type,
+                        "Unsupported request for Ping1D device type",
                     );
                     let ping_request = request.request;
                     let _ = request
@@ -38,14 +38,14 @@ impl DeviceActor {
             },
             PingRequest::Ping360(device_request) => match &self.device_type {
                 DeviceType::Ping360(device) => {
-                    trace!("Handling Ping360 request: {device_request:?}");
+                    trace!(?device_request, "Handling Ping360 request");
                     let answer = device.handle(device_request).await;
                     let _ = request.respond_to.send(answer);
                 }
                 _ => {
                     warn!(
-                        "Unsupported request for device type: {:?}",
-                        &self.device_type
+                        device_type = ?self.device_type,
+                        "Unsupported request for Ping360 device type",
                     );
                     let ping_request = request.request;
                     let _ = request
@@ -55,24 +55,33 @@ impl DeviceActor {
             },
             PingRequest::Common(device_request) => match &self.device_type {
                 DeviceType::Common(device) => {
-                    trace!("Handling Common request: {device_request:?}");
+                    trace!(
+                        ?device_request,
+                        "Handling Common request for common device type"
+                    );
                     let answer = device.handle(device_request).await;
                     let _ = request.respond_to.send(answer);
                 }
                 DeviceType::Ping1D(device) => {
-                    trace!("Handling Common request: {device_request:?}");
+                    trace!(
+                        ?device_request,
+                        "Handling Common request for Ping1D device type"
+                    );
                     let answer = device.handle(device_request).await;
                     let _ = request.respond_to.send(answer);
                 }
                 DeviceType::Ping360(device) => {
-                    trace!("Handling Common request: {device_request:?}");
+                    trace!(
+                        ?device_request,
+                        "Handling Common request for Ping360 device type"
+                    );
                     let answer = device.handle(device_request).await;
                     let _ = request.respond_to.send(answer);
                 }
                 _ => {
                     warn!(
-                        "Unsupported request for device type: {:?}",
-                        &self.device_type
+                        device_type = ?self.device_type,
+                        "Unsupported request for common device type",
                     );
                     let ping_request = request.request;
                     let _ = request
@@ -96,7 +105,7 @@ impl DeviceActor {
         while let Some(msg) = self.receiver.recv().await {
             match &msg.request {
                 PingRequest::Stop => {
-                    trace! {"Device received stop request, returning structure."}
+                    trace!("Device received stop request, returning structure.");
                     return self;
                 }
                 _ => {
@@ -116,7 +125,7 @@ impl DeviceActor {
                 }
             }
         }
-        error! {"Device closed it's channel, returning structure."}
+        error!("Device closed it's channel, returning structure.");
         self
     }
 
@@ -228,18 +237,19 @@ impl DeviceActorHandler {
             respond_to: result_sender,
         };
 
-        if let Err(err) = self.sender.send(device_request).await {
-            error!("DeviceManagerHandler: Failed to reach Device, details: {err:?}");
-            return Err(DeviceError::TokioError(err.to_string()));
+        if let Err(error) = self.sender.send(device_request).await {
+            error!(?error, "DeviceManagerHandler: Failed to reach Device");
+            return Err(DeviceError::TokioError(error.to_string()));
         }
 
         match tokio::time::timeout(std::time::Duration::from_millis(15000), result_receiver).await {
-            Ok(Ok(ans)) => ans,
-            Ok(Err(err)) => {
+            Ok(Ok(answer)) => answer,
+            Ok(Err(error)) => {
                 error!(
-                    "DeviceManagerHandler: Failed to receive message from Device, details: {err:?}"
+                    ?error,
+                    "DeviceManagerHandler: Failed to receive message from Device"
                 );
-                Err(DeviceError::TokioError(err.to_string()))
+                Err(DeviceError::TokioError(error.to_string()))
             }
             Err(_) => {
                 error!("DeviceManagerHandler: Timeout waiting for device response");
