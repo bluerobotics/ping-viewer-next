@@ -21,8 +21,8 @@ async fn main() {
     //Todo: Load previous devices
     if cli::manager::is_enable_auto_create() {
         match manager.auto_create().await {
-            Ok(answer) => info!("DeviceManager initialized with following devices: {answer:?}"),
-            Err(err) => info!("DeviceManager unable to initialize with devices, details {err:?}"),
+            Ok(answer) => info!(?answer, "DeviceManager initialized with following devices"),
+            Err(error) => info!(?error, "DeviceManager unable to initialize with devices"),
         }
     }
 
