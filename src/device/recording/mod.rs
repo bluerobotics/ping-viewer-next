@@ -124,7 +124,7 @@ impl RecordingManager {
     }
 
     async fn handle_message(&mut self, actor_request: ManagerActorRequest) {
-        trace!("RecordingsManager: Received a request, details: {actor_request:?}");
+        trace!(?actor_request, "RecordingsManager: Received a request");
 
         let result = match actor_request.request {
             RecordingManagerCommand::StartRecording(uuid_wrapper) => self
@@ -148,8 +148,8 @@ impl RecordingManager {
             }
         };
 
-        if let Err(e) = actor_request.respond_to.send(result) {
-            error!("RecordingsManager: Failed to return response: {e:?}");
+        if let Err(error) = actor_request.respond_to.send(result) {
+            error!(?error, "RecordingsManager: Failed to return response");
         }
     }
 
@@ -233,11 +233,11 @@ impl RecordingManager {
         };
 
         tokio::spawn(async move {
-            if let Err(e) =
+            if let Err(error) =
                 Self::recording_task(handler, file_path, sessions, device_id, ctx, vehicle_data)
                     .await
             {
-                error!("Recording task failed for device {}: {:?}", device_id, e);
+                error!(%device_id, ?error, "Recording task failed for device");
             }
         });
 
@@ -294,15 +294,18 @@ impl RecordingManager {
         let subscriber = handler
             .send(super::devices::PingRequest::GetSubscriber)
             .await
-            .map_err(|err| {
-                warn!("Something went wrong while executing get_subscriber, details: {err:?}");
-                ManagerError::DeviceError(err)
+            .map_err(|error| {
+                warn!(
+                    ?error,
+                    "Something went wrong while executing get_subscriber"
+                );
+                ManagerError::DeviceError(error)
             })?;
 
         let mut receiver = match subscriber {
             super::devices::PingAnswer::Subscriber(subscriber) => subscriber,
-            msg => {
-                error!("Failed to receive broadcasted message: {:?}", msg);
+            message => {
+                error!(?message, "Failed to receive broadcasted message");
                 return Err(ManagerError::NoDevices);
             }
         };
@@ -365,8 +368,8 @@ impl RecordingManager {
                         vehicle_channel.log_with_time(vehicle, timestamp);
                     }
                 }
-                Err(e) => {
-                    error!("Failed to receive broadcasted message: {:?}", e);
+                Err(error) => {
+                    error!(?error, "Failed to receive broadcasted message");
                     break;
                 }
             }
@@ -381,7 +384,10 @@ impl RecordingsManagerHandler {
     pub async fn send(&self, request: RecordingManagerCommand) -> Result<Answer, ManagerError> {
         let (result_sender, result_receiver) = oneshot::channel();
 
-        trace!("Handling RecordingManager request: {request:?}: Forwarding request.");
+        trace!(
+            ?request,
+            "Handling RecordingManager request: Forwarding request."
+        );
         let device_request = ManagerActorRequest {
             request,
             respond_to: result_sender,
@@ -396,13 +402,16 @@ impl RecordingsManagerHandler {
             .await
             .map_err(|err| ManagerError::TokioMpsc(err.to_string()))?
         {
-            Ok(ans) => {
+            Ok(answer) => {
                 trace!("Handling RecordingManager request: Success");
-                Ok(ans)
+                Ok(answer)
             }
-            Err(err) => {
-                error!("Handling RecordingManager request: Error occurred on manager: {err:?}",);
-                Err(err)
+            Err(error) => {
+                error!(
+                    ?error,
+                    "Handling RecordingManager request: Error occurred on manager",
+                );
+                Err(error)
             }
         }
     }
