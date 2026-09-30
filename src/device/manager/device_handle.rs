@@ -13,7 +13,10 @@ impl DeviceManager {
         if self.device.contains_key(&device_id) {
             return Ok(());
         }
-        error!("Getting device handler for device: {device_id:?} : Error, device doesn't exist");
+        error!(
+            %device_id,
+            "Getting device handler for device: Error, device doesn't exist"
+        );
         Err(ManagerError::DeviceNotExist(device_id))
     }
 
@@ -28,7 +31,7 @@ impl DeviceManager {
     pub async fn get_device_handler(&self, device_id: Uuid) -> Result<Answer, ManagerError> {
         self.check_device_uuid(device_id)?;
 
-        trace!("Getting device handler for device: {device_id:?} : Success");
+        trace!(%device_id, "Getting device handler for device: Success");
 
         // Fail-fast if device is stopped
         self.check_device_status(
@@ -105,9 +108,12 @@ impl DeviceManager {
         let subscriber = handler
             .send(devices::PingRequest::GetSubscriber)
             .await
-            .map_err(|err| {
-                warn!("Something went wrong while executing get_subscriber, details: {err:?}");
-                ManagerError::DeviceError(err)
+            .map_err(|error| {
+                warn!(
+                    ?error,
+                    "Something went wrong while executing get_subscriber"
+                );
+                ManagerError::DeviceError(error)
             })?;
 
         match subscriber {
