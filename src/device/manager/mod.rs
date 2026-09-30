@@ -143,15 +143,13 @@ impl Device {
 
 impl Drop for Device {
     fn drop(&mut self) {
-        trace!(
-            "Removing Device from DeviceManager, details: {:?}",
-            self.info()
-        );
+        let info = self.info();
+        trace!(?info, "Removing Device from DeviceManager",);
         if let Some(handle) = self.actor.take() {
             handle.abort();
         }
         if let Some(broadcast_handle) = &self.broadcast {
-            trace!("Device broadcast handle closed for: {:?}", self.info().id);
+            trace!(device_id = %info.id, "Device broadcast handle closed");
             broadcast_handle.abort();
         }
     }
@@ -339,74 +337,92 @@ pub struct DeviceRequestStruct {
 
 impl DeviceManager {
     async fn handle_message(&mut self, actor_request: ManagerActorRequest) {
-        trace!("DeviceManager: Received a request, details: {actor_request:?}");
+        trace!(?actor_request, "DeviceManager: Received a request");
         match actor_request.request {
             Request::AutoCreate => {
                 let result = self.auto_create().await;
-                if let Err(e) = actor_request.respond_to.send(result) {
-                    error!("DeviceManager: Failed to return AutoCreate response: {e:?}");
+                if let Err(error) = actor_request.respond_to.send(result) {
+                    error!(
+                        ?error,
+                        "DeviceManager: Failed to return AutoCreate response"
+                    );
                 }
             }
             Request::Create(request) => {
                 let result = self.create(request.source, request.device_selection).await;
-                if let Err(e) = actor_request.respond_to.send(result) {
-                    error!("DeviceManager: Failed to return Create response: {e:?}");
+                if let Err(error) = actor_request.respond_to.send(result) {
+                    error!(?error, "DeviceManager: Failed to return Create response");
                 }
             }
             Request::SpecialTurnOffContinuousMode(request) => {
                 let result = self.turnoff_device_on_continuous_mode(*request).await;
-                if let Err(e) = actor_request.respond_to.send(result) {
-                    error!("DeviceManager: Failed to return SpecialTurnOffContinuousMode response: {e:?}");
+                if let Err(error) = actor_request.respond_to.send(result) {
+                    error!(
+                        ?error,
+                        "DeviceManager: Failed to return SpecialTurnOffContinuousMode response"
+                    );
                 }
             }
             Request::Delete(uuid) => {
                 let result = self.delete(*uuid).await;
-                if let Err(e) = actor_request.respond_to.send(result) {
-                    error!("DeviceManager: Failed to return Delete response: {e:?}");
+                if let Err(error) = actor_request.respond_to.send(result) {
+                    error!(?error, "DeviceManager: Failed to return Delete response");
                 }
             }
             Request::List => {
                 let result = self.list().await;
-                if let Err(e) = actor_request.respond_to.send(result) {
-                    error!("DeviceManager: Failed to return List response: {e:?}");
+                if let Err(error) = actor_request.respond_to.send(result) {
+                    error!(?error, "DeviceManager: Failed to return List response");
                 }
             }
             Request::Info(device_id) => {
                 let result = self.info(*device_id).await;
-                if let Err(e) = actor_request.respond_to.send(result) {
-                    error!("DeviceManager: Failed to return Info response: {:?}", e);
+                if let Err(error) = actor_request.respond_to.send(result) {
+                    error!(?error, "DeviceManager: Failed to return Info response");
                 }
             }
             Request::EnableContinuousMode(uuid) => {
                 let result = self.continuous_mode(*uuid).await;
-                if let Err(e) = actor_request.respond_to.send(result) {
-                    error!("DeviceManager: Failed to return EnableContinuousMode response: {e:?}");
+                if let Err(error) = actor_request.respond_to.send(result) {
+                    error!(
+                        ?error,
+                        "DeviceManager: Failed to return EnableContinuousMode response"
+                    );
                 }
             }
             Request::DisableContinuousMode(uuid) => {
                 let result = self.continuous_mode_off(*uuid).await;
-                if let Err(e) = actor_request.respond_to.send(result) {
-                    error!("DeviceManager: Failed to return DisableContinuousMode response: {e:?}");
+                if let Err(error) = actor_request.respond_to.send(result) {
+                    error!(
+                        ?error,
+                        "DeviceManager: Failed to return DisableContinuousMode response"
+                    );
                 }
             }
             Request::GetDeviceHandler(id) => {
                 let answer = self.get_device_handler(*id).await;
-                if let Err(e) = actor_request.respond_to.send(answer) {
-                    error!("DeviceManager: Failed to return GetDeviceHandler response: {e:?}");
+                if let Err(error) = actor_request.respond_to.send(answer) {
+                    error!(
+                        ?error,
+                        "DeviceManager: Failed to return GetDeviceHandler response"
+                    );
                 }
             }
             Request::ModifyDevice(request) => {
                 let answer = self.modify_device(request).await;
-                if let Err(err) = actor_request.respond_to.send(answer) {
-                    error!("DeviceManager: Failed to return ModifyDevice response: {err:?}");
+                if let Err(error) = actor_request.respond_to.send(answer) {
+                    error!(
+                        ?error,
+                        "DeviceManager: Failed to return ModifyDevice response"
+                    );
                 }
             }
             _ => {
-                if let Err(e) = actor_request
+                if let Err(error) = actor_request
                     .respond_to
                     .send(Err(ManagerError::NotImplemented(actor_request.request)))
                 {
-                    warn!("DeviceManager: Failed to return response: {e:?}");
+                    warn!(?error, "DeviceManager: Failed to return response");
                 }
             }
         }
@@ -452,19 +468,23 @@ impl DeviceManager {
                 Ok(device_info) = discovery_rx.recv() => {
                     match self.register_device(device_info.clone()).await {
                         Ok(_) => {
-                            info!("New device available, registered with id {:?} : device_type: {:?}", device_info.id, device_info.device_type);
+                            info!(
+                                device_id = ?device_info.id,
+                                device_type = ?device_info.device_type,
+                                "New device registered"
+                            );
 
                             if crate::cli::manager::is_enable_auto_create() {
                                 if let Err(error) = self.auto_create_device(device_info.id).await {
-                                    error!("Failed to auto create discovered device {:?}: {error:?}", device_info.id);
+                                    error!(device_id = ?device_info.id, ?error, "Failed to auto create discovered device");
                                     if let Ok(device) = self.get_mut_device(device_info.id) {
                                         device.schedule_recover_backoff();
                                     }
                                 }
                             }
                         }
-                        Err(err) => {
-                            error!("Failed to register discovered device: {err:?}");
+                        Err(error) => {
+                            error!(?error, "Failed to register discovered device");
                         }
                     }
                 }
@@ -476,7 +496,7 @@ impl DeviceManager {
             }
         }
 
-        error!("DeviceManager has stopped please check your application");
+        error!("DeviceManager has stopped, please check your application");
     }
 
     pub async fn update_devices_status(&mut self) {
@@ -514,8 +534,8 @@ impl DeviceManager {
         }
 
         for device_id in recover_ids {
-            if let Err(err) = self.recover_device(device_id).await {
-                error!("Auto-heal failed for device {device_id:?}: {err:?}");
+            if let Err(error) = self.recover_device(device_id).await {
+                error!(%device_id, ?error, "Auto-heal failed");
             }
         }
 
@@ -526,8 +546,8 @@ impl DeviceManager {
                         device.reset_recover_backoff();
                     }
                 }
-                Err(err) => {
-                    error!("Failed to auto create available device {device_id:?}: {err:?}");
+                Err(error) => {
+                    error!(%device_id, ?error, "Failed to auto create available device");
                     if let Ok(device) = self.get_mut_device(device_id) {
                         device.schedule_recover_backoff();
                     }
@@ -548,14 +568,14 @@ impl DeviceManager {
                 continue;
             }
 
-            debug!("Device Manager is checking : Device id: {:?}", &device.id);
+            debug!(device_id = %device.id, "Device Manager is checking");
 
             let receiver = match self.get_subscriber(device.id).await {
                 Ok(receiver) => receiver,
-                Err(err) => {
-                    error!("Device connection error, cant take subscriber. Device id: {:?}, Error: {err:?}", device.id);
+                Err(error) => {
+                    error!(device_id = %device.id, ?error, "Device connection error, can't take subscriber");
                     if let Some(entry) = self.device.get_mut(&device.id) {
-                        entry.mark_error(format!("Could not subscribe to the device: {err}"));
+                        entry.mark_error(format!("Could not subscribe to the device: {error}"));
                     }
                     continue;
                 }
@@ -564,7 +584,7 @@ impl DeviceManager {
             let device_entry = match self.device.get_mut(&device.id) {
                 Some(entry) => entry,
                 None => {
-                    error!("Device Manager cant get device. Device id: {:?}", device.id);
+                    error!(device_id = %device.id, "Device Manager can't get device");
                     continue;
                 }
             };
@@ -572,8 +592,8 @@ impl DeviceManager {
             if let Some(handle) = &device_entry.actor {
                 if handle.is_finished() {
                     error!(
-                        "Device Actor main task finished, marking device with error. Device id: {:?}",
-                        device.id
+                        device_id = %device.id,
+                        "Device Actor main task finished, marking device with error",
                     );
                     device_entry.mark_error("Device Actor main task finished");
                     continue;
@@ -582,14 +602,17 @@ impl DeviceManager {
 
             match &device_entry.status {
                 DeviceStatus::ContinuousMode => {
-                    DeviceManager::check_continuous_mode_device(device_entry, receiver, device.id)
-                        .await;
+                    DeviceManager::check_continuous_mode_device(device_entry, receiver).await;
                 }
                 DeviceStatus::Running => {
-                    DeviceManager::check_running_device(device_entry, device.id).await;
+                    DeviceManager::check_running_device(device_entry).await;
                 }
                 status => {
-                    error!("Device Manager found an unhandled device status, status: {status:?}. Device id: {:?}", device.id);
+                    error!(
+                        ?status,
+                        device_id = %device.id,
+                        "Device Manager found an unhandled device status"
+                    );
                     continue;
                 }
             }
@@ -599,16 +622,15 @@ impl DeviceManager {
     async fn check_continuous_mode_device(
         device_entry: &mut Device,
         mut receiver: Receiver<ProtocolMessage>,
-        device_id: Uuid,
     ) {
         let Some(broadcast) = &device_entry.broadcast else {
-            error!("Device actor broadcast service finished, marking device with error. Device id: {:?}", device_id);
+            error!(device_id = %device_entry.id, "Device actor broadcast service finished, marking device with error");
             device_entry.mark_error("Device actor broadcast service finished");
             return;
         };
 
         if broadcast.is_finished() {
-            error!("Device actor broadcast service finished, marking device with error. Device id: {:?}", device_id);
+            error!(device_id = %device_entry.id, "Device actor broadcast service finished, marking device with error");
             device_entry.mark_error("Device actor broadcast service finished");
             return;
         }
@@ -620,35 +642,40 @@ impl DeviceManager {
                 {
                     Err(_) => {
                         error!(
-                            "Device connection timeout, marking with error. Device id: {device_id:?}",
+                            device_id = %device_entry.id,
+                            "Device connection timeout, marking with error",
                         );
                         device_entry.mark_error("Device connection timeout");
                     }
                     Ok(Err(error)) => match error {
                         tokio::sync::broadcast::error::RecvError::Lagged(_) => error!(
-                            "Device connection error. Device id: {device_id:?}, Error: {error:?}"
+                            device_id = %device_entry.id,
+                            ?error, "Device connection error",
                         ),
                         tokio::sync::broadcast::error::RecvError::Closed => {
-                            error!("Device connection error, marking with error. Device id: {device_id:?}, Error: {error:?}");
+                            error!(
+                                device_id = %device_entry.id,
+                                ?error, "Device connection error, marking with error",
+                            );
                             device_entry.mark_error("Device connection error");
                         }
                     },
                     Ok(Ok(_)) => {
-                        debug!("Device still responsive. Device id: {device_id:?}");
+                        debug!(device_id = %device_entry.id, "Device still responsive");
                     }
                 }
             }
             device_selection => {
-                error!("Device connection error, Cannot check health of {device_selection:?}. Device id: {device_id:?}");
+                error!(device_id = %device_entry.id, "Device connection error, Cannot check health of {device_selection:?}");
             }
         }
     }
 
-    async fn check_running_device(device_entry: &mut Device, device_id: Uuid) {
+    async fn check_running_device(device_entry: &mut Device) {
         let Some(handler) = &device_entry.handler else {
             error!(
-                "Device handler missing, marking with error. Device id: {:?}",
-                device_id
+                device_id = %device_entry.id,
+                "Device handler missing, marking with error",
             );
             device_entry.mark_error("Device handler missing");
             return;
@@ -666,20 +693,21 @@ impl DeviceManager {
         {
             Err(_) => {
                 error!(
-                    "Device connection timeout, marking with error. Device id: {:?}",
-                    device_id
+                    device_id = %device_entry.id,
+                    "Device connection timeout, marking with error",
                 );
                 device_entry.mark_error("Device connection timeout");
             }
             Ok(Err(error)) => {
                 error!(
-                    "Device connection error, marking with error. Device id: {:?}, Error: {:?}",
-                    device_id, error,
+                    device_id = %device_entry.id,
+                    ?error,
+                    "Device connection error, marking with error",
                 );
                 device_entry.mark_error("Device connection error");
             }
             Ok(Ok(_)) => {
-                debug!("Device still responsive. Device id: {:?}", device_id);
+                debug!(device_id = %device_entry.id, "Device still responsive");
             }
         }
     }
@@ -694,7 +722,11 @@ impl DeviceManager {
         let hash = Uuid::from_u128(hasher.finish().into());
 
         if self.device.contains_key(&hash) {
-            trace!("Device creation error: Device already exist for provided SourceSelection, details: {source:?}");
+            trace!(
+                ?hash,
+                ?source,
+                "Device creation error: Device already exist for provided SourceSelection"
+            );
             return Err(ManagerError::DeviceAlreadyExist(hash));
         }
 
@@ -798,25 +830,27 @@ impl DeviceManager {
                         }
                         break;
                     }
-                    Err(err) => {
+                    Err(error) => {
                         retry_count += 1;
                         if retry_count >= max_retries {
                             error!(
-                                "Device creation error: Can't auto upgrade the DeviceType after {} attempts, details: {err:?}",
+                                ?error,
+                                "Device creation error: Can't auto upgrade the DeviceType after {} attempts",
                                 max_retries
                             );
-                            return Err(ManagerError::DeviceError(err));
+                            return Err(ManagerError::DeviceError(error));
                         }
 
                         warn!(
-                            "Device creation error: Device upgrade attempt {} of {} failed: {err:?}. Retrying...",
+                            ?error,
+                            "Device creation error: Device upgrade attempt {} of {} failed. Retrying...",
                             retry_count, max_retries
                         );
 
                         sleep(retry_delay).await;
                         continue;
                     }
-                    e => warn!("Device creation error: Abnormal answer: {e:?}."),
+                    error => warn!(?error, "Device creation error: Abnormal answer"),
                 }
             }
         }
@@ -838,13 +872,13 @@ impl DeviceManager {
 
         self.device.insert(hash, device);
 
-        trace!("Updating device properties for: {:?}", hash);
+        trace!(?hash, "Updating device properties");
         self.update_device_properties(hash).await?;
 
-        trace!("Device broadcast enable by default for: {hash:?}");
+        trace!(?hash, "Device broadcast enable by default");
         let device_info = self.continuous_mode(hash).await?;
 
-        info!("New device created and available, details: {device_info:?}");
+        info!(?device_info, "New device created and available");
         Ok(device_info)
     }
 
@@ -870,11 +904,11 @@ impl DeviceManager {
                 .await
             {
                 Ok(device_info) => {
-                    trace!("Successfully created device: {device_info:?}");
+                    trace!(%device_id, "Successfully created device");
                     results.push(device_info);
                 }
-                Err(err) => {
-                    error!("Failed to create device {device_id}: {err:?}");
+                Err(error) => {
+                    error!(%device_id, ?error, "Failed to create device");
                     has_errors = true;
                     continue;
                 }
@@ -978,16 +1012,10 @@ impl DeviceManager {
 
         match self.continuous_mode(device_id).await {
             Ok(_) => {
-                trace!(
-                    "Successfully enabled continuous mode for device {}",
-                    device_id
-                );
+                trace!(%device_id, "Successfully enabled continuous mode");
             }
             Err(error) => {
-                error!(
-                    "Failed to enable continuous mode for device {}: {:?}",
-                    device_id, error
-                );
+                error!(%device_id, ?error, "Failed to enable continuous mode",);
                 self.stop_then_teardown_device_runtime(device_id).await?;
                 let device = self.get_mut_device(device_id)?;
                 device.mark_error(error.to_string());
@@ -999,7 +1027,7 @@ impl DeviceManager {
         match self.get_device(device_id) {
             Ok(device) => Ok(device.info()),
             Err(error) => {
-                error!("Failed to get device info for {}: {:?}", device_id, error);
+                error!(%device_id, ?error, "Failed to get device info");
                 Err(error)
             }
         }
@@ -1028,7 +1056,7 @@ impl DeviceManager {
     ) -> Result<Answer, ManagerError> {
         let id = device_info.id;
         if self.device.contains_key(&id) {
-            error!("Device register id {id:?} : Error, device already exists");
+            error!(device_id = %id, "Device register: Error, device already exists");
             return Err(ManagerError::DeviceAlreadyExist(id));
         }
 
@@ -1068,10 +1096,7 @@ impl DeviceManager {
         sleep(Duration::from_millis(500)).await;
 
         let device_info = self.list().await?;
-        info!(
-            "Device successfully conclude turnoff process, details: {:?}",
-            device_info
-        );
+        info!(?device_info, "Device successfully conclude turnoff process",);
         Ok(device_info)
     }
 
@@ -1105,7 +1130,7 @@ impl DeviceManager {
             match device_type {
                 DeviceSelection::Ping1D => {
                     let id = <bluerobotics_ping::ping1d::ProfileStruct as bluerobotics_ping::message::MessageInfo>::id();
-                    if let Err(err) = handler
+                    if let Err(error) = handler
                         .send(super::devices::PingRequest::Ping1D(
                             super::devices::Ping1DRequest::ContinuousStop(
                                 bluerobotics_ping::ping1d::ContinuousStopStruct { id },
@@ -1114,19 +1139,21 @@ impl DeviceManager {
                         .await
                     {
                         warn!(
-                            "stop_then_teardown: ContinuousStop failed for {device_id:?}: {err:?}"
+                            %device_id,
+                            ?error,
+                            "stop_then_teardown: ContinuousStop failed"
                         );
                     }
                 }
                 DeviceSelection::Ping360 => {
                     if matches!(source, SourceSelection::SerialStream(_)) {
-                        if let Err(err) = handler
+                        if let Err(error) = handler
                             .send(super::devices::PingRequest::Ping360(
                                 super::devices::Ping360Request::MotorOff,
                             ))
                             .await
                         {
-                            warn!("stop_then_teardown: MotorOff failed for {device_id:?}: {err:?}");
+                            warn!(%device_id, ?error, "stop_then_teardown: MotorOff failed");
                         }
                     }
                 }
@@ -1134,8 +1161,8 @@ impl DeviceManager {
             }
         }
 
-        if let Err(err) = turnoff_device_continuous_mode(&source).await {
-            warn!("stop_then_teardown: turnoff failed for {device_id:?}: {err:?}");
+        if let Err(error) = turnoff_device_continuous_mode(&source).await {
+            warn!(%device_id, ?error, "stop_then_teardown: turnoff failed");
         }
         sleep(Duration::from_millis(500)).await;
 
@@ -1151,7 +1178,7 @@ impl DeviceManager {
                 Ok(answer)
             }
             Err(error) => {
-                error!("Failed to recover device {device_id:?}: {error:?}");
+                error!(%device_id, ?error, "Failed to recover device");
                 let device = self.get_mut_device(device_id)?;
                 device.mark_error(error.to_string());
                 device.schedule_recover_backoff();
@@ -1178,7 +1205,7 @@ impl DeviceManager {
         match self.get_device_status(device_id)? {
             DeviceStatus::Available => {
                 self.auto_create_device(device_id).await?;
-                trace!("Successfully created device in continuous_mode for {device_id:?}");
+                trace!(%device_id, "Successfully created device in continuous_mode");
             }
             DeviceStatus::Error(_) => {
                 return self.recover_device(device_id).await;
@@ -1205,7 +1232,7 @@ impl DeviceManager {
                     .await;
                 if let Some(handle) = &broadcast_handle {
                     if !handle.is_finished() {
-                        trace!("Success start_continuous_mode for {device_id:?}");
+                        trace!(%device_id, "Success start_continuous_mode");
                     } else {
                         return Err(ManagerError::Other(
                             "Error while start_continuous_mode".to_string(),
@@ -1271,18 +1298,18 @@ impl DeviceManager {
                 super::devices::PingCommonRequest::DeviceInformation,
             ))
             .await
-            .map_err(|err| {
-                error!("Something went wrong while executing properties, details: {err:?}");
-                ManagerError::DeviceError(err)
+            .map_err(|error| {
+                error!(?error, "Something went wrong while executing properties");
+                ManagerError::DeviceError(error)
             })?;
         let protocol_version = handler
             .send(super::devices::PingRequest::Common(
                 super::devices::PingCommonRequest::ProtocolVersion,
             ))
             .await
-            .map_err(|err| {
-                error!("Something went wrong while executing properties, details: {err:?}");
-                ManagerError::DeviceError(err)
+            .map_err(|error| {
+                error!(?error, "Something went wrong while executing properties");
+                ManagerError::DeviceError(error)
             })?;
         let device_information = match device_information {
             PingAnswer::PingMessage(bluerobotics_ping::Messages::Common(
@@ -1328,17 +1355,17 @@ impl DeviceManager {
                         super::devices::Ping360Request::DeviceData,
                     ))
                     .await
-                    .map_err(|err| {
-                        trace!("Something went wrong while executing properties, details: {err:?}");
-                        ManagerError::DeviceError(err)
+                    .map_err(|error| {
+                        trace!(?error, "Something went wrong while executing properties");
+                        ManagerError::DeviceError(error)
                     })?;
 
                 let device_data = match device_data {
                     PingAnswer::PingMessage(bluerobotics_ping::Messages::Ping360(
                         bluerobotics_ping::ping360::Messages::DeviceData(msg),
                     )) => msg,
-                    err => return Err(ManagerError::Other(format!(
-                        "properties : Unexpected answer from Ping360 device: {device_id:?}, details: {err:?}"
+                    error => return Err(ManagerError::Other(format!(
+                        "properties : Unexpected answer from Ping360 device: {device_id:?}, details: {error:?}"
                     )))
                 };
 
@@ -1375,7 +1402,7 @@ impl DeviceManager {
         let device = self.get_device(device_id)?;
 
         if device.properties.is_none() {
-            warn!("No properties found for device: {device_id}");
+            warn!(%device_id, "No properties found for device");
         }
 
         Ok(device.properties.clone())
@@ -1475,7 +1502,10 @@ impl ManagerActorHandler {
         match &request {
             // Devices requests are forwarded directly to device and let manager handle other incoming request.
             Request::Ping(request) => {
-                trace!("Handling Ping request: {request:?}: Forwarding request to device handler");
+                trace!(
+                    ?request,
+                    "Handling Ping request: Forwarding request to device handler"
+                );
                 let get_handler_target = request.uuid;
                 let handler_request =
                     Request::GetDeviceHandler(crate::device::manager::UuidWrapper {
@@ -1493,31 +1523,38 @@ impl ManagerActorHandler {
                     .await
                     .map_err(|err| ManagerError::TokioMpsc(err.to_string()))
                 {
-                    Ok(ans) => ans,
-                    Err(err) => {
-                        error!("DeviceManagerHandler: Failed to receive handler from Manager, details: {err:?}");
-                        return Err(err);
+                    Ok(answer) => answer,
+                    Err(error) => {
+                        error!(
+                            ?error,
+                            "DeviceManagerHandler: Failed to receive handler from Manager"
+                        );
+                        return Err(error);
                     }
                 };
 
                 match result? {
                     Answer::InnerDeviceHandler(handler) => {
                         trace!(
-                            "Handling Ping request: {request:?}: Successfully received the handler"
+                            ?request,
+                            "Handling Ping request: Successfully received the handler"
                         );
                         let result = handler.send(request.device_request.clone()).await;
                         match result {
                             Ok(result) => {
-                                info!("Handling Ping request: {request:?}: Success");
+                                info!(?request, "Handling Ping request: Success");
                                 Ok(Answer::DeviceMessage(DeviceAnswer {
                                     answer: result,
                                     device_id: request.uuid,
                                 }))
                             }
-                            Err(err) => {
+                            Err(error) => {
                                 error!(
-                                    "Handling Ping request: {request:?}: Error occurred on device: {err:?}"                                );
-                                Err(ManagerError::DeviceError(err))
+                                    ?request,
+                                    ?error,
+                                    "Handling Ping request: Error occurred on device"
+                                );
+                                Err(ManagerError::DeviceError(error))
                             }
                         }
                     }
@@ -1525,7 +1562,10 @@ impl ManagerActorHandler {
                 }
             }
             _ => {
-                trace!("Handling DeviceManager request: {request:?}: Forwarding request.");
+                trace!(
+                    ?request,
+                    "Handling DeviceManager request: Forwarding request."
+                );
                 let device_request = ManagerActorRequest {
                     request: request.clone(),
                     respond_to: result_sender,
@@ -1540,15 +1580,17 @@ impl ManagerActorHandler {
                     .await
                     .map_err(|err| ManagerError::TokioMpsc(err.to_string()))?
                 {
-                    Ok(ans) => {
-                        trace!("Handling DeviceManager request: {request:?}: Success");
-                        Ok(ans)
+                    Ok(answer) => {
+                        trace!(?request, "Handling DeviceManager request: Success");
+                        Ok(answer)
                     }
-                    Err(err) => {
+                    Err(error) => {
                         error!(
-                            "Handling DeviceManager request: {request:?}: Error ocurred on manager: {err:?}",
+                            ?request,
+                            ?error,
+                            "Handling DeviceManager request: Error ocurred on manager",
                         );
-                        Err(err)
+                        Err(error)
                     }
                 }
             }
@@ -1560,8 +1602,8 @@ pub async fn turnoff_device_continuous_mode(source: &SourceSelection) -> Result<
     match source {
         SourceSelection::SerialStream(serial_config) => {
             debug!(
-                "Sending break line to serial device at {} for 1 second",
-                serial_config.path
+                ?serial_config,
+                "Sending break line to serial device for 1 second",
             );
             let serial_stream = tokio_serial::new(&serial_config.path, serial_config.baudrate)
                 .open_native_async()
@@ -1576,10 +1618,7 @@ pub async fn turnoff_device_continuous_mode(source: &SourceSelection) -> Result<
             drop(serial_stream);
         }
         SourceSelection::UdpStream(udp_config) => {
-            debug!(
-                "Sending empty datagram to UDP device at {}:{}",
-                udp_config.ip, udp_config.port
-            );
+            debug!(?udp_config, "Sending empty datagram to UDP device");
             let socket = UdpSocket::bind("0.0.0.0:0").map_err(|err| {
                 ManagerError::DeviceSourceError(format!("Failed to bind UDP socket: {}", err))
             })?;
