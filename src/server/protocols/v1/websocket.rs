@@ -225,7 +225,8 @@ pub async fn websocket(
         match manager_handler.send(request).await {
             Ok(response) => {
                 info!(
-                    "ServerManager: Received websocket request connection for device: {response:?}"
+                    ?response,
+                    "ServerManager: Received websocket request connection for device"
                 );
             }
             Err(err) => {
