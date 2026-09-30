@@ -33,7 +33,7 @@ pub enum RecordingsManagerPostOptionsV1 {
 #[get("/recordings/list")]
 async fn list_mcap_recordings(req: web::HttpRequest) -> Result<Json<Vec<McapFileInfo>>, Error> {
     let recordings_dir = Path::new("recordings");
-    debug!("Listing MCAP files in directory: {:?}", recordings_dir);
+    debug!(?recordings_dir, "Listing MCAP files");
 
     let show_detailed_listing = req
         .headers()
@@ -45,9 +45,9 @@ async fn list_mcap_recordings(req: web::HttpRequest) -> Result<Json<Vec<McapFile
     let mut files = Vec::new();
 
     if !recordings_dir.exists() {
-        debug!("Creating recordings directory: {:?}", recordings_dir);
-        if let Err(e) = fs::create_dir_all(recordings_dir) {
-            debug!("Failed to create recordings directory: {:?}", e);
+        debug!(?recordings_dir, "Creating recordings directory");
+        if let Err(error) = fs::create_dir_all(recordings_dir) {
+            debug!(?error, "Failed to create recordings directory");
             return Ok(Json(files));
         }
     }
@@ -58,7 +58,7 @@ async fn list_mcap_recordings(req: web::HttpRequest) -> Result<Json<Vec<McapFile
                 match entry {
                     Ok(entry) => {
                         let path = entry.path();
-                        debug!("Found entry: {:?}", path);
+                        debug!(?path, "Found entry");
 
                         // Filter for .mcap files or show all files if detailed listing is requested
                         let is_mcap = path.extension().is_some_and(|ext| ext == "mcap");
@@ -75,7 +75,7 @@ async fn list_mcap_recordings(req: web::HttpRequest) -> Result<Json<Vec<McapFile
                                         })
                                         .unwrap_or_else(|| "unknown".to_string());
 
-                                    debug!("Adding file: {:?}", path.file_name());
+                                    debug!(file = ?path.file_name(), "Adding file");
                                     files.push(McapFileInfo {
                                         file_name: path
                                             .file_name()
@@ -86,16 +86,16 @@ async fn list_mcap_recordings(req: web::HttpRequest) -> Result<Json<Vec<McapFile
                                         modified,
                                     });
                                 }
-                                Err(e) => debug!("Failed to get metadata for {:?}: {:?}", path, e),
+                                Err(error) => debug!(?path, ?error, "Failed to get metadata"),
                             }
                         }
                     }
-                    Err(e) => debug!("Failed to read entry: {:?}", e),
+                    Err(error) => debug!(?error, "Failed to read entry"),
                 }
             }
         }
-        Err(e) => {
-            debug!("Failed to read recordings directory: {:?}", e);
+        Err(error) => {
+            debug!(?error, "Failed to read recordings directory");
             // Try to create the directory if it doesn't exist
             if recordings_dir.parent().is_some() {
                 let _ = fs::create_dir_all(recordings_dir);
@@ -109,9 +109,9 @@ async fn list_mcap_recordings(req: web::HttpRequest) -> Result<Json<Vec<McapFile
     }
 
     debug!(
-        "Total files found: {} (MCAP filter: {})",
-        files.len(),
-        !show_detailed_listing
+        total_files_found = files.len(),
+        mcap_filter = !show_detailed_listing,
+        "Files found",
     );
     Ok(Json(files))
 }
@@ -168,10 +168,10 @@ async fn download_mcap_file(
                 };
 
                 debug!(
-                    "Serving file: {:?} (size: {} bytes, type: {})",
-                    canonical_file,
-                    data.len(),
-                    content_type
+                    ?canonical_file,
+                    size_bytes = data.len(),
+                    content_type,
+                    "Serving file",
                 );
 
                 HttpResponse::Ok()
@@ -182,13 +182,13 @@ async fn download_mcap_file(
                     .append_header(("Expires", "0"))
                     .body(data)
             }
-            Err(e) => {
-                debug!("Failed to read file {:?}: {:?}", canonical_file, e);
+            Err(error) => {
+                debug!(?canonical_file, ?error, "Failed to read file");
                 HttpResponse::InternalServerError().body("Failed to read file")
             }
         }
     } else {
-        debug!("File not found or not a regular file: {:?}", canonical_file);
+        debug!(?canonical_file, "File not found or not a regular file");
         HttpResponse::NotFound().body("File not found")
     }
 }
@@ -205,16 +205,16 @@ async fn delete_mcap_file(file_name: web::Path<String>) -> impl Responder {
     if canonical_file.exists() && canonical_file.is_file() {
         match fs::remove_file(&canonical_file) {
             Ok(_) => {
-                debug!("Deleted file: {:?}", canonical_file);
+                debug!(?canonical_file, "Deleted file");
                 HttpResponse::Ok().body("File deleted")
             }
-            Err(e) => {
-                debug!("Failed to delete file {:?}: {:?}", canonical_file, e);
+            Err(error) => {
+                debug!(?canonical_file, ?error, "Failed to delete file");
                 HttpResponse::InternalServerError().body("Failed to delete file")
             }
         }
     } else {
-        debug!("File not found or not a regular file: {:?}", canonical_file);
+        debug!(?canonical_file, "File not found or not a regular file");
         HttpResponse::NotFound().body("File not found")
     }
 }
