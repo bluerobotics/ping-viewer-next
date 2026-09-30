@@ -63,17 +63,18 @@ pub async fn zenoh_client_bridge(latest_pose: Arc<RwLock<Option<VehicleData>>>) 
         sleep(reconnect_delay).await;
 
         let session = match zenoh::open(config).await {
-            Ok(s) => s,
-            Err(e) => {
-                error!("Zenoh session error: {e}, retrying in {reconnect_delay_secs}s");
+            Ok(session) => session,
+            Err(error) => {
+                error!(error, reconnect_delay_secs, "Zenoh session error, retrying");
                 continue;
             }
         };
         let attitude_sub = match session.declare_subscriber("mavlink/**/1/ATTITUDE").await {
-            Ok(s) => s,
-            Err(e) => {
+            Ok(subscription) => subscription,
+            Err(error) => {
                 error!(
-                    "Zenoh subscribe error for ATTITUDE: {e}, retrying in {reconnect_delay_secs}s"
+                    error,
+                    reconnect_delay_secs, "Zenoh subscribe error for ATTITUDE, retrying"
                 );
                 continue;
             }
@@ -82,9 +83,12 @@ pub async fn zenoh_client_bridge(latest_pose: Arc<RwLock<Option<VehicleData>>>) 
             .declare_subscriber("mavlink/**/1/GLOBAL_POSITION_INT")
             .await
         {
-            Ok(s) => s,
-            Err(e) => {
-                error!("Zenoh subscribe error for GLOBAL_POSITION_INT: {e}, retrying in {reconnect_delay_secs}s");
+            Ok(subscription) => subscription,
+            Err(error) => {
+                error!(
+                    error,
+                    reconnect_delay_secs, "Zenoh subscribe error for GLOBAL_POSITION_INT, retrying"
+                );
                 continue;
             }
         };
@@ -102,8 +106,8 @@ pub async fn zenoh_client_bridge(latest_pose: Arc<RwLock<Option<VehicleData>>>) 
                                 latest_attitude = Some(env.message);
                             }
                         },
-                        Err(e) => {
-                            error!("Zenoh ATTITUDE recv error: {e}, reconnecting in {reconnect_delay_secs}s");
+                        Err(error) => {
+                            error!(error, reconnect_delay_secs, "Zenoh ATTITUDE recv error, reconnecting");
                             break;
                         }
                     }
@@ -115,8 +119,8 @@ pub async fn zenoh_client_bridge(latest_pose: Arc<RwLock<Option<VehicleData>>>) 
                                 latest_position = Some(env.message);
                             }
                         },
-                        Err(e) => {
-                            error!("Zenoh POSITION recv error: {e}, reconnecting in {reconnect_delay_secs}s");
+                        Err(error) => {
+                            error!(error, reconnect_delay_secs, "Zenoh POSITION recv error, reconnecting");
                             break;
                         }
                     }
@@ -137,6 +141,9 @@ pub async fn zenoh_client_bridge(latest_pose: Arc<RwLock<Option<VehicleData>>>) 
             }
         }
 
-        error!("Zenoh client bridge disconnected, retrying in {reconnect_delay_secs}s");
+        error!(
+            reconnect_delay_secs,
+            "Zenoh client bridge disconnected, retrying"
+        );
     }
 }
