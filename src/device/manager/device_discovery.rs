@@ -69,13 +69,7 @@ impl DiscoveryResponse {
             "
         );
 
-        let re = match Regex::new(&regex_pattern) {
-            Ok(regex) => regex,
-            Err(err) => {
-                warn!("auto_create: Failed to compile regex: {err}");
-                return None;
-            }
-        };
+        let re = Regex::new(&regex_pattern).expect("valid regex");
 
         let captures = re.captures(response)?;
 
@@ -92,9 +86,11 @@ impl DiscoveryResponse {
 
         let ip_address = match ip_address_str.parse::<Ipv4Addr>() {
             Ok(ip) => ip,
-            Err(err) => {
+            Err(error) => {
                 warn!(
-                    "auto_create: network: Failed to parse IP address: {ip_address_str}, details: {err}"
+                    ip_address_str,
+                    ?error,
+                    "auto_create: network: Failed to parse IP address"
                 );
                 return None;
             }
@@ -127,8 +123,8 @@ pub async fn network_discovery() -> Option<Vec<SourceSelection>> {
                 Ok(socket) => socket,
                 Err(error) => {
                     warn!(
-                        %address,
-                        "auto_create: network: Failed to bind to socket: {error}"
+                        %address, ?error,
+                        "auto_create: network: Failed to bind to socket"
                     );
                     return vec![];
                 }
@@ -136,8 +132,8 @@ pub async fn network_discovery() -> Option<Vec<SourceSelection>> {
 
             if let Err(error) = socket.set_broadcast(true) {
                 warn!(
-                    %address,
-                    "auto_create: network: Failed to enable broadcast: {error}"
+                    %address, ?error,
+                    "auto_create: network: Failed to enable broadcast"
                 );
                 return vec![];
             }
@@ -147,8 +143,8 @@ pub async fn network_discovery() -> Option<Vec<SourceSelection>> {
                 .await
             {
                 warn!(
-                    %address,
-                    "auto_create: network: Failed to send discovery message: {error}"
+                    %address, ?error,
+                    "auto_create: network: Failed to send discovery message"
                 );
                 return vec![];
             }
@@ -167,7 +163,7 @@ pub async fn network_discovery() -> Option<Vec<SourceSelection>> {
                         let response = match std::str::from_utf8(&buf[..size]) {
                             Ok(response) => response,
                             Err(error) => {
-                                warn!(%address, "auto_create: network: Received invalid UTF-8 response from: {src}, details: {error}");
+                                warn!(%address, ?error, ?src, "auto_create: network: Received invalid UTF-8 response");
                                 continue;
                             }
                         };
@@ -177,15 +173,15 @@ pub async fn network_discovery() -> Option<Vec<SourceSelection>> {
                             responses.push(discovery_response);
                         } else {
                             warn!(
-                                %address,
-                                "auto_create: network: Failed to parse the discovery response from: {src}"
+                                %address, ?src,
+                                "auto_create: network: Failed to parse the discovery response"
                             );
                         }
                     }
                     Ok(Err(error)) => {
                         warn!(
-                            %address,
-                            "auto_create: network: Error receiving response: {error}"
+                            %address, ?error,
+                            "auto_create: network: Error receiving response"
                         );
                         break;
                     }
@@ -207,7 +203,7 @@ pub async fn network_discovery() -> Option<Vec<SourceSelection>> {
     for task in tasks {
         match task.await {
             Ok(result) => responses.extend(result),
-            Err(error) => warn!("auto_create: network: Discovery task failed: {error}"),
+            Err(error) => warn!(?error, "auto_create: network: Discovery task failed"),
         }
     }
 
@@ -240,21 +236,24 @@ pub async fn blueos_ping_discovery() -> Option<BluePingDiscoveryResult> {
         .await
     {
         Ok(response) => response,
-        Err(err) => {
-            warn!("blue_ping_discovery: Failed to connect to Ping service: {err}");
+        Err(error) => {
+            warn!(
+                ?error,
+                "blue_ping_discovery: Failed to connect to Ping service"
+            );
             return None;
         }
     };
 
     let devices: Vec<PingDevice> = match response.json().await {
         Ok(devices) => devices,
-        Err(err) => {
-            warn!("blue_ping_discovery: Failed to parse response: {err}");
+        Err(error) => {
+            warn!(?error, "blue_ping_discovery: Failed to parse response");
             return None;
         }
     };
 
-    debug!("blue_ping_discovery: Found devices: {devices:?}");
+    debug!(?devices, "blue_ping_discovery: Found devices");
 
     let mut available_sources = Vec::new();
     let mut used_ports = Vec::new();
@@ -281,7 +280,7 @@ pub async fn blueos_ping_discovery() -> Option<BluePingDiscoveryResult> {
 pub async fn serial_discovery(skip_ports: Option<&[String]>) -> Option<Vec<SourceSelection>> {
     match available_ports() {
         Ok(serial_ports) => {
-            debug!("serial_discovery: Found {serial_ports:?}");
+            debug!(?serial_ports, "serial_discovery: Found serial ports");
 
             let mut set: JoinSet<Result<SourceSelection, ManagerError>> = JoinSet::new();
 
@@ -311,11 +310,11 @@ pub async fn serial_discovery(skip_ports: Option<&[String]>) -> Option<Vec<Sourc
                     Ok(Ok(source)) => {
                         available_sources.push(source);
                     }
-                    Ok(Err(e)) => {
-                        error!("serial_discovery: Port detection error: {e:?}");
+                    Ok(Err(error)) => {
+                        error!(?error, "serial_discovery: Port detection error");
                     }
-                    Err(e) => {
-                        error!("serial_discovery: Task error: {e:?}");
+                    Err(error) => {
+                        error!(?error, "serial_discovery: Task error");
                     }
                 }
             }
@@ -324,12 +323,15 @@ pub async fn serial_discovery(skip_ports: Option<&[String]>) -> Option<Vec<Sourc
                 warn!("serial_discovery: No valid serial devices were found");
                 None
             } else {
-                info!("serial_discovery: Devices Available : {available_sources:?}");
+                info!(?available_sources, "serial_discovery: Devices Available");
                 Some(available_sources)
             }
         }
-        Err(err) => {
-            warn!("Auto create: Unable to find available devices on serial ports, details: {err}");
+        Err(error) => {
+            warn!(
+                ?error,
+                "Auto create: Unable to find available devices on serial ports"
+            );
             None
         }
     }
@@ -345,25 +347,37 @@ async fn auto_detect_baudrate(path: String) -> Result<u32, ManagerError> {
     let mut baudrate_results: HashMap<u32, BaudrateCheckResult> = HashMap::new();
 
     for &rate in &baud_rates {
-        debug!("auto_detect_baudrate: Testing baud rate: {rate} for {path}");
+        debug!(rate, path, "auto_detect_baudrate: Testing baud rate");
 
         let mut serial_stream = match tokio_serial::new(path.clone(), rate).open_native_async() {
             Ok(stream) => stream,
-            Err(err) => {
-                warn!("auto_detect_baudrate: Failed to open port at {rate} for {path}: {err}");
+            Err(error) => {
+                warn!(
+                    rate,
+                    path,
+                    ?error,
+                    "auto_detect_baudrate: Failed to open port"
+                );
                 continue;
             }
         };
 
         #[cfg(unix)]
-        if let Err(err) = serial_stream.set_exclusive(false) {
-            warn!("auto_detect_baudrate: Failed to set non-exclusive mode for {path}: {err}");
+        if let Err(error) = serial_stream.set_exclusive(false) {
+            warn!(
+                path,
+                ?error,
+                "auto_detect_baudrate: Failed to set non-exclusive mode"
+            );
             continue;
         }
 
-        if let Err(err) = set_baudrate_pre_routine(&mut serial_stream, rate).await {
+        if let Err(error) = set_baudrate_pre_routine(&mut serial_stream, rate).await {
             warn!(
-                "auto_detect_baudrate: Failed baudrate initialization at {rate} for {path}: {err:?}"
+                rate,
+                path,
+                ?error,
+                "auto_detect_baudrate: Failed baudrate initialization"
             );
             continue;
         }
@@ -379,18 +393,26 @@ async fn auto_detect_baudrate(path: String) -> Result<u32, ManagerError> {
             Ok(Ok(result)) => {
                 if result.parser_errors == 0 && result.messages_received == BAUDRATE_CHECK_MESSAGES
                 {
-                    info!("auto_detect_baudrate: Found optimal baudrate for {path}: {rate}");
+                    info!(path, rate, "auto_detect_baudrate: Found optimal baudrate");
                     return Ok(rate);
                 }
                 if result.messages_received > 0 {
                     baudrate_results.insert(rate, result);
                 }
             }
-            Ok(Err(err)) => {
-                debug!("auto_detect_baudrate: Failed quality check at {rate} for {path}: {err:?}");
+            Ok(Err(error)) => {
+                debug!(
+                    rate,
+                    path,
+                    ?error,
+                    "auto_detect_baudrate: Failed quality check"
+                );
             }
             Err(_) => {
-                debug!("auto_detect_baudrate: Timeout during baudrate check at {rate} for {path}");
+                debug!(
+                    rate,
+                    path, "auto_detect_baudrate: Timeout during baudrate check"
+                );
             }
         }
     }
@@ -417,12 +439,15 @@ async fn test_baudrate_quality(
             Ok(Ok(_)) => {
                 result.messages_received += 1;
             }
-            Ok(Err(e)) => {
-                debug!("test_baudrate_quality: test_baudrate_quality: {e:?}");
+            Ok(Err(error)) => {
+                debug!(
+                    ?error,
+                    "test_baudrate_quality: test_baudrate_quality: Error"
+                );
                 result.parser_errors += 1;
             }
-            Err(e) => {
-                debug!("test_baudrate_quality: test_baudrate_quality: {e:?}");
+            Err(_) => {
+                debug!("test_baudrate_quality: test_baudrate_quality: Timeout");
                 result.parser_errors += 1;
             }
         }
@@ -442,7 +467,7 @@ struct BaudrateCheckResult {
 /// 2. If tied on messages, lowest number of parser/timeout errors
 /// 3. If tied on both messages and errors, highest baudrate is preferred
 fn select_best_baudrate(results: HashMap<u32, BaudrateCheckResult>) -> Option<u32> {
-    trace!("Starting baudrate selection with {} results", results.len());
+    trace!(results = results.len(), "Starting baudrate selection");
 
     if results.is_empty() {
         trace!("select_best_baudrate: No baudrate results available");
@@ -451,9 +476,10 @@ fn select_best_baudrate(results: HashMap<u32, BaudrateCheckResult>) -> Option<u3
 
     results.iter().for_each(|(rate, result)| {
         trace!(
-            "select_best_baudrate: Initial baudrate {rate}: {} successful messages, {} parser errors",
-            result.messages_received,
-            result.parser_errors
+            rate,
+            successful_messages = result.messages_received,
+            parser_errors = result.parser_errors,
+            "select_best_baudrate: Initial baudrate",
         );
     });
 
@@ -466,16 +492,20 @@ fn select_best_baudrate(results: HashMap<u32, BaudrateCheckResult>) -> Option<u3
         reason: &str,
         selected: u32,
     ) {
+        trace!("select_best_baudrate: Comparing baudrates");
         trace!(
-            "select_best_baudrate: Comparing baudrates:\n\
-            {rate1} (messages: {}, errors: {}) vs\n\
-            {rate2} (messages: {}, errors: {})\n\
-            Selected {selected} based on {reason}",
-            result1.messages_received,
-            result1.parser_errors,
-            result2.messages_received,
-            result2.parser_errors,
+            rate = rate1,
+            messages = result1.messages_received,
+            errors = result1.parser_errors,
+            "select_best_baudrate: rate1",
         );
+        trace!(
+            rate = rate2,
+            messages = result2.messages_received,
+            errors = result2.parser_errors,
+            "select_best_baudrate: rate2",
+        );
+        trace!(selected, reason, "select_best_baudrate: Selected",);
     }
 
     let selected = results
@@ -514,8 +544,10 @@ fn select_best_baudrate(results: HashMap<u32, BaudrateCheckResult>) -> Option<u3
         })
         .map(|(rate, result)| {
             trace!(
-                "select_best_baudrate: Final selection: baudrate {} with {} successful messages and {} errors",
-                rate, result.messages_received, result.parser_errors
+                baudrate = rate,
+                messages = result.messages_received,
+                errors = result.parser_errors,
+                "select_best_baudrate: Final selection",
             );
             rate
         });
