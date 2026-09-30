@@ -106,32 +106,36 @@ impl DeviceFactory {
                         }
                         break;
                     }
-                    Err(err) => {
+                    Err(error) => {
                         retry_count += 1;
                         if retry_count >= max_retries {
                             error!(
-                                "Device creation error: Can't auto upgrade the DeviceType after {} attempts, details: {err:?}",
-                                max_retries
-                            );
-                            return Err(ManagerError::DeviceError(err));
+                                ?error, max_retries,
+                                "Device creation error: Can't auto upgrade the DeviceType after max_retries attempts"                            );
+                            return Err(ManagerError::DeviceError(error));
                         }
 
                         warn!(
-                            "Device creation error: Device upgrade attempt {} of {} failed: {err:?}. Retrying...",
-                            retry_count, max_retries
+                            ?error,
+                            retry_count,
+                            max_retries,
+                            "Device creation error: Device upgrade attempt failed. Retrying...",
                         );
 
                         debug!("Force stopping device for discovery service next attempt");
-                        match crate::device::manager::turnoff_device_continuous_mode(&source).await {
+                        match crate::device::manager::turnoff_device_continuous_mode(&source).await
+                        {
                             Ok(()) => debug!("Force stopping device success"),
-                            Err(err) =>
-                                error!("Force stopping device for discovery service next attempt error. Error: {err:?}")
+                            Err(error) => error!(
+                                ?error,
+                                "Force stopping device for discovery service next attempt error"
+                            ),
                         };
 
                         sleep(retry_delay).await;
                         continue;
                     }
-                    e => warn!("Device creation error: Abnormal answer: {e:?}."),
+                    error => warn!(?error, "Device creation error"),
                 }
             }
         }
@@ -192,8 +196,8 @@ impl DeviceDiscoveryManager {
                         }
                     }
                     Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {}
-                    Err(e) => {
-                        error!("Error receiving known devices update: {e}");
+                    Err(error) => {
+                        error!(?error, "Error receiving known devices update");
                         continue;
                     }
                 }
@@ -245,16 +249,16 @@ impl DeviceDiscoveryManager {
                 // Process discovered sources
                 for source in available_sources {
                     let key = get_device_key(&source);
-                    trace!("Attempting to create device for source: {}", key);
+                    trace!(key, "Attempting to create device for source");
 
                     match DeviceFactory::create_device(source.clone(), DeviceSelection::Auto).await
                     {
                         Ok(device_info) => {
-                            trace!("Created new device: {} -> {:?}", key, device_info);
+                            trace!(key, ?device_info, "Created new device",);
                             let _ = tx.send(device_info);
                         }
-                        Err(err) => {
-                            error!("Failed to create device {}: {:?}", key, err);
+                        Err(error) => {
+                            error!(key, ?error, "Failed to create device");
                         }
                     }
                 }
