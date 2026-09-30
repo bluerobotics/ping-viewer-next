@@ -117,10 +117,13 @@ pub fn init() {
         "Starting at {}",
         chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
     );
-    debug!("Command line call: {}", cli::manager::command_line_string());
     debug!(
-        "Command line input struct call: {}",
-        cli::manager::command_line()
+        call = cli::manager::command_line_string(),
+        "Command line call"
+    );
+    debug!(
+        call = cli::manager::command_line(),
+        "Command line input struct call",
     );
 }
 
