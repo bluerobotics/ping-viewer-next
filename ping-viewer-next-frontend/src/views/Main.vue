@@ -92,7 +92,8 @@
           <div class="glassMenu connection-menu" :class="{ 'glass disable-hover': glass }" v-show="isMenuOpen">
             <div :class="[{ 'glass-inner disable-hover': glass }]">
               <component :class="['menu-content', { 'glass-inner disable-hover': glass }]"
-                :is="getDeviceSettingsComponent" :server-url="serverUrl" :device-id="activeDevice.device.id"
+                :is="getDeviceSettingsComponent" :server-url="serverUrl"
+                :device-type="activeDevice.device.device_type" :device-slot="activeDevice.device.slot"
                 :initial-angles="currentDeviceAngles" :is-open="isMenuOpen" @update:angles="handleAngleUpdate"
                 @rangeChange="debouncedSaveSettings" @close="isMenuOpen = false" />
             </div>
@@ -297,6 +298,7 @@ import Ping360Settings from '../components/widgets/sonar360/Ping360Settings.vue'
 import { useMenuCoordination } from '../composables/useMenuCoordination';
 import { wsManager } from '../composables/useRecordingSessions';
 import { useUnits } from '../composables/useUnits';
+import { deviceKey, deviceWebSocketUrl } from '../ping-device/utils/device-slot';
 import { useNotificationStore } from '../stores/notificationStore';
 
 const { formatDepth } = useUnits();
@@ -448,9 +450,7 @@ const speedDialItems = ref([
 
 const getWebSocketUrl = (device) => {
   if (!device || !serverUrl.value) return '';
-  const url = new URL(serverUrl.value);
-  const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${url.host}/ws?device_number=${device.id}`;
+  return deviceWebSocketUrl(serverUrl.value, device);
 };
 
 const connectWebSocket = () => {
@@ -501,23 +501,24 @@ const processWebSocketMessage = (data) => {
   }
 
   if (data.DeviceMessage) {
-    const deviceId = data.DeviceMessage.device_id;
-    if (!deviceId) {
-      console.warn('Received DeviceMessage without device_id:', data);
+    const message = data.DeviceMessage;
+    if (message.device_type == null || message.slot == null) {
+      console.warn('Received DeviceMessage without device slot:', data);
       return;
     }
 
-    const messageType = Object.keys(data.DeviceMessage.PingMessage)[0];
+    const messageType = Object.keys(message.PingMessage || {})[0];
     if (!messageType) {
       console.warn('Received DeviceMessage without PingMessage type:', data);
       return;
     }
 
-    if (!deviceData[deviceId]) {
-      deviceData[deviceId] = {};
+    const key = deviceKey(message);
+    if (!deviceData[key]) {
+      deviceData[key] = {};
     }
 
-    deviceData[deviceId][messageType] = data.DeviceMessage.PingMessage[messageType];
+    deviceData[key][messageType] = message.PingMessage[messageType];
   }
 };
 
@@ -533,7 +534,7 @@ const handleDeviceSelection = (device) => {
 
 const selectDevice = async (device) => {
   if (activeDevice.value) {
-    const oldWebSocket = `ws://${new URL(serverUrl.value).host}/ws?device_number=${activeDevice.value.device.id}`;
+    const oldWebSocket = deviceWebSocketUrl(serverUrl.value, activeDevice.value.device);
     const connections = [...(websocket.value?.clients || [])];
     for (const conn of connections) {
       if (conn.url === oldWebSocket) {
@@ -842,40 +843,39 @@ const onServerConnected = (url) => {
   wsManager.connect(url);
   wsManager.addListener((data) => {
     if (data === undefined) return;
-    if (data.device_id) {
-      const sessionData = data.RecordingStatus || data;
-      const existingSession = recordingSessions.value.get(sessionData.device_id);
+    const sessionData = data.RecordingStatus || data;
+    if (sessionData.device_type != null && sessionData.slot != null) {
+      const key = deviceKey(sessionData);
+      const existingSession = recordingSessions.value.get(key);
       const statusChanged = !existingSession || existingSession.is_active !== sessionData.is_active;
 
-      // Update recording session state
-      recordingSessions.value.set(sessionData.device_id, sessionData);
+      recordingSessions.value.set(key, sessionData);
 
-      // Show notification only if status changed
       if (statusChanged) {
+        const label = `${sessionData.device_type} slot ${sessionData.slot}`;
         if (sessionData.is_active) {
           notificationStore.addNotification({
             title: 'Recording Started',
-            message: `Recording started for device ${sessionData.device_id}`,
+            message: `Recording started for ${label}`,
             icon: 'mdi-record',
             color: 'success',
             device_type: sessionData.device_type,
-            device_id: sessionData.device_id,
+            slot: sessionData.slot,
           });
         } else {
           notificationStore.addNotification({
             title: 'Recording Stopped',
-            message: `Recording stopped for device ${sessionData.device_id}`,
+            message: `Recording stopped for ${label}`,
             icon: 'mdi-stop',
             color: 'error',
             device_type: sessionData.device_type,
-            device_id: sessionData.device_id,
+            slot: sessionData.slot,
           });
         }
       }
     } else if (data.AllRecordingStatus) {
-      // Handle initial status fetch
       for (const session of data.AllRecordingStatus) {
-        recordingSessions.value.set(session.device_id, session);
+        recordingSessions.value.set(deviceKey(session), session);
       }
     }
   });
@@ -1045,14 +1045,14 @@ const fetchInitialRecordingStatuses = async () => {
   if (!serverUrl.value) return;
 
   try {
-    const response = await fetch(`${serverUrl.value}/v1/device_manager/GetAllRecordingStatus`);
+    const response = await fetch(`${serverUrl.value}/v1/recordings_manager/list`);
     if (!response.ok) {
       throw new Error('Failed to fetch recording statuses');
     }
     const data = await response.json();
     if (data.AllRecordingStatus) {
       for (const session of data.AllRecordingStatus) {
-        recordingSessions.value.set(session.device_id, session);
+        recordingSessions.value.set(deviceKey(session), session);
       }
     }
   } catch (err) {
@@ -1078,7 +1078,7 @@ const fetchRecordings = async () => {
       modified: file.modified,
       timestamp: file.modified,
       deviceType: extractDeviceTypeFromFileName(file.file_name),
-      deviceId: extractDeviceIdFromFileName(file.file_name),
+      slot: extractSlotFromFileName(file.file_name),
       downloaded: false,
       isMcap: true,
     }));
@@ -1091,21 +1091,19 @@ const fetchRecordings = async () => {
 };
 
 const extractDeviceTypeFromFileName = (fileName) => {
-  // Extract device type from filename pattern
-  // Example: device_00000000-0000-0000-c82c-5029143af4e9_20250626_164121.mcap
-  if (fileName.includes('ping360') || fileName.includes('Ping360')) {
+  // device_Ping1D_0_20250930_163700.mcap
+  if (fileName.includes('Ping360') || fileName.includes('ping360')) {
     return 'Ping360';
   }
-  if (fileName.includes('ping1d') || fileName.includes('Ping1D')) {
+  if (fileName.includes('Ping1D') || fileName.includes('ping1d')) {
     return 'Ping1D';
   }
   return 'Unknown';
 };
 
-const extractDeviceIdFromFileName = (fileName) => {
-  // Extract device ID from filename pattern
-  const match = fileName.match(/device_([a-f0-9-]+)_/);
-  return match ? match[1] : 'unknown';
+const extractSlotFromFileName = (fileName) => {
+  const match = fileName.match(/device_(?:Ping1D|Ping360|ping1d|ping360)_(\d+)_/);
+  return match ? Number(match[1]) : null;
 };
 
 const formatFileSize = (bytes) => {
