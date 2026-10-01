@@ -1,3 +1,4 @@
+import { deviceKey } from '@/ping-device/utils/device-slot';
 import { onMounted, onUnmounted, ref } from 'vue';
 
 // WebSocket manager singleton
@@ -167,14 +168,14 @@ export function useRecordingSessions(serverUrl, wsManagerInstance = wsManager) {
 
   const fetchInitialRecordingStatuses = async () => {
     try {
-      const response = await fetch(`${serverUrl}/v1/device_manager/GetAllRecordingStatus`);
+      const response = await fetch(`${serverUrl}/v1/recordings_manager/list`);
       if (!response.ok) {
         throw new Error('Failed to fetch recording statuses');
       }
       const data = await response.json();
       if (data.AllRecordingStatus) {
         for (const session of data.AllRecordingStatus) {
-          recordingSessions.value.set(session.device_id, session);
+          recordingSessions.value.set(deviceKey(session), session);
         }
       }
     } catch (err) {
