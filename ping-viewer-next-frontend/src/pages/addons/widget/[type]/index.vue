@@ -1,7 +1,15 @@
 <template>
   <div class="h-screen w-screen bg-transparent" ref="containerRef">
 
-    <div v-if="isLoading" class="flex items-center justify-center text-white">
+    <div v-if="outdatedWidget" class="h-full w-full flex items-center justify-center">
+      <div class="text-center p-4 max-w-md text-white">
+        <v-icon color="warning" size="48" class="mb-4">mdi-alert</v-icon>
+        <h2 class="text-xl mb-2">Recreate this widget</h2>
+        <p>This widget is outdated. Remove it and add it again.</p>
+      </div>
+    </div>
+
+    <div v-else-if="isLoading" class="flex items-center justify-center text-white">
       <div class="text-center">
         <v-progress-circular indeterminate color="primary" size="64" class="mb-4" />
         <div>Connecting to device...</div>
@@ -16,8 +24,15 @@
         <div class="mt-4 text-left text-sm bg-gray-800 p-4 rounded">
           <div><strong>type:</strong> {{ route.params.type }}</div>
           <div><strong>server:</strong> {{ serverUrl }}</div>
-          <div><strong>uuid:</strong> {{ deviceId }}</div>
+          <div><strong>slot:</strong> {{ slot }}</div>
         </div>
+      </div>
+    </div>
+
+    <div v-else-if="waiting" class="flex items-center justify-center text-white h-full">
+      <div class="text-center">
+        <v-progress-circular indeterminate color="primary" size="64" class="mb-4" />
+        <div>Waiting for {{ deviceTypeName }} slot {{ slot }}</div>
       </div>
     </div>
 
@@ -55,9 +70,11 @@ export default defineComponent({
     const containerRef = ref(null);
     const widgetRef = ref(null);
     const serverUrl = ref('');
-    const deviceId = ref('');
+    const slot = ref(0);
+    const waiting = ref(false);
     const error = ref('');
-    const isLoading = ref(true);
+    const outdatedWidget = ref(new URLSearchParams(window.location.search).has('uuid'));
+    const isLoading = ref(!outdatedWidget.value);
     const deviceData = ref(null);
     const dimensions = ref({ width: 0, height: 0 });
     const yawAngle = ref(0);
@@ -75,6 +92,7 @@ export default defineComponent({
     let resizeObserver = null;
     let datalakeUnsubscribe = null;
     let recordingWebSocket = null;
+    let pollTimer = null;
 
     const updateDimensions = () => {
       if (!containerRef.value) return;
@@ -86,6 +104,17 @@ export default defineComponent({
     };
 
     const widgetType = computed(() => route.params.type?.toLowerCase());
+
+    const deviceTypeName = computed(() => {
+      switch (widgetType.value) {
+        case 'ping360':
+          return 'Ping360';
+        case 'ping1d':
+          return 'Ping1D';
+        default:
+          return '';
+      }
+    });
 
     const widgetComponent = computed(() => {
       switch (widgetType.value) {
@@ -99,10 +128,10 @@ export default defineComponent({
     });
 
     const websocketUrl = computed(() => {
-      if (!serverUrl.value || !deviceId.value) return '';
+      if (!serverUrl.value || !deviceTypeName.value) return '';
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = new URL(serverUrl.value).host;
-      return `${wsProtocol}//${host}/ws?device_number=${deviceId.value}`;
+      return `${wsProtocol}//${host}/ws?device_type=${encodeURIComponent(deviceTypeName.value)}&slot=${slot.value}`;
     });
 
     const recordingWebSocketUrl = computed(() => {
@@ -113,7 +142,7 @@ export default defineComponent({
     });
 
     const setupRecordingWebSocket = () => {
-      if (!recordingWebSocketUrl.value || !deviceId.value) return;
+      if (!recordingWebSocketUrl.value || !deviceTypeName.value) return;
 
       try {
         recordingWebSocket = new WebSocket(recordingWebSocketUrl.value);
@@ -124,7 +153,10 @@ export default defineComponent({
           try {
             const data = JSON.parse(event.data);
 
-            if (data.device_id === deviceId.value) {
+            if (
+              data.device_type === deviceTypeName.value &&
+              Number(data.slot) === Number(slot.value)
+            ) {
               isRecording.value = data.is_active || false;
             }
           } catch (err) {
@@ -137,9 +169,9 @@ export default defineComponent({
         };
 
         recordingWebSocket.onclose = (event) => {
-          if (event.code !== 1000 && deviceId.value) {
+          if (event.code !== 1000 && deviceTypeName.value) {
             setTimeout(() => {
-              if (deviceId.value) {
+              if (deviceTypeName.value) {
                 setupRecordingWebSocket();
               }
             }, 3000);
@@ -158,7 +190,7 @@ export default defineComponent({
     };
 
     const fetchInitialRecordingStatus = async () => {
-      if (!serverUrl.value || !deviceId.value) return;
+      if (!serverUrl.value || !deviceTypeName.value) return;
 
       try {
         const response = await fetch(`${serverUrl.value}/v1/recordings_manager/list`, {
@@ -177,7 +209,9 @@ export default defineComponent({
         const data = await response.json();
 
         const deviceRecording = data.AllRecordingStatus?.find(
-          (recording) => recording.device_id === deviceId.value
+          (recording) =>
+            recording.device_type === deviceTypeName.value &&
+            Number(recording.slot) === Number(slot.value)
         );
 
         if (deviceRecording) {
@@ -200,7 +234,7 @@ export default defineComponent({
             body: JSON.stringify({
               command: 'EnableContinuousMode',
               module: 'DeviceManager',
-              payload: { uuid: deviceId.value },
+              payload: { device_type: deviceTypeName.value, slot: slot.value },
             }),
           });
 
@@ -281,8 +315,11 @@ export default defineComponent({
     const deviceInstance = ref(null);
 
     const handleMaskButtonClick = async (buttonEvent) => {
-      if (!deviceInstance.value && deviceId.value) {
-        deviceInstance.value = pingDeviceStore.usePingDevice(deviceId.value);
+      if (!deviceInstance.value && deviceData.value) {
+        deviceInstance.value = pingDeviceStore.usePingDevice(
+          deviceData.value.device_type,
+          deviceData.value.slot
+        );
       }
 
       if (!deviceInstance.value) {
@@ -669,6 +706,89 @@ export default defineComponent({
       return 'full';
     });
 
+    const bindDevice = async (device) => {
+      if (device.status !== 'ContinuousMode') {
+        if (await enableContinuousMode()) {
+          device.status = 'ContinuousMode';
+        }
+      }
+
+      deviceData.value = device;
+      waiting.value = false;
+      isLoading.value = false;
+
+      const wsHost = new URL(serverUrl.value).host;
+      pingDeviceStore.setServerUrl(wsHost);
+      if (!deviceInstance.value) {
+        deviceInstance.value = pingDeviceStore.usePingDevice(device.device_type, device.slot);
+        deviceInstance.value.common.connect();
+      }
+
+      await fetchInitialRecordingStatus();
+      if (!recordingWebSocket || recordingWebSocket.readyState === WebSocket.CLOSED) {
+        setupRecordingWebSocket();
+      }
+    };
+
+    const releaseDevice = () => {
+      deviceData.value = null;
+      waiting.value = true;
+      if (deviceInstance.value) {
+        deviceInstance.value.common.disconnect();
+        deviceInstance.value = null;
+      }
+    };
+
+    const refreshSlot = async () => {
+      const response = await fetch(`${serverUrl.value}/device_manager/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          command: 'List',
+          module: 'DeviceManager',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to connect to server: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return (
+        data.DeviceInfo?.find(
+          (device) =>
+            device.device_type === deviceTypeName.value &&
+            Number(device.slot) === Number(slot.value)
+        ) || null
+      );
+    };
+
+    const pollSlot = async () => {
+      try {
+        const device = await refreshSlot();
+        if (device) {
+          error.value = '';
+          if (!deviceData.value) {
+            await bindDevice(device);
+          }
+        } else if (deviceData.value) {
+          releaseDevice();
+        } else {
+          waiting.value = true;
+          isLoading.value = false;
+        }
+      } catch (err) {
+        console.error('Widget initialization error:', err);
+        error.value = err.message;
+        isLoading.value = false;
+        waiting.value = false;
+      }
+    };
+
     onMounted(async () => {
       updateDimensions();
 
@@ -688,95 +808,21 @@ export default defineComponent({
       await nextTick();
       updateDimensions();
 
-      try {
-        const params = new URLSearchParams(window.location.search);
-        serverUrl.value = params.get('server') || `${location.protocol}//${location.host}`;
-        deviceId.value = params.get('uuid') || '';
+      if (outdatedWidget.value) {
+        return;
+      }
 
-        if (!deviceId.value) {
-          throw new Error('Missing required parameters: uuid');
-        }
+      const params = new URLSearchParams(window.location.search);
+      serverUrl.value = params.get('server') || `${location.protocol}//${location.host}`;
+      const rawSlot = params.get('slot');
+      const parsedSlot = rawSlot === null || rawSlot === '' ? 0 : Number(rawSlot);
+      slot.value =
+        Number.isInteger(parsedSlot) && parsedSlot >= 0 && parsedSlot <= 255 ? parsedSlot : 0;
 
-        const requestBody = {
-          command: 'List',
-          module: 'DeviceManager',
-        };
-
-        const response = await fetch(`${serverUrl.value}/device_manager/request`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-          mode: 'cors',
-          body: JSON.stringify({
-            command: 'List',
-            module: 'DeviceManager',
-          }),
-        }).catch((err) => {
-          return {
-            ok: true,
-            json: () =>
-              Promise.resolve({
-                DeviceInfo: [
-                  {
-                    id: deviceId.value,
-                    device_type: route.params.type?.toUpperCase() || 'Ping360',
-                    status: 'Available',
-                    source: {
-                      UdpStream: {
-                        ip: new URL(serverUrl.value).hostname,
-                        port: new URL(serverUrl.value).port,
-                      },
-                    },
-                  },
-                ],
-              }),
-          };
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to connect to server: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        let device = data.DeviceInfo?.find((d) => d.id === deviceId.value);
-
-        if (!device) {
-          device = {
-            id: deviceId.value,
-            device_type: route.params.type.toUpperCase(),
-            status: 'Available',
-            source: {
-              UdpStream: {
-                ip: new URL(serverUrl.value).hostname,
-                port: new URL(serverUrl.value).port,
-              },
-            },
-          };
-        }
-
-        if (device.status !== 'ContinuousMode') {
-          if (await enableContinuousMode()) {
-            device.status = 'ContinuousMode';
-          }
-        }
-
-        if (device.device_type.toLowerCase() !== widgetType.value) {
-          throw new Error(
-            `Device type mismatch: expected ${widgetType.value} but got ${device.device_type}`
-          );
-        }
-
-        deviceData.value = device;
+      if (!deviceTypeName.value) {
+        error.value = `Unknown widget type: ${route.params.type}`;
         isLoading.value = false;
-        await fetchInitialRecordingStatus();
-        setupRecordingWebSocket();
-      } catch (err) {
-        console.error('Widget initialization error:', err);
-        error.value = err.message;
-        isLoading.value = false;
+        return;
       }
 
       if (widgetType.value === 'ping360') {
@@ -789,14 +835,8 @@ export default defineComponent({
         );
       }
 
-      if (!isLoading.value && deviceData.value && deviceId.value) {
-        const wsHost = new URL(serverUrl.value).host;
-        pingDeviceStore.setServerUrl(wsHost);
-
-        deviceInstance.value = pingDeviceStore.usePingDevice(deviceId.value);
-
-        deviceInstance.value.common.connect();
-      }
+      await pollSlot();
+      pollTimer = setInterval(pollSlot, 3000);
     });
 
     function findClosestValueIndex(value, array) {
@@ -815,6 +855,11 @@ export default defineComponent({
     }
 
     onUnmounted(() => {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+
       if (resizeObserver) {
         resizeObserver.disconnect();
       }
@@ -836,13 +881,16 @@ export default defineComponent({
       containerRef,
       widgetRef,
       error,
+      outdatedWidget,
       isLoading,
       deviceData,
       widgetComponent,
       widgetProps,
       route,
       serverUrl,
-      deviceId,
+      slot,
+      waiting,
+      deviceTypeName,
       websocketUrl,
       dimensions,
       widgetType,
