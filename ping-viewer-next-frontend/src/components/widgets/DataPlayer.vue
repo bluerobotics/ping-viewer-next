@@ -203,13 +203,14 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
         return [];
       }
 
-      const deviceMatch = topic.match(/device_([^\/]+)\/(.+)$/);
-      if (!deviceMatch) {
+      const slotted = topic.match(/^device_(Ping1D|Ping360|Common)_(\d+)\/(.+)$/);
+      const legacy = topic.match(/device_([^/]+)\/(.+)$/);
+      if (!slotted && !legacy) {
         return [];
       }
 
-      const deviceId = deviceMatch[1];
-      const rawDeviceType = deviceMatch[2];
+      const slot = slotted ? Number(slotted[2]) : null;
+      const rawDeviceType = slotted ? slotted[3] : legacy[2];
 
       // Normalize device type to expected format
       let deviceType;
@@ -230,8 +231,8 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
           {
             timestamp,
             device: {
-              id: deviceId,
               device_type: deviceType,
+              slot,
             },
             data: {
               sensorData: parsedData.profile_data,
@@ -252,8 +253,8 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
           {
             timestamp,
             device: {
-              id: deviceId,
               device_type: deviceType,
+              slot,
             },
             data: {
               angle: parsedData.angle,
