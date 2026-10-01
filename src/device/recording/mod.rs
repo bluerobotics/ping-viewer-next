@@ -18,7 +18,6 @@ use tokio::sync::{
     mpsc, RwLock,
 };
 use tracing::{error, info, trace, warn};
-use uuid::Uuid;
 
 use crate::device::{
     devices::DeviceActorHandler,
@@ -26,15 +25,15 @@ use crate::device::{
 };
 use crate::vehicle::VehicleData;
 
-use super::manager::{ManagerActorHandler, UuidWrapper};
+use super::manager::{DeviceSlotWrapper, ManagerActorHandler};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordingSession {
-    pub device_id: Uuid,
+    pub device_type: DeviceSelection,
+    pub slot: u8,
     pub file_path: PathBuf,
     pub is_active: bool,
     pub start_time: chrono::DateTime<chrono::Utc>,
-    pub device_type: DeviceSelection,
 }
 
 pub struct SessionGuard {
@@ -44,7 +43,7 @@ pub struct SessionGuard {
 
 pub struct RecordingManager {
     receiver: mpsc::Receiver<ManagerActorRequest>,
-    sessions: Arc<RwLock<HashMap<Uuid, SessionGuard>>>,
+    sessions: Arc<RwLock<HashMap<DeviceSlotWrapper, SessionGuard>>>,
     base_path: PathBuf,
     status_broadcast: broadcast::Sender<RecordingSession>,
     devices_manager_handler: ManagerActorHandler,
@@ -54,9 +53,9 @@ pub struct RecordingManager {
 #[derive(Debug, Clone, Serialize, Deserialize, Apiv2Schema)]
 #[serde(tag = "command", content = "payload")]
 pub enum RecordingManagerCommand {
-    StartRecording(UuidWrapper),
-    StopRecording(UuidWrapper),
-    GetRecordingStatus(UuidWrapper),
+    StartRecording(DeviceSlotWrapper),
+    StopRecording(DeviceSlotWrapper),
+    GetRecordingStatus(DeviceSlotWrapper),
     GetAllRecordingStatus,
     GetSubscriber,
     #[serde(skip)]
@@ -133,16 +132,20 @@ impl RecordingManager {
         trace!(?actor_request, "RecordingsManager: Received a request");
 
         let result = match actor_request.request {
-            RecordingManagerCommand::StartRecording(uuid_wrapper) => self
-                .start_recording(*uuid_wrapper)
+            RecordingManagerCommand::StartRecording(DeviceSlotWrapper { device_type, slot }) => {
+                self.start_recording(device_type, slot)
+                    .await
+                    .map(Answer::RecordingSession)
+            }
+            RecordingManagerCommand::StopRecording(DeviceSlotWrapper { device_type, slot }) => self
+                .stop_recording(device_type, slot)
                 .await
                 .map(Answer::RecordingSession),
-            RecordingManagerCommand::StopRecording(uuid_wrapper) => self
-                .stop_recording(*uuid_wrapper)
-                .await
-                .map(Answer::RecordingSession),
-            RecordingManagerCommand::GetRecordingStatus(uuid_wrapper) => self
-                .get_recording_status(*uuid_wrapper)
+            RecordingManagerCommand::GetRecordingStatus(DeviceSlotWrapper {
+                device_type,
+                slot,
+            }) => self
+                .get_recording_status(device_type, slot)
                 .await
                 .map(Answer::RecordingStatus),
             RecordingManagerCommand::GetAllRecordingStatus => self
@@ -171,11 +174,16 @@ impl RecordingManager {
         let _ = self.status_broadcast.send(session.clone());
     }
 
-    pub async fn start_recording(&self, device_id: Uuid) -> Result<RecordingSession, ManagerError> {
-        if self.sessions.read().await.contains_key(&device_id) {
+    pub async fn start_recording(
+        &self,
+        device_type: DeviceSelection,
+        slot: u8,
+    ) -> Result<RecordingSession, ManagerError> {
+        let key = DeviceSlotWrapper { device_type, slot };
+        if self.sessions.read().await.contains_key(&key) {
             return Err(ManagerError::Other(format!(
-                "Device {} is already recording",
-                device_id
+                "Device {}/{} is already recording",
+                key.device_type, key.slot,
             )));
         }
 
@@ -187,23 +195,12 @@ impl RecordingManager {
 
         let timestamp = chrono::Utc::now();
         let filename = format!(
-            "device_{}_{}.mcap",
-            device_id,
+            "device_{}_{}_{}.mcap",
+            key.device_type,
+            key.slot,
             timestamp.format("%Y%m%d_%H%M%S")
         );
         let file_path = self.base_path.join(filename);
-
-        let request = self
-            .devices_manager_handler
-            .send(crate::device::manager::Request::Info(
-                crate::device::manager::UuidWrapper { uuid: device_id },
-            ))
-            .await?;
-
-        let device_info = match request {
-            crate::device::manager::Answer::DeviceInfo(h) => h.first().unwrap().clone(),
-            _ => return Err(ManagerError::Other("Invalid device handler".to_string())),
-        };
 
         let ctx = Context::new();
         let mcap_writer: McapWriterHandle<BufWriter<File>> = ctx
@@ -212,11 +209,11 @@ impl RecordingManager {
             .map_err(|e| ManagerError::Other(format!("Failed to create MCAP file: {}", e)))?;
 
         let session = RecordingSession {
-            device_id,
+            device_type,
+            slot,
             file_path: file_path.clone(),
             is_active: true,
             start_time: timestamp,
-            device_type: device_info.device_type.clone(),
         };
 
         let session_guard = SessionGuard {
@@ -224,7 +221,7 @@ impl RecordingManager {
             writer: Some(mcap_writer),
         };
 
-        self.sessions.write().await.insert(device_id, session_guard);
+        self.sessions.write().await.insert(key, session_guard);
         self.broadcast_status(&session).await;
 
         let sessions = self.sessions.clone();
@@ -233,7 +230,7 @@ impl RecordingManager {
 
         let device_handler = devices_manager_handler
             .send(crate::device::manager::Request::GetDeviceHandler(
-                crate::device::manager::UuidWrapper { uuid: device_id },
+                crate::device::manager::DeviceSlotWrapper { device_type, slot },
             ))
             .await?;
 
@@ -243,21 +240,36 @@ impl RecordingManager {
         };
 
         tokio::spawn(async move {
-            if let Err(error) =
-                Self::recording_task(handler, file_path, sessions, device_id, ctx, vehicle_data)
-                    .await
+            if let Err(error) = Self::recording_task(
+                handler,
+                file_path,
+                sessions,
+                device_type,
+                slot,
+                ctx,
+                vehicle_data,
+            )
+            .await
             {
-                error!(%device_id, ?error, "Recording task failed for device");
+                error!(%device_type, slot, ?error, "Recording task failed for device");
             }
         });
 
         Ok(session)
     }
 
-    pub async fn stop_recording(&self, device_id: Uuid) -> Result<RecordingSession, ManagerError> {
+    pub async fn stop_recording(
+        &self,
+        device_type: DeviceSelection,
+        slot: u8,
+    ) -> Result<RecordingSession, ManagerError> {
+        let key = DeviceSlotWrapper { device_type, slot };
         let mut sessions = self.sessions.write().await;
-        let session_guard = sessions.get_mut(&device_id).ok_or_else(|| {
-            ManagerError::Other(format!("No recording session for device {}", device_id))
+        let session_guard = sessions.get_mut(&key).ok_or_else(|| {
+            ManagerError::Other(format!(
+                "No recording session for device {}/{}",
+                key.device_type, key.slot
+            ))
         })?;
 
         session_guard.session.is_active = false;
@@ -273,13 +285,14 @@ impl RecordingManager {
 
     pub async fn get_recording_status(
         &self,
-        device_id: Uuid,
+        device_type: DeviceSelection,
+        slot: u8,
     ) -> Result<Option<RecordingSession>, ManagerError> {
         Ok(self
             .sessions
             .read()
             .await
-            .get(&device_id)
+            .get(&DeviceSlotWrapper { device_type, slot })
             .map(|g| g.session.clone()))
     }
 
@@ -296,11 +309,14 @@ impl RecordingManager {
     async fn recording_task(
         handler: DeviceActorHandler,
         _file_path: PathBuf,
-        sessions: Arc<RwLock<HashMap<Uuid, SessionGuard>>>,
-        device_id: Uuid,
+        sessions: Arc<RwLock<HashMap<DeviceSlotWrapper, SessionGuard>>>,
+        device_type: DeviceSelection,
+        slot: u8,
         ctx: Arc<Context>,
         vehicle_data: Arc<RwLock<Option<VehicleData>>>,
     ) -> Result<(), ManagerError> {
+        let key = DeviceSlotWrapper { device_type, slot };
+
         let subscriber = handler
             .send(super::devices::PingRequest::GetSubscriber)
             .await
@@ -321,9 +337,9 @@ impl RecordingManager {
         };
 
         // Define topic strings
-        let ping1d_topic = format!("device_{}/Ping1D", device_id);
-        let ping360_topic = format!("device_{}/Ping360", device_id);
-        let vehicle_topic = format!("device_{}/VehicleData", device_id);
+        let ping1d_topic = format!("device_{}_{}/Ping1D", key.device_type, key.slot);
+        let ping360_topic = format!("device_{}_{}/Ping360", key.device_type, key.slot);
+        let vehicle_topic = format!("device_{}_{}/VehicleData", key.device_type, key.slot);
 
         // Create device-specific channels with proper schema
         let ping1d_channel = ctx.channel_builder(&ping1d_topic).build::<ProfileStruct>();
@@ -335,7 +351,7 @@ impl RecordingManager {
         while {
             let sessions_guard = sessions.read().await;
             sessions_guard
-                .get(&device_id)
+                .get(&key)
                 .map(|s| s.session.is_active)
                 .unwrap_or(false)
         } {
@@ -385,15 +401,15 @@ impl RecordingManager {
             }
         }
 
-        sessions.write().await.remove(&device_id);
+        sessions.write().await.remove(&key);
         Ok(())
     }
 
     pub async fn shutdown(&self) {
-        let device_ids: Vec<_> = self.sessions.read().await.keys().copied().collect();
+        let device_ids: Vec<_> = self.sessions.read().await.keys().cloned().collect();
         let mut futures: FuturesUnordered<_> = device_ids
             .into_iter()
-            .map(|device_id| self.stop_recording(device_id))
+            .map(|DeviceSlotWrapper { device_type, slot }| self.stop_recording(device_type, slot))
             .collect();
         while let Some(result) = futures.next().await {
             if let Err(error) = result {
