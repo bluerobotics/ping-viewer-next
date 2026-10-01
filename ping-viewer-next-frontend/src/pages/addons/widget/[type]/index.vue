@@ -73,7 +73,6 @@ export default defineComponent({
     });
 
     let resizeObserver = null;
-    let datalakeUnsubscribe = null;
     let recordingWebSocket = null;
 
     const updateDimensions = () => {
@@ -83,6 +82,15 @@ export default defineComponent({
         width: rect.width,
         height: rect.height,
       };
+    };
+
+    // Cockpit exposes the main vehicle's attitude under the system/component scoped name, and
+    // duplicates it under the flat legacy name only while "Legacy variable names" is enabled.
+    const headingVariableIds = ['/mavlink/1/1/ATTITUDE/yaw', 'ATTITUDE/yaw'];
+
+    const setHeadingFromYaw = (yawRadians) => {
+      if (typeof yawRadians !== 'number' || !Number.isFinite(yawRadians)) return;
+      yawAngle.value = (yawRadians * 180) / Math.PI;
     };
 
     const widgetType = computed(() => route.params.type?.toLowerCase());
@@ -780,13 +788,9 @@ export default defineComponent({
       }
 
       if (widgetType.value === 'ping360') {
-        datalakeUnsubscribe = listenToDatalakeVariable(
-          'ATTITUDE/yaw',
-          (data) => {
-            yawAngle.value = -(data * 180) / Math.PI;
-          },
-          10
-        );
+        for (const variableId of headingVariableIds) {
+          listenToDatalakeVariable(variableId, setHeadingFromYaw, 10);
+        }
       }
 
       if (!isLoading.value && deviceData.value && deviceId.value) {
@@ -817,10 +821,6 @@ export default defineComponent({
     onUnmounted(() => {
       if (resizeObserver) {
         resizeObserver.disconnect();
-      }
-
-      if (datalakeUnsubscribe) {
-        datalakeUnsubscribe();
       }
 
       if (deviceInstance.value) {

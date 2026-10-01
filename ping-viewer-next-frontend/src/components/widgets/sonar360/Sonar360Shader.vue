@@ -45,10 +45,8 @@ let shaderProgram: WebGLProgram | null = null;
 let texture: WebGLTexture | null = null;
 
 let textureData = new Uint8Array(props.numLines * props.lineLength * 4);
-let tempBuffer = new Uint8Array(props.numLines * props.lineLength * 4);
 let currentLineLength = props.lineLength;
 const currentAngle = ref(0);
-const previousYaw = ref(0);
 
 const vsSource = `
 	attribute vec4 aVertexPosition;
@@ -67,12 +65,14 @@ const fsSource = `
   uniform float uStartAngle;
   uniform float uEndAngle;
   uniform float uMaxRadius;
+  uniform float uYawAngle;
 
   void main(void) {
     vec2 polar = vTextureCoord;
     float angle = atan(polar.y - 0.5, polar.x - 0.5) + 3.14159/2.0;
-    float angleDegrees = degrees(angle);
-    if (angleDegrees < 0.0) angleDegrees += 360.0;
+    // Screen bearing taken back into the sonar's own frame, which turns the whole
+    // plot with the vehicle rather than moving the data already collected.
+    float angleDegrees = mod(degrees(angle) - uYawAngle, 360.0);
     float radius = length(polar - 0.5) * 2.0;
 
     bool inSector = uStartAngle <= uEndAngle
@@ -82,10 +82,7 @@ const fsSource = `
     if (radius > uMaxRadius || !inSector) {
       gl_FragColor = vec4(0.1, 0.1, 0.1, 0.0); // Transparent background
     } else {
-      float texAngle = (angle + 3.14159) / (2.0 * 3.14159);
-      if (texAngle > 1.0) {
-        texAngle -= 1.0;
-      }
+      float texAngle = fract(angleDegrees / 360.0 + 0.5);
       gl_FragColor = texture2D(uSampler, vec2(radius / uMaxRadius, texAngle));
     }
   }
@@ -198,7 +195,6 @@ const resizeTextureBuffers = (newLineLength: number) => {
   if (newLineLength === currentLineLength) return;
 
   textureData = new Uint8Array(props.numLines * newLineLength * 4);
-  tempBuffer = new Uint8Array(props.numLines * newLineLength * 4);
   currentLineLength = newLineLength;
 
   if (gl && texture) {
@@ -215,18 +211,6 @@ const resizeTextureBuffers = (newLineLength: number) => {
       textureData
     );
     render();
-  }
-};
-
-const rotateTextureData = (lineOffset: number) => {
-  tempBuffer.set(textureData);
-  const bytesPerLine = currentLineLength * 4;
-
-  for (let i = 0; i < props.numLines; i++) {
-    const sourceLineIndex = (i - lineOffset + props.numLines) % props.numLines;
-    const destStart = i * bytesPerLine;
-    const sourceStart = sourceLineIndex * bytesPerLine;
-    textureData.set(tempBuffer.subarray(sourceStart, sourceStart + bytesPerLine), destStart);
   }
 };
 
@@ -267,6 +251,7 @@ const render = () => {
   gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uStartAngle'), props.startAngle);
   gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uEndAngle'), props.endAngle);
   gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uMaxRadius'), props.maxRadius);
+  gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uYawAngle'), props.yaw_angle);
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 };
@@ -274,14 +259,6 @@ const render = () => {
 const updateSonarData = (angle: number, newData: Uint8Array) => {
   if (newData.length !== currentLineLength) {
     resizeTextureBuffers(newData.length);
-  }
-
-  const yawDiff = props.yaw_angle - previousYaw.value;
-  if (yawDiff !== 0) {
-    const linesPerDegree = props.numLines / 360;
-    const lineOffset = Math.round(yawDiff * linesPerDegree);
-    rotateTextureData(lineOffset);
-    previousYaw.value = props.yaw_angle;
   }
 
   const lineIndex = angle % props.numLines;
@@ -332,7 +309,6 @@ const resizeCanvas = () => {
 
 const clearShaderContent = () => {
   textureData.fill(0);
-  tempBuffer.fill(0);
 
   if (gl && texture) {
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -368,35 +344,6 @@ onUnmounted(() => {
 });
 
 watch(
-  () => props.yaw_angle,
-  (newYaw) => {
-    if (newYaw !== previousYaw.value) {
-      const yawDiff = newYaw - previousYaw.value;
-      const linesPerDegree = props.numLines / 360;
-      const lineOffset = Math.round(yawDiff * linesPerDegree);
-      rotateTextureData(lineOffset);
-      previousYaw.value = newYaw;
-
-      if (gl && texture) {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(
-          gl.TEXTURE_2D,
-          0,
-          gl.RGBA,
-          currentLineLength,
-          props.numLines,
-          0,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
-          textureData
-        );
-      }
-      render();
-    }
-  }
-);
-
-watch(
   () => props.measurement,
   (newMeasurement) => {
     if (newMeasurement) {
@@ -406,7 +353,10 @@ watch(
   { deep: true }
 );
 
-watch([() => props.startAngle, () => props.endAngle, () => props.maxRadius], () => {
-  render();
-});
+watch(
+  [() => props.startAngle, () => props.endAngle, () => props.maxRadius, () => props.yaw_angle],
+  () => {
+    render();
+  }
+);
 </script>

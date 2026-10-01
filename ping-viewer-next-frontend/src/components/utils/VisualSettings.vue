@@ -220,7 +220,9 @@ const paletteOptions = Object.keys(colorPalettes);
 
 const serverSettings = reactive({
   url: props.serverUrl,
-  mavlinkUrl: localStorage.getItem('mavlinkUrl') || 'ws://localhost:6040/ws/mavlink',
+  mavlinkUrl:
+    localStorage.getItem('mavlinkUrl') ||
+    `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:6040/ws/mavlink`,
   autoConnectMavlink: localStorage.getItem('autoConnectMavlink') === 'true',
 });
 

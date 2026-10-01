@@ -5,7 +5,7 @@
 				:numMarkers="numMarkers" :showRadiusLines="showRadiusLines" :showMarkers="showMarkers"
 				:radiusLineColor="radiusLineColor" :markerColor="markerColor"
 				:markerBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"
-				:startAngle="startAngle" :endAngle="endAngle">
+				:startAngle="startAngle" :endAngle="endAngle" :yawAngle="yaw_angle">
 			<Sonar360Shader :measurement="measurement" :numLines="400"
 				:color-palette="colorPalette" :get-color-from-palette="getColorFromPalette" :startAngle="startAngle"
 				:endAngle="endAngle" :yaw_angle="yaw_angle" :max-radius="shaderMaxRadius" :debug=false />

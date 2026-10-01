@@ -96,6 +96,10 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  yaw_angle: {
+    type: Number,
+    default: null,
+  },
 });
 
 const emit = defineEmits(['settings-change']);
@@ -120,7 +124,8 @@ const isRecording = computed(() => {
 });
 const offset = ref(0);
 
-const yawAngle = inject('yawAngle', ref(0));
+const injectedYawAngle = inject('yawAngle', ref(0));
+const yawAngle = computed(() => props.yaw_angle ?? injectedYawAngle.value);
 
 const serverUrl = computed(() => {
   try {

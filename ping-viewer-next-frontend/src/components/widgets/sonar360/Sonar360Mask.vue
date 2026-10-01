@@ -16,27 +16,33 @@
 				</linearGradient>
 			</defs>
 
-			<path v-if="!isFullCircle" :d="sectorPath" fill="none" :stroke="radiusLineColor"
-				:stroke-width="radiusLineWidth" vector-effect="non-scaling-stroke" />
+			<!--
+				Everything drawn here is fixed to the sonar head, so it takes the same heading
+				offset the shader applies to the data. The depth labels below stay upright.
+			-->
+			<g :transform="`rotate(${yawAngle} 50 50)`">
+				<path v-if="!isFullCircle" :d="sectorPath" fill="none" :stroke="radiusLineColor"
+					:stroke-width="radiusLineWidth" vector-effect="non-scaling-stroke" />
 
-			<g v-if="showRadiusLines">
-				<path v-for="line in radiusLines" :key="line.distance" :d="getRadiusLinePath(line.radius)"
-					:stroke="radiusLineColor" :stroke-width="radiusLineWidth" fill="none"
+				<g v-if="showRadiusLines">
+					<path v-for="line in radiusLines" :key="line.distance" :d="getRadiusLinePath(line.radius)"
+						:stroke="radiusLineColor" :stroke-width="radiusLineWidth" fill="none"
+						vector-effect="non-scaling-stroke" />
+				</g>
+
+				<line v-for="deg in angleLines" :key="deg"
+					x1="50" y1="50"
+					:x2="50 + maxRadius * Math.cos((deg - 90) * Math.PI / 180)"
+					:y2="50 + maxRadius * Math.sin((deg - 90) * Math.PI / 180)"
+					:stroke="radiusLineColor" :stroke-width="radiusLineWidth"
+					vector-effect="non-scaling-stroke" />
+
+				<line x1="50" y1="50"
+					:x2="50 + maxRadius * Math.cos(adjustedAngleRad)"
+					:y2="50 + maxRadius * Math.sin(adjustedAngleRad)"
+					:stroke="`url(#${sweepGradientId})`" stroke-width="2"
 					vector-effect="non-scaling-stroke" />
 			</g>
-
-			<line v-for="deg in angleLines" :key="deg"
-				x1="50" y1="50"
-				:x2="50 + maxRadius * Math.cos((deg - 90) * Math.PI / 180)"
-				:y2="50 + maxRadius * Math.sin((deg - 90) * Math.PI / 180)"
-				:stroke="radiusLineColor" :stroke-width="radiusLineWidth"
-				vector-effect="non-scaling-stroke" />
-
-			<line x1="50" y1="50"
-				:x2="50 + maxRadius * Math.cos(adjustedAngleRad)"
-				:y2="50 + maxRadius * Math.sin(adjustedAngleRad)"
-				:stroke="`url(#${sweepGradientId})`" stroke-width="2"
-				vector-effect="non-scaling-stroke" />
 
 		</svg>
 
@@ -83,6 +89,7 @@ const props = defineProps<{
   startAngle: number;
   endAngle: number;
   markerBackgroundColor: string;
+  yawAngle: number;
 }>();
 
 const isFullCircle = computed(() => {
