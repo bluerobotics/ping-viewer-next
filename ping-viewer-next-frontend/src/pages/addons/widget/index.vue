@@ -42,8 +42,8 @@
                                 <v-expansion-panel-title>Usage Example</v-expansion-panel-title>
                                 <v-expansion-panel-text>
                                     <v-alert type="info" variant="tonal" class="mb-4">
-                                        Replace <code>your-server</code> and <code>device-id</code> with your actual
-                                        values.
+                                        Replace <code>your-server</code> with your Ping Viewer address. <code>slot</code>
+                                        selects which device of that type the widget follows.
                                     </v-alert>
                                     <pre class="bg-grey-darken-4 pa-4 rounded"><code>{{ widget.example }}</code></pre>
                                 </v-expansion-panel-text>
@@ -64,9 +64,9 @@ const commonParameters = [
     required: false,
   },
   {
-    name: 'uuid',
-    description: 'Device ID of the sensor',
-    required: true,
+    name: 'slot',
+    description: 'Slot number for this device type. Defaults to 0.',
+    required: false,
   },
 ];
 
@@ -78,7 +78,7 @@ const widgetDefinitions = {
     description: 'Visualize Ping1D sonar data with depth information and waterfall display.',
     parameters: [...commonParameters],
     example: `<iframe
-    src="/addons/widget/ping1d?server=http://your-server:4936&device=device-id"
+    src="/addons/widget/ping1d/?server=http://your-server:6060&slot=0"
     width="800"
     height="600"
     frameborder="0"
@@ -92,7 +92,7 @@ const widgetDefinitions = {
     description: 'Display Ping360 scanning sonar data with real-time visualization.',
     parameters: [...commonParameters],
     example: `<iframe
-    src="/addons/widget/ping360?server=http://your-server:4936&device=device-id"
+    src="/addons/widget/ping360/?server=http://your-server:6060&slot=0"
     width="800"
     height="600"
     frameborder="0"
