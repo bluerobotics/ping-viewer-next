@@ -24,7 +24,7 @@
           <div class="flex items-center gap-4">
             <div class="text-white">
               <span class="font-bold">{{ selectedDevice.device_type }}</span>
-              <span class="text-gray-400 ml-2">{{ selectedDevice.id }}</span>
+              <span class="text-gray-400 ml-2">slot {{ selectedDevice.slot }}</span>
             </div>
             <v-tooltip location="bottom" :text="deviceStatusReason(selectedDevice.status)"
               :disabled="!deviceStatusReason(selectedDevice.status)">
@@ -59,15 +59,16 @@
 </template>
 
 <script setup>
+import { deviceWebSocketUrl } from '@/ping-device/utils/device-slot';
+import {
+  deviceStatusReason,
+  deviceStatusColor as getStatusColor,
+  deviceStatusLabel as getStatusLabel,
+} from '@/ping-device/utils/device-status';
 import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import DeviceSettings from '../utils/DeviceManager.vue';
 import Ping1DLoader from '../widgets/sonar1d/Ping1DLoader.vue';
 import Ping360Loader from '../widgets/sonar360/Ping360Loader.vue';
-import {
-  deviceStatusColor as getStatusColor,
-  deviceStatusLabel as getStatusLabel,
-  deviceStatusReason,
-} from '@/ping-device/utils/device-status';
 
 const props = defineProps({
   serverUrl: {
@@ -132,9 +133,7 @@ const backToDevices = () => {
 
 const getWebSocketUrl = (device) => {
   if (!device) return '';
-  const url = new URL(props.serverUrl);
-  const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${url.host}/ws?device_number=${device.id}`;
+  return deviceWebSocketUrl(props.serverUrl, device);
 };
 
 const updateComponentDimensions = () => {
