@@ -21,7 +21,9 @@ import MainView from './views/Main.vue';
 import '@/styles/main.css';
 
 const route = useRoute();
-const isWidgetRoute = computed(() => route.path.startsWith('/addons/widget/'));
+const isWidgetRoute = computed(
+  () => route.path.startsWith('/addons/widget/') || route.path.startsWith('/addons/debug/')
+);
 const theme = useTheme();
 
 watchEffect(() => {

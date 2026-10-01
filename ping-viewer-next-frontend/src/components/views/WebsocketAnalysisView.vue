@@ -109,8 +109,20 @@ export default {
     const autoScroll = ref(true);
     const maxMessages = 1000;
 
+    const buildWebSocketUrl = (baseUrl, path) => {
+      try {
+        const urlObj = new URL(baseUrl);
+        const wsProtocol = urlObj.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${wsProtocol}//${urlObj.host}${path}`;
+      } catch {
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${wsProtocol}//${baseUrl}${path}`;
+      }
+    };
+
     const connectWebSocket = () => {
-      socket.value = new WebSocket(`ws://${new URL(props.serverUrl).host}/ws`);
+      const wsUrl = buildWebSocketUrl(props.serverUrl, '/ws');
+      socket.value = new WebSocket(wsUrl);
 
       socket.value.onopen = () => {
         status.value = 'Connected';
