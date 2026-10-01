@@ -217,6 +217,7 @@ pub async fn network_discovery() -> Option<Vec<SourceSelection>> {
         let source = SourceSelection::UdpStream(SourceUdpStruct {
             ip: device.ip_address,
             port: device.port.map(u16::from).unwrap_or(12345),
+            mac_address: Some(device.mac_address),
         });
 
         available_sources.push(source);
@@ -267,6 +268,7 @@ pub async fn blueos_ping_discovery() -> Option<BluePingDiscoveryResult> {
             available_sources.push(SourceSelection::UdpStream(SourceUdpStruct {
                 ip: Ipv4Addr::new(127, 0, 0, 1),
                 port: udp_port,
+                mac_address: None,
             }));
         }
     }
