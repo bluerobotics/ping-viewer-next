@@ -59,7 +59,7 @@
 			</div>
 
 			<div v-else class="table-container">
-				<v-data-table :headers="headers" :items="devices" :items-per-page="-1"
+				<v-data-table :headers="headers" :items="devices" :item-value="deviceKey" :items-per-page="-1"
 					no-data-text="No devices found. Try clicking 'Auto Create' to discover devices." hover
 					@click:row="openDevice" hide-default-footer class="devices-table" fixed-header>
 					<template v-slot:header="{ props }">
@@ -84,8 +84,8 @@
 									{{ device.device_type }}
 								</div>
 							</td>
-							<td class="text-truncate" :title="device.id">
-								{{ device.id }}
+							<td class="text-truncate" :title="device.slot">
+								{{ device.slot }}
 							</td>
 							<td>
 								<v-tooltip location="bottom" :text="deviceStatusReason(device.status)"
@@ -129,17 +129,17 @@
 										Open
 									</v-btn>
 									<v-btn v-if="device.status === 'ContinuousMode'" color="warning" size="small"
-										@click="disableContinuousMode(device.id)" :loading="loadingStates[device.id]">
+										@click="disableContinuousMode(device)" :loading="loadingStates[deviceKey(device)]">
 										<v-icon start>mdi-pause</v-icon>
 										Disable
 									</v-btn>
-									<v-btn v-else color="success" size="small" @click="enableContinuousMode(device.id)"
-										:loading="loadingStates[device.id]">
+									<v-btn v-else color="success" size="small" @click="enableContinuousMode(device)"
+										:loading="loadingStates[deviceKey(device)]">
 										<v-icon start>mdi-play</v-icon>
 										Enable
 									</v-btn>
 									<v-btn color="error" size="small" @click="confirmDelete(device)"
-										:loading="loadingStates[device.id]">
+										:loading="loadingStates[deviceKey(device)]">
 										<v-icon>mdi-delete</v-icon>
 									</v-btn>
 								</div>
@@ -189,7 +189,7 @@
 						Are you sure you want to delete this device?
 						<div class="mt-2">
 							<strong>Type:</strong> {{ deviceToDelete?.device_type }}<br>
-							<strong>ID:</strong> {{ deviceToDelete?.id }}
+							<strong>Slot:</strong> {{ deviceToDelete?.slot }}
 						</div>
 					</v-card-text>
 					<v-card-actions>
@@ -205,12 +205,13 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { deviceKey, slotPayload } from '@/ping-device/utils/device-slot';
 import {
+  deviceStatusReason,
   deviceStatusColor as getStatusColor,
   deviceStatusLabel as getStatusLabel,
-  deviceStatusReason,
 } from '@/ping-device/utils/device-status';
+import { onMounted, onUnmounted, ref } from 'vue';
 
 const props = defineProps({
   serverUrl: {
@@ -242,8 +243,8 @@ const headers = [
     width: '15%',
   },
   {
-    title: 'ID',
-    key: 'id',
+    title: 'Slot',
+    key: 'slot',
     align: 'center',
     width: '30%',
   },
@@ -424,9 +425,7 @@ const deleteDevice = async () => {
       body: JSON.stringify({
         command: 'Delete',
         module: 'DeviceManager',
-        payload: {
-          uuid: deviceToDelete.value.id,
-        },
+        payload: slotPayload(deviceToDelete.value),
       }),
     });
 
@@ -443,8 +442,9 @@ const deleteDevice = async () => {
   }
 };
 
-const enableContinuousMode = async (deviceId) => {
-  loadingStates.value[deviceId] = true;
+const enableContinuousMode = async (device) => {
+  const key = deviceKey(device);
+  loadingStates.value[key] = true;
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
       method: 'POST',
@@ -454,9 +454,7 @@ const enableContinuousMode = async (deviceId) => {
       body: JSON.stringify({
         command: 'EnableContinuousMode',
         module: 'DeviceManager',
-        payload: {
-          uuid: deviceId,
-        },
+        payload: slotPayload(device),
       }),
     });
 
@@ -466,12 +464,13 @@ const enableContinuousMode = async (deviceId) => {
     console.error('Error enabling continuous mode:', err);
     error.value = `Failed to enable continuous mode: ${err.message}`;
   } finally {
-    loadingStates.value[deviceId] = false;
+    loadingStates.value[key] = false;
   }
 };
 
-const disableContinuousMode = async (deviceId) => {
-  loadingStates.value[deviceId] = true;
+const disableContinuousMode = async (device) => {
+  const key = deviceKey(device);
+  loadingStates.value[key] = true;
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
       method: 'POST',
@@ -481,9 +480,7 @@ const disableContinuousMode = async (deviceId) => {
       body: JSON.stringify({
         command: 'DisableContinuousMode',
         module: 'DeviceManager',
-        payload: {
-          uuid: deviceId,
-        },
+        payload: slotPayload(device),
       }),
     });
 
@@ -493,7 +490,7 @@ const disableContinuousMode = async (deviceId) => {
     console.error('Error disabling continuous mode:', err);
     error.value = `Failed to disable continuous mode: ${err.message}`;
   } finally {
-    loadingStates.value[deviceId] = false;
+    loadingStates.value[key] = false;
   }
 };
 

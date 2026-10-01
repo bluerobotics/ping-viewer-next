@@ -1,46 +1,38 @@
-use tracing::{error, trace, warn};
-use uuid::Uuid;
+use tracing::{trace, warn};
 
 use crate::device::{
     devices::{self, DeviceActorHandler},
-    manager::{
-        Answer, Device, DeviceManager, DeviceSelection, DeviceStatus, ManagerError, SourceSelection,
-    },
+    manager::{Answer, Device, DeviceManager, DeviceSelection, DeviceStatus, ManagerError},
 };
 
 impl DeviceManager {
-    pub fn check_device_uuid(&self, device_id: Uuid) -> Result<(), ManagerError> {
-        if self.device.contains_key(&device_id) {
-            return Ok(());
-        }
-        error!(
-            %device_id,
-            "Getting device handler for device: Error, device doesn't exist"
-        );
-        Err(ManagerError::DeviceNotExist(device_id))
+    pub fn get_device(
+        &self,
+        device_type: DeviceSelection,
+        slot: u8,
+    ) -> Result<&Device, ManagerError> {
+        self.device
+            .values()
+            .find(|device| device.device_type == device_type && device.slot == slot)
+            .ok_or(ManagerError::DeviceNotExist(device_type, slot))
     }
 
-    pub fn get_device(&self, device_id: Uuid) -> Result<&Device, ManagerError> {
-        let device = self
-            .device
-            .get(&device_id)
-            .ok_or(ManagerError::DeviceNotExist(device_id))?;
-        Ok(device)
-    }
+    pub async fn get_device_handler(
+        &self,
+        device_type: DeviceSelection,
+        slot: u8,
+    ) -> Result<Answer, ManagerError> {
+        let device = self.get_device(device_type, slot)?;
 
-    pub async fn get_device_handler(&self, device_id: Uuid) -> Result<Answer, ManagerError> {
-        self.check_device_uuid(device_id)?;
-
-        trace!(%device_id, "Getting device handler for device: Success");
+        trace!(%device_type, slot, "Getting device handler for device: Success");
 
         // Fail-fast if device is stopped
         self.check_device_status(
-            device_id,
+            device,
             &[DeviceStatus::ContinuousMode, DeviceStatus::Running],
         )?;
 
-        let handler: DeviceActorHandler = self
-            .get_device(device_id)?
+        let handler: DeviceActorHandler = device
             .handler
             .clone()
             .ok_or(ManagerError::Other("Unexpected".to_string()))?;
@@ -50,37 +42,39 @@ impl DeviceManager {
 
     pub fn check_device_status(
         &self,
-        device_id: Uuid,
+        device: &Device,
         valid_statuses: &[DeviceStatus],
     ) -> Result<(), ManagerError> {
-        let status = &self.get_device(device_id)?.status;
+        let status = &device.status;
         if !valid_statuses.contains(status) {
-            return Err(ManagerError::DeviceStatus(status.clone(), device_id));
+            return Err(ManagerError::DeviceStatus(
+                status.clone(),
+                device.device_type,
+                device.slot,
+            ));
         }
         Ok(())
     }
 
-    pub fn get_mut_device(&mut self, device_id: Uuid) -> Result<&mut Device, ManagerError> {
-        let device = self
-            .device
-            .get_mut(&device_id)
-            .ok_or(ManagerError::DeviceNotExist(device_id))?;
-        Ok(device)
+    pub fn get_mut_device(
+        &mut self,
+        device_type: DeviceSelection,
+        slot: u8,
+    ) -> Result<&mut Device, ManagerError> {
+        self.device
+            .values_mut()
+            .find(|device| device.device_type == device_type && device.slot == slot)
+            .ok_or(ManagerError::DeviceNotExist(device_type, slot))
     }
 
-    pub fn get_device_type(&self, device_id: Uuid) -> Result<DeviceSelection, ManagerError> {
-        let device_type = self.device.get(&device_id).unwrap().device_type.clone();
-        Ok(device_type)
-    }
-
-    pub fn get_device_source(&self, device_id: Uuid) -> Result<SourceSelection, ManagerError> {
-        let source = self.device.get(&device_id).unwrap().source.clone();
-        Ok(source)
-    }
-
-    pub fn get_device_status(&self, device_id: Uuid) -> Result<DeviceStatus, ManagerError> {
-        let status = self.device.get(&device_id).unwrap().status.clone();
-        Ok(status)
+    pub fn remove_device(
+        &mut self,
+        device_type: DeviceSelection,
+        slot: u8,
+    ) -> Result<Device, ManagerError> {
+        self.device
+            .remove(&self.get_device(device_type, slot)?.source.clone())
+            .ok_or(ManagerError::DeviceNotExist(device_type, slot))
     }
 
     pub fn extract_handler(
@@ -97,12 +91,13 @@ impl DeviceManager {
 
     pub async fn get_subscriber(
         &self,
-        device_id: Uuid,
+        device_type: DeviceSelection,
+        slot: u8,
     ) -> Result<
         tokio::sync::broadcast::Receiver<bluerobotics_ping::message::ProtocolMessage>,
         ManagerError,
     > {
-        let handler_request = self.get_device_handler(device_id).await?;
+        let handler_request = self.get_device_handler(device_type, slot).await?;
         let handler = self.extract_handler(handler_request)?;
 
         let subscriber = handler

@@ -10,7 +10,8 @@
         <v-icon size="36">mdi-cog</v-icon>
       </v-btn>
       <v-dialog v-model="isSettingsOpen" max-width="300px">
-        <Ping1DSettings :isOpen="isSettingsOpen" :server-url="serverUrl" :device-id="device.id" @close="isSettingsOpen = false" />
+        <Ping1DSettings :isOpen="isSettingsOpen" :server-url="serverUrl" :device-type="device.device_type"
+          :device-slot="device.slot" @close="isSettingsOpen = false" />
       </v-dialog>
     </FloatingControls>
 
@@ -21,6 +22,7 @@
 </template>
 
 <script setup>
+import { deviceKey } from '@/ping-device/utils/device-slot';
 import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import DataRecorder from '../DataRecorder.vue';
 import FloatingControls from '../FloatingControls.vue';
@@ -102,7 +104,7 @@ const isSettingsOpen = ref(false);
 
 const recordingSessions = inject('recordingSessions', ref(new Map()));
 const isRecording = computed(() => {
-  const session = recordingSessions.value.get(props.device.id);
+  const session = recordingSessions.value.get(deviceKey(props.device));
   return session?.is_active ?? false;
 });
 

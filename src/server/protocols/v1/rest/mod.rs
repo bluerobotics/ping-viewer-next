@@ -1,4 +1,7 @@
-use crate::device::manager::{ManagerActorHandler, Request, UuidWrapper};
+use crate::device::manager::{
+    DeviceRequestStruct, DeviceSelection, DeviceSlotWrapper, ManagerActorHandler, ModifyDevice,
+    Request,
+};
 use crate::server::protocols::v1::errors::Error;
 use actix_web::{HttpRequest, Responder};
 use mime_guess::from_path;
@@ -9,7 +12,6 @@ use paperclip::actix::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use uuid::Uuid;
 
 pub mod recording;
 
@@ -84,18 +86,30 @@ async fn send_request_and_broadcast(
     manager_handler: &web::Data<ManagerActorHandler>,
     request: Request,
 ) -> Result<Json<crate::device::manager::Answer>, Error> {
-    let request_has_id = match &request {
-        Request::ModifyDevice(modify) => Some(modify.uuid),
-        Request::Ping(device_request) => Some(device_request.uuid),
-        Request::Delete(uuid_wrapper) => Some(uuid_wrapper.uuid),
-        Request::Info(uuid_wrapper) => Some(uuid_wrapper.uuid),
-        Request::EnableContinuousMode(uuid_wrapper) => Some(uuid_wrapper.uuid),
-        Request::DisableContinuousMode(uuid_wrapper) => Some(uuid_wrapper.uuid),
+    let request_has_device_slot = match &request {
+        Request::ModifyDevice(ModifyDevice {
+            device_type, slot, ..
+        })
+        | Request::Ping(DeviceRequestStruct {
+            device_type, slot, ..
+        })
+        | Request::Delete(DeviceSlotWrapper { device_type, slot })
+        | Request::Info(DeviceSlotWrapper { device_type, slot })
+        | Request::EnableContinuousMode(DeviceSlotWrapper { device_type, slot })
+        | Request::DisableContinuousMode(DeviceSlotWrapper { device_type, slot }) => {
+            Some(DeviceSlotWrapper {
+                device_type: *device_type,
+                slot: *slot,
+            })
+        }
         _ => None,
     };
 
     let answer = manager_handler.send(request).await?;
-    crate::server::protocols::v1::websocket::send_to_websockets(json!(answer), request_has_id);
+    crate::server::protocols::v1::websocket::send_to_websockets(
+        json!(answer),
+        request_has_device_slot,
+    );
     Ok(Json(answer))
 }
 
@@ -154,27 +168,34 @@ async fn post_create(
 }
 
 #[api_v2_operation(tags("Device Manager : Device"))]
-#[post("device_manager/{device}/{selection}")]
+#[post("device_manager/{device_type}/{slot}/{selection}")]
 async fn device_manager_post(
     manager_handler: web::Data<ManagerActorHandler>,
-    info: web::Path<(Uuid, DeviceManagerPostOptionsV1)>,
+    info: web::Path<(DeviceSelection, u8, DeviceManagerPostOptionsV1)>,
 ) -> Result<Json<crate::device::manager::Answer>, Error> {
     let info = info.into_inner();
-    let uuid = info.0;
-    let request = info.1;
+    let device_type = info.0;
+    let slot = info.1;
+    let request = info.2;
 
     let request = match request {
         DeviceManagerPostOptionsV1::Delete => {
-            crate::device::manager::Request::Delete(UuidWrapper { uuid })
+            crate::device::manager::Request::Delete(DeviceSlotWrapper { device_type, slot })
         }
         DeviceManagerPostOptionsV1::Info => {
-            crate::device::manager::Request::Info(UuidWrapper { uuid })
+            crate::device::manager::Request::Info(DeviceSlotWrapper { device_type, slot })
         }
         DeviceManagerPostOptionsV1::EnableContinuousMode => {
-            crate::device::manager::Request::EnableContinuousMode(UuidWrapper { uuid })
+            crate::device::manager::Request::EnableContinuousMode(DeviceSlotWrapper {
+                device_type,
+                slot,
+            })
         }
         DeviceManagerPostOptionsV1::DisableContinuousMode => {
-            crate::device::manager::Request::DisableContinuousMode(UuidWrapper { uuid })
+            crate::device::manager::Request::DisableContinuousMode(DeviceSlotWrapper {
+                device_type,
+                slot,
+            })
         }
     };
 
@@ -182,18 +203,20 @@ async fn device_manager_post(
 }
 
 #[api_v2_operation(tags("Device Manager : Device"))]
-#[get("device_manager/{device}/{request}")]
+#[get("device_manager/{device_type}/{slot}/{request}")]
 async fn device_manager_device_get(
     manager_handler: web::Data<ManagerActorHandler>,
-    info: web::Path<(Uuid, crate::device::devices::PingRequest)>,
+    info: web::Path<(DeviceSelection, u8, crate::device::devices::PingRequest)>,
 ) -> Result<Json<crate::device::manager::Answer>, Error> {
     let info = info.into_inner();
-    let uuid = info.0;
-    let request = info.1;
+    let device_type = info.0;
+    let slot = info.1;
+    let request = info.2;
 
     let request =
         crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
-            uuid,
+            device_type,
+            slot,
             device_request: request,
         });
 
@@ -201,20 +224,21 @@ async fn device_manager_device_get(
 }
 
 #[api_v2_operation(tags("Device Manager : Device"))]
-#[get("device_manager/{device}/ping1d/{request}")]
+#[get("device_manager/ping1d/{slot}/{request}")]
 async fn device_manager_device_ping1d_get(
     manager_handler: web::Data<ManagerActorHandler>,
-    info: web::Path<(Uuid, crate::device::devices::Ping1DRequest)>,
+    info: web::Path<(u8, crate::device::devices::Ping1DRequest)>,
 ) -> Result<Json<crate::device::manager::Answer>, Error> {
     let info = info.into_inner();
-    let uuid = info.0;
+    let slot = info.0;
     let request = info.1;
 
     let request = crate::device::devices::PingRequest::Ping1D(request);
 
     let request =
         crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
-            uuid,
+            device_type: DeviceSelection::Ping1D,
+            slot,
             device_request: request,
         });
 
@@ -222,20 +246,21 @@ async fn device_manager_device_ping1d_get(
 }
 
 #[api_v2_operation(tags("Device Manager : Device"))]
-#[get("device_manager/{device}/ping360/{request}")]
+#[get("device_manager/ping360/{slot}/{request}")]
 async fn device_manager_device_ping360_get(
     manager_handler: web::Data<ManagerActorHandler>,
-    info: web::Path<(Uuid, crate::device::devices::Ping360Request)>,
+    info: web::Path<(u8, crate::device::devices::Ping360Request)>,
 ) -> Result<Json<crate::device::manager::Answer>, Error> {
     let info = info.into_inner();
-    let uuid = info.0;
+    let slot = info.0;
     let request = info.1;
 
     let request = crate::device::devices::PingRequest::Ping360(request);
 
     let request =
         crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
-            uuid,
+            device_type: DeviceSelection::Ping360,
+            slot,
             device_request: request,
         });
 
@@ -243,20 +268,21 @@ async fn device_manager_device_ping360_get(
 }
 
 #[api_v2_operation(tags("Device Manager : Device"))]
-#[get("device_manager/{device}/common/{request}")]
+#[get("device_manager/common/{slot}/{request}")]
 async fn device_manager_device_common_get(
     manager_handler: web::Data<ManagerActorHandler>,
-    info: web::Path<(Uuid, crate::device::devices::PingCommonRequest)>,
+    info: web::Path<(u8, crate::device::devices::PingCommonRequest)>,
 ) -> Result<Json<crate::device::manager::Answer>, Error> {
     let info = info.into_inner();
-    let uuid = info.0;
+    let slot = info.0;
     let request = info.1;
 
     let request = crate::device::devices::PingRequest::Common(request);
 
     let request =
         crate::device::manager::Request::Ping(crate::device::manager::DeviceRequestStruct {
-            uuid,
+            device_type: DeviceSelection::Common,
+            slot,
             device_request: request,
         });
 
@@ -359,7 +385,7 @@ async fn cockpit_extras(
             Some(CockpitWidget {
                 name: name.to_string(),
                 config_iframe_url: None,
-                iframe_url: format!("{}/addons/widget/{}/?uuid={}", base, name, device.id),
+                iframe_url: format!("{}/addons/widget/{}/?slot={}", base, name, device.slot),
                 iframe_icon: format!("{}/images/{}.png", base, name),
                 version: "1.0.0".to_string(),
                 use_extension_path_as_base_url: false,

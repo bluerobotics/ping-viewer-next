@@ -4,36 +4,36 @@
       {{ serverUrl || '—' }} · {{ websocketStatus }}
     </div>
 
-    <template v-for="dev in devices" :key="dev.id">
+    <template v-for="dev in devices" :key="deviceKey(dev)">
       <div class="debug-separator" />
       <div class="debug-line label">
         {{ dev.device_type || '?' }}
         <span class="dim"> · {{ dev.status }}</span>
       </div>
-      <div class="debug-line dim">{{ dev.id }}</div>
+      <div class="debug-line dim">{{ deviceKey(dev) }}</div>
       <div v-if="dev.source" class="debug-line dim">{{ formatSource(dev.source) }}</div>
 
       <!-- Base data from properties -->
-      <template v-if="deviceProperties[dev.id]">
+      <template v-if="deviceProperties[deviceKey(dev)]">
         <div class="debug-separator-thin" />
         <div class="debug-line label">Base data</div>
-        <div v-for="(val, key) in deviceProperties[dev.id]" :key="key" class="debug-line">
+        <div v-for="(val, key) in deviceProperties[deviceKey(dev)]" :key="key" class="debug-line">
           <span class="dim">{{ key }}:</span> {{ val }}
         </div>
       </template>
 
       <!-- Live streaming data -->
-      <template v-if="liveData[dev.id] && Object.keys(liveData[dev.id]).length > 0">
+      <template v-if="liveData[deviceKey(dev)] && Object.keys(liveData[deviceKey(dev)]).length > 0">
         <div class="debug-separator-thin" />
         <div class="debug-line label">{{ dev.device_type }} data</div>
-        <div v-for="(val, key) in liveData[dev.id]" :key="key" class="debug-line">
+        <div v-for="(val, key) in liveData[deviceKey(dev)]" :key="key" class="debug-line">
           <span class="dim">{{ key }}:</span> {{ val }}
         </div>
       </template>
 
       <!-- Extra info (temperature, voltage, etc.) -->
-      <template v-if="extraInfo[dev.id] && Object.keys(extraInfo[dev.id]).length > 0">
-        <div v-for="(val, key) in extraInfo[dev.id]" :key="key" class="debug-line">
+      <template v-if="extraInfo[deviceKey(dev)] && Object.keys(extraInfo[deviceKey(dev)]).length > 0">
+        <div v-for="(val, key) in extraInfo[deviceKey(dev)]" :key="key" class="debug-line">
           <span class="dim">{{ key }}:</span> {{ val }}
         </div>
       </template>
@@ -46,6 +46,7 @@
 </template>
 
 <script setup>
+import { deviceKey, deviceWebSocketUrl, slotPayload } from '@/ping-device/utils/device-slot';
 import { onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -96,7 +97,7 @@ const fetchDevices = async () => {
     }
 
     for (const [id] of sockets) {
-      if (!list.find((d) => d.id === id)) {
+      if (!list.find((d) => deviceKey(d) === id)) {
         disconnectDeviceWs(id);
       }
     }
@@ -109,7 +110,7 @@ const extractProperties = (dev) => {
   const props_data = {};
   const p = dev.properties;
   if (!p) {
-    deviceProperties[dev.id] = props_data;
+    deviceProperties[deviceKey(dev)] = props_data;
     return;
   }
 
@@ -138,17 +139,15 @@ const extractProperties = (dev) => {
     props_data.Protocol = `${proto.version_major}.${proto.version_minor}.${proto.version_patch}`;
   }
 
-  deviceProperties[dev.id] = props_data;
+  deviceProperties[deviceKey(dev)] = props_data;
 };
 
 const connectDeviceWs = (dev) => {
-  if (sockets.has(dev.id)) return;
+  if (sockets.has(deviceKey(dev))) return;
   if (!props.serverUrl) return;
 
   try {
-    const url = new URL(props.serverUrl);
-    const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${url.host}/ws?device_number=${dev.id}`;
+    const wsUrl = deviceWebSocketUrl(props.serverUrl, dev);
     const ws = new WebSocket(wsUrl);
 
     ws.onmessage = (event) => {
@@ -159,7 +158,7 @@ const connectDeviceWs = (dev) => {
 
         if (ping.Ping1D?.Profile) {
           const d = ping.Ping1D.Profile;
-          liveData[dev.id] = {
+          liveData[deviceKey(dev)] = {
             'Distance (mm)': d.distance,
             'Auto (bool)': d.mode_auto === 1 ? 'true' : 'false',
             'Scan Start (mm)': d.scan_start,
@@ -172,7 +171,7 @@ const connectDeviceWs = (dev) => {
           };
         } else if (ping.Ping1D?.AutoDeviceData) {
           const d = ping.Ping1D.AutoDeviceData;
-          liveData[dev.id] = {
+          liveData[deviceKey(dev)] = {
             'Distance (mm)': d.distance,
             'Auto (bool)': d.mode_auto === 1 ? 'true' : 'false',
             'Scan Start (mm)': d.scan_start,
@@ -185,7 +184,7 @@ const connectDeviceWs = (dev) => {
           };
         } else if (ping.Ping360?.AutoDeviceData) {
           const d = ping.Ping360.AutoDeviceData;
-          liveData[dev.id] = {
+          liveData[deviceKey(dev)] = {
             Angle: d.angle,
             Mode: d.mode,
             'Gain (setting)': d.gain_setting,
@@ -207,10 +206,10 @@ const connectDeviceWs = (dev) => {
 
     ws.onerror = () => {};
     ws.onclose = () => {
-      sockets.delete(dev.id);
+      sockets.delete(deviceKey(dev));
     };
 
-    sockets.set(dev.id, ws);
+    sockets.set(deviceKey(dev), ws);
   } catch {
     // ignore connection errors
   }
@@ -230,10 +229,10 @@ const disconnectAllWs = () => {
   }
 };
 
-const sendDeviceCommand = async (deviceId, deviceType, command) => {
+const sendDeviceCommand = async (device, command) => {
   if (!props.serverUrl) return null;
   try {
-    const deviceKey = deviceType === 'Ping360' ? 'Ping360' : 'Ping1D';
+    const requestKey = device.device_type === 'Ping360' ? 'Ping360' : 'Ping1D';
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -241,8 +240,8 @@ const sendDeviceCommand = async (deviceId, deviceType, command) => {
         command: 'Ping',
         module: 'DeviceManager',
         payload: {
-          device_request: { [deviceKey]: command },
-          uuid: deviceId,
+          ...slotPayload(device),
+          device_request: { [requestKey]: command },
         },
       }),
     });
@@ -257,14 +256,14 @@ const fetchExtraInfo = async () => {
   for (const dev of devices.value) {
     if (dev.status !== 'ContinuousMode') continue;
 
-    const info = extraInfo[dev.id] || {};
+    const info = extraInfo[deviceKey(dev)] || {};
 
     if (dev.device_type === 'Ping1D' || dev.device_type === 'Common') {
       const [tempResp, pcbResp, voltResp, intervalResp] = await Promise.all([
-        sendDeviceCommand(dev.id, dev.device_type, 'ProcessorTemperature'),
-        sendDeviceCommand(dev.id, dev.device_type, 'PcbTemperature'),
-        sendDeviceCommand(dev.id, dev.device_type, 'Voltage5'),
-        sendDeviceCommand(dev.id, dev.device_type, 'PingInterval'),
+        sendDeviceCommand(dev, 'ProcessorTemperature'),
+        sendDeviceCommand(dev, 'PcbTemperature'),
+        sendDeviceCommand(dev, 'Voltage5'),
+        sendDeviceCommand(dev, 'PingInterval'),
       ]);
 
       const p1d = (r) => r?.DeviceMessage?.PingMessage?.Ping1D;
@@ -283,7 +282,7 @@ const fetchExtraInfo = async () => {
       if (interval) info['Ping interval (ms)'] = interval.ping_interval;
     }
 
-    extraInfo[dev.id] = { ...info };
+    extraInfo[deviceKey(dev)] = { ...info };
   }
 };
 

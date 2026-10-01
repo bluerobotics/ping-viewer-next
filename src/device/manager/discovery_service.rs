@@ -4,31 +4,34 @@ use std::time::Duration;
 
 use bluerobotics_ping::ping1d::Device as Ping1D;
 use bluerobotics_ping::ping360::Device as Ping360;
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tokio::time::sleep;
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
 use tracing::{debug, error, info, trace, warn};
 use udp_stream::UdpStream;
-use uuid::Uuid;
 
 use crate::device::devices::{DeviceActor, DeviceType, PingAnswer, UpgradeResult};
 use crate::device::fake::FakeStream;
-use crate::device::manager::ManagerError;
+use crate::device::manager::{DeviceProperties, ManagerError};
 
-use super::{
-    device_discovery, DeviceInfo, DeviceSelection, DeviceStatus, SourceSelection, SourceType,
-};
-
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use super::{device_discovery, DeviceSelection, DeviceStatus, SourceSelection, SourceType};
 
 pub struct DeviceFactory;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DeviceDiscoveryInfo {
+    pub source: SourceSelection,
+    pub status: DeviceStatus,
+    pub device_type: DeviceSelection,
+    pub properties: Option<DeviceProperties>,
+}
 
 impl DeviceFactory {
     pub async fn create_device(
         source: SourceSelection,
         mut device_type: DeviceSelection,
-    ) -> Result<DeviceInfo, ManagerError> {
+    ) -> Result<DeviceDiscoveryInfo, ManagerError> {
         let port = match &source {
             SourceSelection::UdpStream(source_udp_struct) => {
                 let socket_addr = SocketAddrV4::new(source_udp_struct.ip, source_udp_struct.port);
@@ -140,12 +143,7 @@ impl DeviceFactory {
             }
         }
 
-        let mut hasher = DefaultHasher::new();
-        source.hash(&mut hasher);
-        let id = Uuid::from_u128(hasher.finish() as u128);
-
-        let device = DeviceInfo {
-            id,
+        let device = DeviceDiscoveryInfo {
             source,
             status: DeviceStatus::Available,
             device_type,
@@ -157,21 +155,21 @@ impl DeviceFactory {
 }
 
 pub struct DeviceDiscoveryManager {
-    tx: broadcast::Sender<DeviceInfo>,
+    tx: broadcast::Sender<DeviceDiscoveryInfo>,
     handle: Option<tokio::task::JoinHandle<()>>,
-    known_devices_rx: broadcast::Receiver<Vec<DeviceInfo>>,
+    known_sources_rx: broadcast::Receiver<Vec<SourceSelection>>,
 }
 
 impl DeviceDiscoveryManager {
     pub fn new(
-        known_devices_rx: broadcast::Receiver<Vec<DeviceInfo>>,
-    ) -> (Self, broadcast::Receiver<DeviceInfo>) {
+        known_sources_rx: broadcast::Receiver<Vec<SourceSelection>>,
+    ) -> (Self, broadcast::Receiver<DeviceDiscoveryInfo>) {
         let (tx, rx) = broadcast::channel(10);
         (
             Self {
                 tx,
                 handle: None,
-                known_devices_rx,
+                known_sources_rx,
             },
             rx,
         )
@@ -179,28 +177,30 @@ impl DeviceDiscoveryManager {
 
     pub fn start_discovery(&mut self) {
         let tx = self.tx.clone();
-        let mut known_devices_rx = self.known_devices_rx.resubscribe();
+        let mut known_devices_rx = self.known_sources_rx.resubscribe();
 
         let handle = tokio::spawn(async move {
-            let mut known_devices = Vec::new();
             let mut device_keys = HashSet::new();
 
             loop {
-                match known_devices_rx.try_recv() {
-                    Ok(devices) => {
-                        known_devices = devices;
+                #[cfg_attr(feature = "blueos-extension", allow(unused_variables))]
+                let known_sources = match known_devices_rx.try_recv() {
+                    Ok(device_sources) => {
                         device_keys.clear();
-                        for device in &known_devices {
-                            let key = get_device_key(&device.source);
+                        for source in &device_sources {
+                            let key = get_device_key(source);
                             device_keys.insert(key);
                         }
+                        device_sources
                     }
-                    Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {}
+                    Err(tokio::sync::broadcast::error::TryRecvError::Empty) => {
+                        vec![]
+                    }
                     Err(error) => {
                         error!(?error, "Error receiving known devices update");
                         continue;
                     }
-                }
+                };
 
                 let mut available_sources = Vec::new();
 
@@ -224,10 +224,10 @@ impl DeviceDiscoveryManager {
                 }
 
                 #[cfg(not(feature = "blueos-extension"))]
-                let used_ports: Vec<String> = known_devices
+                let used_ports: Vec<String> = known_sources
                     .iter()
-                    .filter_map(|device| {
-                        if let SourceSelection::SerialStream(serial) = &device.source {
+                    .filter_map(|source| {
+                        if let SourceSelection::SerialStream(serial) = &source {
                             Some(serial.path.clone())
                         } else {
                             None
@@ -253,9 +253,9 @@ impl DeviceDiscoveryManager {
 
                     match DeviceFactory::create_device(source.clone(), DeviceSelection::Auto).await
                     {
-                        Ok(device_info) => {
-                            trace!(key, ?device_info, "Created new device",);
-                            let _ = tx.send(device_info);
+                        Ok(device_discovery_info) => {
+                            trace!(key, ?device_discovery_info, "Created new device");
+                            let _ = tx.send(device_discovery_info);
                         }
                         Err(error) => {
                             error!(key, ?error, "Failed to create device");
@@ -293,8 +293,8 @@ impl Drop for DeviceDiscoveryManager {
 
 pub struct DiscoveryComponent {
     manager: DeviceDiscoveryManager,
-    rx: broadcast::Receiver<DeviceInfo>,
-    known_devices_tx: broadcast::Sender<Vec<DeviceInfo>>,
+    rx: broadcast::Receiver<DeviceDiscoveryInfo>,
+    known_sources_tx: broadcast::Sender<Vec<SourceSelection>>,
 }
 
 impl Default for DiscoveryComponent {
@@ -305,13 +305,13 @@ impl Default for DiscoveryComponent {
 
 impl DiscoveryComponent {
     pub fn new() -> Self {
-        let (known_devices_tx, known_devices_rx) = broadcast::channel(1);
-        let (manager, rx) = DeviceDiscoveryManager::new(known_devices_rx);
+        let (known_sources_tx, known_sources_rx) = broadcast::channel(1);
+        let (manager, rx) = DeviceDiscoveryManager::new(known_sources_rx);
 
         Self {
             manager,
             rx,
-            known_devices_tx,
+            known_sources_tx,
         }
     }
 
@@ -325,11 +325,11 @@ impl DiscoveryComponent {
         info!("DeviceDiscovery service is stopped");
     }
 
-    pub fn broadcast_known_devices(&self, device_ids: &[DeviceInfo]) {
-        let _ = self.known_devices_tx.send(device_ids.to_owned());
+    pub fn broadcast_known_sources(&self, sources: Vec<SourceSelection>) {
+        let _ = self.known_sources_tx.send(sources);
     }
 
-    pub fn get_discovery_rx(&self) -> broadcast::Receiver<DeviceInfo> {
+    pub fn get_discovery_rx(&self) -> broadcast::Receiver<DeviceDiscoveryInfo> {
         self.rx.resubscribe()
     }
 }

@@ -1,10 +1,15 @@
 use serde_json::json;
 use tracing::{debug, error, trace};
-use uuid::Uuid;
 
-use crate::device::{
-    devices::DeviceActorHandler,
-    manager::{Answer, DeviceAnswer, DeviceManager, DeviceSelection, ManagerError},
+use crate::{
+    device::{
+        devices::DeviceActorHandler,
+        manager::{
+            Answer, Device, DeviceAnswer, DeviceManager, DeviceSelection, DeviceSlotWrapper,
+            ManagerError,
+        },
+    },
+    server::protocols::v1::websocket::send_to_websockets,
 };
 
 use super::{DeviceProperties, ManagerActorHandler, Ping360Properties, SourceSelection};
@@ -16,10 +21,10 @@ impl DeviceManager {
         mut subscriber: tokio::sync::broadcast::Receiver<
             bluerobotics_ping::message::ProtocolMessage,
         >,
-        device_id: Uuid,
         device_type: DeviceSelection,
+        slot: u8,
     ) -> Option<tokio::task::JoinHandle<()>> {
-        let raw_handler = match self.get_device_handler(device_id).await {
+        let raw_handler = match self.get_device_handler(device_type, slot).await {
             Ok(handler) => handler,
             Err(error) => {
                 trace!(
@@ -46,36 +51,37 @@ impl DeviceManager {
                 loop {
                     match subscriber.recv().await {
                         Ok(msg) => {
-                            Self::ping1d_continuous_mode_helper(msg, device_id);
+                            Self::ping1d_continuous_mode_helper(msg, device_type, slot);
                         }
                         Err(error @ tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                            error!(%device_id, ?error, "Device subscriber channel issue");
-                            Self::handle_error_continuous_mode(error, device_id);
+                            error!(%device_type, slot, ?error, "Device subscriber channel issue");
+                            Self::handle_error_continuous_mode(error, device_type, slot);
                         }
                         Err(error) => {
-                            Self::handle_error_continuous_mode(error, device_id);
+                            Self::handle_error_continuous_mode(error, device_type, slot);
                             break;
                         }
                     }
                 }
             })),
             DeviceSelection::Ping360 => {
-                let device_properties = self.get_device_properties(device_id).await.ok()?;
+                let device_properties = self.get_device_properties(device_type, slot).await.ok()?;
                 let Some(DeviceProperties::Ping360(properties)) = device_properties else {
-                    error!(%device_id, "No properties available for Ping360 device");
+                    error!(%device_type, slot, "No properties available for Ping360 device");
                     return None;
                 };
 
                 // Check if firmware supports auto-transmit mode
                 if properties.supports_auto_transmit() {
-                    match self.get_device_source(device_id) {
-                        Ok(source) => match source {
+                    match self.get_device(device_type, slot) {
+                        Ok(Device { source, .. }) => match source {
                             super::SourceSelection::UdpStream(_)
                             | super::SourceSelection::FakeStream(_) => {
                                 Some(Self::start_ping360_firmware_mode(
                                     self.get_device_manager_handler(),
                                     handler,
-                                    device_id,
+                                    device_type,
+                                    slot,
                                     properties.clone(),
                                     subscriber,
                                 ))
@@ -83,7 +89,8 @@ impl DeviceManager {
                             super::SourceSelection::SerialStream(_) => {
                                 Some(Self::start_ping360_software_mode(
                                     handler,
-                                    device_id,
+                                    device_type,
+                                    slot,
                                     properties.clone(),
                                 ))
                             }
@@ -91,7 +98,8 @@ impl DeviceManager {
                         Err(error) => {
                             error!(
                                 ?error,
-                                %device_id,
+                                %device_type,
+                                slot,
                                 "Error during start_continuous_mode: Failed to check source"
                             );
                             None
@@ -100,7 +108,8 @@ impl DeviceManager {
                 } else {
                     Some(Self::start_ping360_software_mode(
                         handler,
-                        device_id,
+                        device_type,
+                        slot,
                         properties.clone(),
                     ))
                 }
@@ -112,11 +121,11 @@ impl DeviceManager {
     // Execute some especial commands required for device enter in auto_send mode
     pub async fn continuous_mode_startup_routine(
         &self,
-        device_id: Uuid,
         device_type: DeviceSelection,
+        slot: u8,
     ) -> Result<(), ManagerError> {
         if device_type == DeviceSelection::Ping1D {
-            let handler_request = self.get_device_handler(device_id).await?;
+            let handler_request = self.get_device_handler(device_type, slot).await?;
             let handler = self.extract_handler(handler_request)?;
 
             let id = <bluerobotics_ping::ping1d::ProfileStruct as bluerobotics_ping::message::MessageInfo>::id();
@@ -141,10 +150,10 @@ impl DeviceManager {
     // Execute some especial commands required for device stop auto_send mode
     pub async fn continuous_mode_shutdown_routine(
         &mut self,
-        device_id: Uuid,
         device_type: DeviceSelection,
+        slot: u8,
     ) -> Result<(), ManagerError> {
-        let handler_request = self.get_device_handler(device_id).await?;
+        let handler_request = self.get_device_handler(device_type, slot).await?;
         let handler = self.extract_handler(handler_request)?;
 
         match device_type {
@@ -160,20 +169,25 @@ impl DeviceManager {
                 {
                     error!(
                         ?error,
-                        %device_id,
+                        %device_type,
+                        slot,
                         "Something went wrong while executing continuous_mode_shutdown_routine"
                     );
                 }
             }
             DeviceSelection::Ping360 => {
                 if matches!(
-                    self.get_device_source(device_id)?,
+                    self.get_device(device_type, slot)?.source,
                     SourceSelection::UdpStream(_)
                 ) {
-                    if let Err(error) = self.turnoff_device_on_continuous_mode(device_id).await {
+                    if let Err(error) = self
+                        .turnoff_device_on_continuous_mode(device_type, slot)
+                        .await
+                    {
                         error!(
                             ?error,
-                            %device_id,
+                            %device_type,
+                            slot,
                             "Something went wrong while executing continuous_mode_shutdown_routine"
                         );
                     }
@@ -185,7 +199,8 @@ impl DeviceManager {
                 {
                     error!(
                         ?error,
-                        %device_id,
+                        %device_type,
+                        slot,
                         "Something went wrong while executing continuous_mode_shutdown_routine"
                     );
                 }
@@ -199,7 +214,8 @@ impl DeviceManager {
     // An inner helper focused on Ping1D, which uses Profile message to plot graphs
     pub fn ping1d_continuous_mode_helper(
         msg: bluerobotics_ping::message::ProtocolMessage,
-        device_id: Uuid,
+        device_type: DeviceSelection,
+        slot: u8,
     ) {
         if msg.message_id == <bluerobotics_ping::ping1d::ProfileStruct as bluerobotics_ping::message::MessageInfo>::id() {
             if let Ok(bluerobotics_ping::Messages::Ping1D(bluerobotics_ping::ping1d::Messages::Profile(_answer))) = bluerobotics_ping::Messages::try_from(&msg) {
@@ -210,16 +226,21 @@ impl DeviceManager {
                             Err(error) => {
                                 error!(
                                     ?error,
-                                    %device_id,
+                                    %device_type,
+                                    slot,
                                     "Unexpected message during scan"
                                 );
                                 return;
                             },
                         }
                     ),
-                    device_id,
+                    device_type,
+                    slot,
                 });
-                crate::server::protocols::v1::websocket::send_to_websockets(json!(answer), Some(device_id));
+                send_to_websockets(
+                    json!(answer),
+                    Some(DeviceSlotWrapper{ device_type, slot })
+                );
             }
         }
     }
@@ -227,7 +248,8 @@ impl DeviceManager {
     // An inner helper focused on Ping360 on AutoTransmit mode, which uses AutoDeviceData.
     pub fn ping360_continuous_mode_helper_auto(
         msg: bluerobotics_ping::message::ProtocolMessage,
-        device_id: Uuid,
+        device_type: DeviceSelection,
+        slot: u8,
     ) {
         if msg.message_id == <bluerobotics_ping::ping360::AutoDeviceDataStruct as bluerobotics_ping::message::MessageInfo>::id() {
                 if let Ok(bluerobotics_ping::Messages::Ping360(bluerobotics_ping::ping360::Messages::AutoDeviceData(_answer))) = bluerobotics_ping::Messages::try_from(&msg) {
@@ -240,37 +262,44 @@ impl DeviceManager {
                                     return},
                             }
                         ),
-                        device_id,
+                        device_type, slot,
                     });
-                    crate::server::protocols::v1::websocket::send_to_websockets(json!(answer), Some(device_id));
+                    send_to_websockets(json!(answer), Some(DeviceSlotWrapper{device_type,slot}));
                 }
             }
     }
 
     // An inner helper focused on Ping360, which uses DeviceData message to plot graphs
-    pub fn ping360_continuous_mode_helper(msg: bluerobotics_ping::Messages, device_id: Uuid) {
+    pub fn ping360_continuous_mode_helper(
+        msg: bluerobotics_ping::Messages,
+        device_type: DeviceSelection,
+        slot: u8,
+    ) {
         let answer = Answer::DeviceMessage(DeviceAnswer {
             answer: crate::device::devices::PingAnswer::PingMessage(msg),
-            device_id,
+            device_type,
+            slot,
         });
-        crate::server::protocols::v1::websocket::send_to_websockets(json!(answer), Some(device_id));
+        send_to_websockets(json!(answer), Some(DeviceSlotWrapper { device_type, slot }));
     }
 
     // An inner helper that returns error to requester
     pub fn handle_error_continuous_mode(
         error: tokio::sync::broadcast::error::RecvError,
-        device_id: Uuid,
+        device_type: DeviceSelection,
+        slot: u8,
     ) {
         let error = ManagerError::DeviceError(crate::device::devices::DeviceError::PingError(
             bluerobotics_ping::error::PingError::TokioBroadcastError(error.to_string()),
         ));
-        crate::server::protocols::v1::websocket::send_to_websockets(json!(error), Some(device_id));
+        send_to_websockets(json!(error), Some(DeviceSlotWrapper { device_type, slot }));
     }
 
     fn start_ping360_firmware_mode(
         manager_handler: ManagerActorHandler,
         handler: DeviceActorHandler,
-        device_id: Uuid,
+        device_type: DeviceSelection,
+        slot: u8,
         properties: Ping360Properties,
         mut subscriber: tokio::sync::broadcast::Receiver<
             bluerobotics_ping::message::ProtocolMessage,
@@ -282,7 +311,12 @@ impl DeviceManager {
                 let initial_settings = match config.read() {
                     Ok(settings) => *settings,
                     Err(error) => {
-                        error!(?error, %device_id, "Failed to read Ping360Config");
+                        error!(
+                            ?error,
+                            %device_type,
+                            slot,
+                            "Failed to read Ping360Config"
+                        );
                         break;
                     }
                 };
@@ -307,7 +341,12 @@ impl DeviceManager {
                     ))
                     .await
                 {
-                    error!(?error, %device_id, "Failed to start auto transmit");
+                    error!(
+                        ?error,
+                        %device_type,
+                        slot,
+                        "Failed to start auto transmit"
+                    );
                     break;
                 }
 
@@ -315,23 +354,31 @@ impl DeviceManager {
                     let current_settings = match config.read() {
                         Ok(settings) => *settings,
                         Err(error) => {
-                            error!(?error, %device_id, "Failed to read Ping360Config");
+                            error!(
+                                ?error,
+                                %device_type,
+                                slot,
+                                "Failed to read Ping360Config"
+                            );
                             break 'main;
                         }
                     };
                     if initial_settings != current_settings {
-                        debug!(%device_id, "Restarting firmware scanning routine for Ping360Config");
+                        debug!(%device_type, slot, "Restarting firmware scanning routine for Ping360Config");
 
                         if properties.supports_auto_transmit() {
                             if let Err(error) = manager_handler
                                 .send(
                                     crate::device::manager::Request::SpecialTurnOffContinuousMode(
-                                        crate::device::manager::UuidWrapper { uuid: device_id },
+                                        crate::device::manager::DeviceSlotWrapper {
+                                            device_type,
+                                            slot,
+                                        },
                                     ),
                                 )
                                 .await
                             {
-                                error!(?error, %device_id, "Failed to turn-off autotransmit for ping360");
+                                error!(?error, %device_type, slot, "Failed to turn-off autotransmit for ping360");
                                 break;
                             }
                         } else if let Err(error) = handler
@@ -340,7 +387,7 @@ impl DeviceManager {
                             ))
                             .await
                         {
-                            error!(?error, %device_id, "Failed to stop motor");
+                            error!(?error, %device_type, slot, "Failed to stop motor");
                             break;
                         }
 
@@ -348,14 +395,16 @@ impl DeviceManager {
                     }
 
                     match subscriber.recv().await {
-                        Ok(msg) => Self::ping360_continuous_mode_helper_auto(msg, device_id),
+                        Ok(msg) => {
+                            Self::ping360_continuous_mode_helper_auto(msg, device_type, slot)
+                        }
                         Err(error @ tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                            error!(?error, %device_id, "Device subscriber channel issue");
-                            Self::handle_error_continuous_mode(error, device_id);
+                            error!(?error, %device_type, slot, "Device subscriber channel issue");
+                            Self::handle_error_continuous_mode(error, device_type, slot);
                         }
                         Err(error) => {
-                            error!(?error, %device_id, "Failed to receive from subscriber channel");
-                            Self::handle_error_continuous_mode(error, device_id);
+                            error!(?error, %device_type, slot, "Failed to receive from subscriber channel");
+                            Self::handle_error_continuous_mode(error, device_type, slot);
                             break 'main;
                         }
                     }
@@ -366,7 +415,8 @@ impl DeviceManager {
 
     fn start_ping360_software_mode(
         handler: DeviceActorHandler,
-        device_id: Uuid,
+        device_type: DeviceSelection,
+        slot: u8,
         properties: Ping360Properties,
     ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
@@ -375,7 +425,7 @@ impl DeviceManager {
                 let initial_settings = match config.read() {
                     Ok(settings) => *settings,
                     Err(error) => {
-                        error!(?error, %device_id, "Failed to read Ping360Config");
+                        error!(?error, %device_type, slot, "Failed to read Ping360Config");
                         break;
                     }
                 };
@@ -390,7 +440,7 @@ impl DeviceManager {
                     let current_settings = match config.read() {
                         Ok(settings) => *settings,
                         Err(error) => {
-                            error!(?error, %device_id, "Failed to read Ping360Config");
+                            error!(?error, %device_type, slot, "Failed to read Ping360Config");
                             break;
                         }
                     };
@@ -418,7 +468,7 @@ impl DeviceManager {
                     {
                         Ok(answer) => match answer {
                             crate::device::devices::PingAnswer::PingMessage(msg) => {
-                                Self::ping360_continuous_mode_helper(msg, device_id)
+                                Self::ping360_continuous_mode_helper(msg, device_type, slot)
                             }
                             message => {
                                 error!(?message, "Unexpected message during scan");
