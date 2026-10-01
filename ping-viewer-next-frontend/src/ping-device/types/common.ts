@@ -5,15 +5,11 @@ import type { DeviceResponse } from './responses';
 
 export type DeviceType = 'ping360' | 'ping1d' | 'unknown';
 
-export interface BaseRequest {
-  type: string;
-  uuid: string;
-}
-
 export interface BaseResponse {
   type: string;
   status: 'success' | 'error';
-  uuid: string;
+  device_type: string;
+  slot: number;
 }
 
 export interface DeviceAgentState {
@@ -54,7 +50,8 @@ export interface DeviceMessage {
       AutoDeviceData: Ping1DData;
     };
   };
-  device_id: string;
+  device_type: string;
+  slot: number;
 }
 
 export interface PingDeviceAPI {
@@ -91,7 +88,6 @@ export interface PingDeviceAPI {
     connect: () => void;
     disconnect: () => void;
     reconnect: () => void;
-    sendConfigRequest: (key: string, value: number | string | boolean) => boolean;
     toggleRecording: () => Promise<boolean>;
     startRecording: () => Promise<boolean>;
     stopRecording: () => Promise<boolean>;
@@ -135,9 +131,9 @@ export interface PingDeviceAPI {
 }
 
 export interface RecordingStatus {
-  device_id: string;
+  device_type: string;
+  slot: number;
   is_active: boolean;
   file_path?: string;
   start_time?: string;
-  device_type?: string;
 }
