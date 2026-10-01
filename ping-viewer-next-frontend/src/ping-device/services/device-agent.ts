@@ -3,7 +3,7 @@ import type { Ref } from 'vue';
 import type { DeviceAgentState, DeviceType } from '../types/common';
 import type { Ping1DSettings } from '../types/ping1d';
 import type { Ping360Settings } from '../types/ping360';
-import type { DeviceRequest } from '../types/requests';
+import type { DeviceManagerRequest } from '../types/requests';
 import type { DeviceResponse } from '../types/responses';
 import type {
   GainSettingResponse,
@@ -13,6 +13,7 @@ import type {
   SpeedOfSoundResponse,
 } from '../types/responses';
 import { DEFAULT_MAX_RECONNECT_ATTEMPTS, DEFAULT_RECONNECT_DELAY } from '../utils/constants';
+import type { DeviceSlot } from '../utils/device-slot';
 import { ApiService } from './api-service';
 
 import {
@@ -53,7 +54,7 @@ export class DeviceAgent implements DeviceAgentState {
   };
 
   constructor(
-    private uuid: string,
+    private device: DeviceSlot,
     private serverUrl: string
   ) {
     this.apiService = new ApiService(serverUrl);
@@ -78,7 +79,7 @@ export class DeviceAgent implements DeviceAgentState {
       this.reconnectTimeout = null;
     }
 
-    const wsUrl = `ws://${this.serverUrl}/ws?device_number=${this.uuid}`;
+    const wsUrl = `ws://${this.serverUrl}/ws?device_type=${encodeURIComponent(this.device.device_type)}&slot=${this.device.slot}`;
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
@@ -98,9 +99,12 @@ export class DeviceAgent implements DeviceAgentState {
         this.messages.value.push(parsedMessage);
 
         if (parsedMessage.DeviceMessage?.PingMessage) {
-          const deviceId = parsedMessage.DeviceMessage.device_id;
+          const messageDevice = parsedMessage.DeviceMessage;
 
-          if (deviceId === this.uuid) {
+          if (
+            messageDevice.device_type === this.device.device_type &&
+            messageDevice.slot === this.device.slot
+          ) {
             const pingMessage = parsedMessage.DeviceMessage.PingMessage;
 
             if (pingMessage.Ping360) {
@@ -213,7 +217,7 @@ export class DeviceAgent implements DeviceAgentState {
     this.connect();
   }
 
-  sendRequest(request: DeviceRequest): boolean {
+  sendRequest(request: DeviceManagerRequest): boolean {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       this.error.value = 'WebSocket not connected';
       return false;
@@ -282,7 +286,7 @@ export class DeviceAgent implements DeviceAgentState {
     }
 
     try {
-      const response = await this.apiService.getPing360Settings(this.uuid);
+      const response = await this.apiService.getPing360Settings(this.device);
 
       if (response?.DeviceConfig?.Ping360Config) {
         this.ping360Settings.value = response.DeviceConfig.Ping360Config;
@@ -375,7 +379,7 @@ export class DeviceAgent implements DeviceAgentState {
 
     try {
       const apiService = new ApiService(this.serverUrl);
-      await apiService.setPing360Settings(this.uuid, updatedSettings);
+      await apiService.setPing360Settings(this.device, updatedSettings);
 
       this.ping360Settings.value = updatedSettings;
 
@@ -473,7 +477,7 @@ export class DeviceAgent implements DeviceAgentState {
     payload: Record<string, unknown> | null = null
   ): Promise<unknown> {
     try {
-      const response = await this.apiService.sendPing1DCommand(this.uuid, command, payload);
+      const response = await this.apiService.sendPing1DCommand(this.device, command, payload);
 
       this.parseResponseForSettings(response as SettingsResponse);
 
