@@ -1,5 +1,5 @@
 <template>
-  <div ref="containerRef" class="w-full h-full flex items-center justify-center bg-transparent overflow-hidden">
+  <div ref="containerRef" class="w-full h-full flex items-center justify-center bg-transparent">
     <div class="relative shrink-0" :style="containerStyle">
 			<Sonar360Mask :angle="angle" :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="maxDistance"
 				:numMarkers="numMarkers" :showRadiusLines="showRadiusLines" :showMarkers="showMarkers"
