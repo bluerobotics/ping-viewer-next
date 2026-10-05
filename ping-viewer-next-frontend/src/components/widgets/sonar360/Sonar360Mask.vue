@@ -1,5 +1,5 @@
 <template>
-	<div class="relative w-full h-full p4">
+	<div @mouseleave="onMouseLeave" @mousemove="onMouseMove" class="relative w-full h-full overflow-visible">
 		<div class="absolute inset-0">
 			<slot></slot>
 		</div>
@@ -45,7 +45,7 @@
 			flipped when headDown is true. Re-flipping the markers here keeps their text
 			readable while the sonar itself remains mirrored.
 		-->
-		<div v-if="showMarkers" class="absolute inset-0" :style="headDown ? { transform: 'scaleX(-1)' } : {}">
+		<div v-if="showMarkers" class="absolute inset-0 pointer-events-none" :style="headDown ? { transform: 'scaleX(-1)' } : {}">
 			<div v-for="line in radiusLines" :key="line.distance"
 				class="absolute text-4xl font-medium text-white depth-label transform -translate-x-1/2 -translate-y-1/2" :style="{
 					left: `calc(${getMarkerPositionPercent(line.radius).x}% + 50px)`,
@@ -54,6 +54,16 @@
 				{{ depthValue(line.distance).toFixed(1) }}{{ depthUnit }}
 			</div>
 		</div>
+
+		<v-chip
+			variant="flat"
+			class="absolute pointer-events-none transition-opacity top-0 left-0"
+			:style="{
+				opacity: displayTooltip ? '100%' : '0%',
+				transform: `translate(calc(${mousePosition.x} + 10px), calc(${mousePosition.y} - 30px))`,
+			}">
+			{{ tooltipValue }}
+		</v-chip>
 	</div>
 </template>
 
@@ -64,6 +74,9 @@ import { useHeadDown } from './useHeadDown';
 
 const instanceId = ref(Math.random().toString(36).slice(2, 8));
 const sweepGradientId = computed(() => `sweep-grad-${instanceId.value}`);
+const displayTooltip = ref(false);
+const tooltipValue = ref('');
+const mousePosition = ref({ x: '50%', y: '50%' });
 
 const { depthValue, depthUnit } = useUnits();
 
@@ -164,6 +177,29 @@ const getMarkerPositionPercent = (radius: number) => {
     x: 50 + radius * Math.cos(rad),
     y: 50 + radius * Math.sin(rad),
   };
+};
+
+const onMouseLeave = (e: MouseEvent) => {
+  displayTooltip.value = false;
+};
+
+const onMouseMove = (e: MouseEvent) => {
+  const target = e.target as HTMLDivElement;
+  const boundingBox = target.getBoundingClientRect();
+  const centerVertical = (boundingBox.bottom + boundingBox.top) / 2;
+  const centerHorizontal = (boundingBox.right + boundingBox.left) / 2;
+  const distance = Math.sqrt(
+    (e.clientX - centerHorizontal) ** 2 + (e.clientY - centerVertical) ** 2
+  );
+  const distanceNormalized = (2 * distance) / boundingBox.width;
+
+  if (distanceNormalized > 1) {
+    displayTooltip.value = false;
+  } else {
+    displayTooltip.value = true;
+    tooltipValue.value = `${(props.maxDistance * distanceNormalized).toFixed(3)} m`;
+    mousePosition.value = { x: `${e.offsetX}px`, y: `${e.offsetY}px` };
+  }
 };
 </script>
 
