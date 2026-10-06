@@ -8,6 +8,10 @@ permissions:
 env:
   NODE_VERSION: "24"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   quick-tests:
     runs-on: ubuntu-22.04
