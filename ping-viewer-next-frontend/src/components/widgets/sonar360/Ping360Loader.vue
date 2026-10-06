@@ -4,9 +4,13 @@
       <FloatingControls v-if="showControls" :is-recording="isRecording">
         <DataRecorder :device="device" :server-url="serverUrl"
           @recording-started="handleRecordingStarted" @recording-stopped="handleRecordingStopped" />
-        <v-btn icon @click="toggleFreeze" class="glass-button" size="x-large">
-          <v-icon :color="isFreeze ? '#ef4444' : undefined" size="36">{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
-        </v-btn>
+        <v-tooltip :text="isFrozen ? 'Clear and resume the sonar animation' : 'Pause the sonar animation (data is still streamed and recorded normally)'">
+          <template v-slot:activator="{ props }">
+            <v-btn v-bind="props" icon @click="toggleFreeze" class="glass-button" size="x-large">
+                <v-icon :color="isFrozen ? '#ef4444' : undefined" size="36">{{ isFrozen ? 'mdi-play' : 'mdi-pause' }}</v-icon>
+            </v-btn>
+          </template>
+        </v-tooltip>
         <v-btn icon @click="openSettings" class="glass-button" size="x-large">
           <v-icon size="36">mdi-cog</v-icon>
         </v-btn>
@@ -18,7 +22,7 @@
         </v-dialog>
       </FloatingControls>
 
-      <Ping360 :measurement="displayMeasurement" :angle="displayAngle" :colorPalette="colorPalette"
+      <Ping360 :isFrozen="isFrozen" :measurement="liveMeasurement" :angle="liveAngle" :colorPalette="colorPalette"
         :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="currentRange" :numMarkers="numMarkers"
         :showRadiusLines="showRadiusLines" :showMarkers="showMarkers" :radiusLineColor="radiusLineColor"
         :markerColor="markerColor" :textBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"
@@ -102,15 +106,12 @@ const emit = defineEmits(['settings-change']);
 
 const liveMeasurement = ref(null);
 const liveAngle = ref(0);
-const displayMeasurement = ref(null);
-const displayAngle = ref(0);
 const currentRange = ref(props.maxDistance);
 const startAngle = ref(0);
 const endAngle = ref(360);
 const connectionStatus = ref('Disconnected');
 const socket = ref(null);
-const settingsRef = ref(null);
-const isFreeze = ref(false);
+const isFrozen = ref(false);
 const isSettingsOpen = ref(false);
 
 const recordingSessions = inject('recordingSessions', ref(new Map()));
@@ -133,11 +134,7 @@ const serverUrl = computed(() => {
 });
 
 const toggleFreeze = () => {
-  isFreeze.value = !isFreeze.value;
-  if (!isFreeze.value) {
-    displayMeasurement.value = liveMeasurement.value;
-    displayAngle.value = liveAngle.value;
-  }
+  isFrozen.value = !isFrozen.value;
 };
 
 const handleRecordingStarted = () => {};
@@ -230,11 +227,6 @@ const connectWebSocket = () => {
         data: new Uint8Array(messageData.data),
       };
       liveAngle.value = angleWithOffset;
-
-      if (!isFreeze.value) {
-        displayMeasurement.value = liveMeasurement.value;
-        displayAngle.value = liveAngle.value;
-      }
 
       if (props.debug) {
         console.debug('Processed Ping360 data:', messageData);
