@@ -59,7 +59,53 @@ let playTimer = null;
 let startTime = 0;
 let baseTimestamp = 0;
 
-const emit = defineEmits(['update:currentFrame', 'loadedData', 'parsingProgress', 'error']);
+const emit = defineEmits([
+  'update:currentFrame',
+  'update:frames',
+  'update:heading',
+  'loadedData',
+  'parsingProgress',
+  'error',
+]);
+
+// Vehicle poses stay on their own timeline. Heading is sampled from the playback
+// clock so it is not stuck waiting for the next sonar line to be drawn.
+let yawSamples = [];
+let lastHeading = null;
+let applyingPlaybackFrame = false;
+
+const angleDelta = (from, to) => ((to - from + 540) % 360) - 180;
+
+const headingAtTime = (timeMs) => {
+  const count = yawSamples.length;
+  if (count === 0) return null;
+  if (timeMs < yawSamples[0].t) return null;
+  if (timeMs >= yawSamples[count - 1].t) return yawSamples[count - 1].deg;
+
+  let lo = 0;
+  let hi = count - 1;
+  while (lo + 1 < hi) {
+    const mid = (lo + hi) >> 1;
+    if (yawSamples[mid].t <= timeMs) lo = mid;
+    else hi = mid;
+  }
+
+  const start = yawSamples[lo];
+  const end = yawSamples[hi];
+  const span = end.t - start.t;
+  const mix = span > 0 ? (timeMs - start.t) / span : 0;
+  return start.deg + angleDelta(start.deg, end.deg) * mix;
+};
+
+const emitHeading = (timeMs) => {
+  const degrees = headingAtTime(timeMs);
+  if (degrees == null) return;
+  if (lastHeading != null && Math.abs(angleDelta(lastHeading, degrees)) < 0.01) return;
+  lastHeading = degrees;
+  emit('update:heading', degrees);
+};
+
+const frameTimeMs = (index) => new Date(loadedData.value[index].timestamp).getTime();
 
 const loadMcapFromBuffer = async (arrayBuffer) => {
   try {
@@ -75,6 +121,9 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
       readable: new BlobReadable(blob),
       decompressHandlers,
     });
+
+    yawSamples = [];
+    lastHeading = null;
 
     const messages = [];
     let messageCount = 0;
@@ -99,31 +148,56 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
       }
     }
 
-    loadedData.value = messages.flatMap((msg, index) => {
-      let parsedData;
-
+    const decodeMessage = (msg) => {
       try {
         if (msg.data instanceof Uint8Array) {
           const decoded = new TextDecoder().decode(msg.data);
           try {
-            parsedData = JSON.parse(decoded);
+            return JSON.parse(decoded);
           } catch {
-            parsedData = { raw: decoded };
+            return { raw: decoded };
           }
-        } else if (typeof msg.data === 'object') {
-          parsedData = msg.data;
-        } else {
-          parsedData = { raw: msg.data };
         }
+        if (typeof msg.data === 'object' && msg.data !== null) {
+          return msg.data;
+        }
+        return { raw: msg.data };
       } catch (decodeError) {
         console.warn('Error decoding message data:', decodeError);
-        parsedData = { raw: Array.from(msg.data) };
+        return { raw: Array.from(msg.data ?? []) };
       }
+    };
+
+    const topicOf = (msg) => reader.channelsById.get(msg.channelId)?.topic;
+
+    // Poses are kept separate from sonar frames so playback can move the heading
+    // between pings. VehicleData.heading (VFR_HUD, degrees) streams faster than
+    // yaw (ATTITUDE, radians), but older recordings only have yaw.
+    for (const msg of messages) {
+      const topic = topicOf(msg);
+      if (!topic || !topic.endsWith('/VehicleData')) continue;
+      const pose = decodeMessage(msg);
+      let deg = null;
+      if (Number.isFinite(pose?.heading)) deg = pose.heading;
+      else if (Number.isFinite(pose?.yaw)) deg = (pose.yaw * 180) / Math.PI;
+      if (deg == null) continue;
+      yawSamples.push({ t: Number(msg.logTime / 1_000_000n), deg });
+    }
+    yawSamples.sort((a, b) => a.t - b.t);
+    const collapsed = [];
+    for (const sample of yawSamples) {
+      const previous = collapsed[collapsed.length - 1];
+      if (previous && previous.t === sample.t) previous.deg = sample.deg;
+      else collapsed.push(sample);
+    }
+    yawSamples = collapsed;
+
+    loadedData.value = messages.flatMap((msg) => {
+      const parsedData = decodeMessage(msg);
 
       const timestamp = new Date(Number(msg.logTime / 1_000_000n)).toISOString();
 
-      const channelInfo = reader.channelsById.get(msg.channelId);
-      const topic = channelInfo?.topic;
+      const topic = topicOf(msg);
 
       if (!topic) {
         return [];
@@ -194,7 +268,9 @@ const loadMcapFromBuffer = async (arrayBuffer) => {
       }
     });
 
+    applyingPlaybackFrame = true;
     currentFrame.value = 0;
+    applyingPlaybackFrame = false;
     if (loadedData.value.length > 0) {
       baseTimestamp = new Date(loadedData.value[0].timestamp).getTime();
     }
@@ -238,22 +314,28 @@ watch(
   { immediate: true }
 );
 
+const stopPlaybackLoop = () => {
+  if (playTimer) {
+    cancelAnimationFrame(playTimer);
+    playTimer = null;
+  }
+};
+
 const play = () => {
+  if (!loadedData.value.length) return;
   if (currentFrame.value >= loadedData.value.length - 1) {
     currentFrame.value = 0;
   }
   isPlaying.value = true;
-  startTime =
-    performance.now() -
-    (new Date(loadedData.value[currentFrame.value].timestamp).getTime() - baseTimestamp);
-  playNextFrame();
+  const offset = frameTimeMs(currentFrame.value) - baseTimestamp;
+  startTime = performance.now() - offset / playbackSpeed.value;
+  stopPlaybackLoop();
+  playbackLoop();
 };
 
 const pause = () => {
   isPlaying.value = false;
-  if (playTimer) {
-    clearTimeout(playTimer);
-  }
+  stopPlaybackLoop();
 };
 
 const togglePlayPause = () => {
@@ -264,35 +346,49 @@ const togglePlayPause = () => {
   }
 };
 
-const playNextFrame = () => {
-  if (!isPlaying.value || currentFrame.value >= loadedData.value.length - 1) {
-    isPlaying.value = false;
-    return;
-  }
+const playbackLoop = () => {
+  if (!isPlaying.value) return;
+  playTimer = requestAnimationFrame(() => {
+    if (!isPlaying.value) return;
 
-  updateCurrentFrame();
-  currentFrame.value++;
+    const mediaOffset = (performance.now() - startTime) * playbackSpeed.value;
+    const target = baseTimestamp + mediaOffset;
+    const lastIndex = loadedData.value.length - 1;
+    let index = currentFrame.value;
+    const due = [];
 
-  if (currentFrame.value < loadedData.value.length) {
-    const currentTime = performance.now();
-    const actualTimestamp =
-      new Date(loadedData.value[currentFrame.value].timestamp).getTime() - baseTimestamp;
-    const targetElapsedTime = actualTimestamp / playbackSpeed.value;
-    const timeToNextFrame = Math.max(0, targetElapsedTime - (currentTime - startTime));
+    while (index < lastIndex && frameTimeMs(index + 1) <= target) {
+      index += 1;
+      due.push(loadedData.value[index]);
+    }
 
-    playTimer = setTimeout(playNextFrame, timeToNextFrame);
-  } else {
-    isPlaying.value = false;
-  }
+    if (due.length) {
+      applyingPlaybackFrame = true;
+      currentFrame.value = index;
+      applyingPlaybackFrame = false;
+      emit('update:frames', due);
+    }
+
+    emitHeading(target);
+
+    if (index >= lastIndex) {
+      isPlaying.value = false;
+      stopPlaybackLoop();
+      return;
+    }
+
+    playbackLoop();
+  });
 };
 
 const updateCurrentFrame = () => {
+  if (!loadedData.value.length) return;
   currentFrame.value = Math.min(Math.max(0, currentFrame.value), loadedData.value.length - 1);
   emit('update:currentFrame', loadedData.value[currentFrame.value]);
+  if (!isPlaying.value) emitHeading(frameTimeMs(currentFrame.value));
 };
 
 const handleFrameChange = () => {
-  updateCurrentFrame();
   if (isPlaying.value) {
     pause();
     play();
@@ -305,7 +401,14 @@ const formatTime = (timestamp) => {
   return date.toUTCString();
 };
 
-watch(currentFrame, updateCurrentFrame);
+watch(
+  currentFrame,
+  () => {
+    if (applyingPlaybackFrame) return;
+    updateCurrentFrame();
+  },
+  { flush: 'sync' }
+);
 
 watch(playbackSpeed, () => {
   if (isPlaying.value) {
@@ -334,9 +437,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange);
-  if (playTimer) {
-    clearTimeout(playTimer);
-  }
+  stopPlaybackLoop();
 });
 
 defineExpose({ loadFile, play, pause, togglePlayPause });
