@@ -5,10 +5,10 @@
 				:numMarkers="numMarkers" :showRadiusLines="showRadiusLines" :showMarkers="showMarkers"
 				:radiusLineColor="radiusLineColor" :markerColor="markerColor"
 				:markerBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"
-				:startAngle="startAngle" :endAngle="endAngle">
-			<Sonar360Shader :measurement="measurement" :is-frozen="isFrozen" :numLines="400"
+				:startAngle="startAngle" :endAngle="endAngle" :yawAngle="isFrozen ? frozenYaw : yaw_angle">
+			<Sonar360Shader :measurement="measurement" :measurements="measurements" :is-frozen="isFrozen" :numLines="400"
 				:color-palette="colorPalette" :get-color-from-palette="getColorFromPalette" :startAngle="startAngle"
-				:endAngle="endAngle" :yaw_angle="yaw_angle" :max-radius="shaderMaxRadius" :debug=false />
+				:endAngle="endAngle" :yaw_angle="0" :max-radius="shaderMaxRadius" :debug=false />
 			</Sonar360Mask>
 		</div>
 
@@ -45,6 +45,11 @@ const props = defineProps({
   },
   measurement: {
     type: Object,
+    default: null,
+  },
+  // Replay applies every line that came due since the last paint, then draws once.
+  measurements: {
+    type: Array,
     default: null,
   },
   angle: {
@@ -114,6 +119,7 @@ const props = defineProps({
 });
 
 const frozenAngle = ref(0);
+const frozenYaw = ref(0);
 const containerRef = ref(null);
 const size = ref(300);
 
@@ -253,7 +259,10 @@ watch([() => props.startAngle, () => props.endAngle], () => {
 watch(
   () => props.isFrozen,
   (frozen) => {
-    if (frozen) frozenAngle.value = props.angle;
+    if (frozen) {
+      frozenAngle.value = props.angle;
+      frozenYaw.value = props.yaw_angle;
+    }
   }
 );
 </script>
