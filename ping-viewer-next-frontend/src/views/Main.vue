@@ -205,6 +205,8 @@
                       :mcap-data="replayData?.data"
                       :auto-play="true"
                       @update:currentFrame="handleReplayFrame"
+                      @update:frames="handleReplayFrames"
+                      @update:heading="handleReplayHeading"
                       @loadedData="handleReplayDataLoaded"
                       @parsingProgress="handleReplayParsingProgress"
                       @error="handleReplayError"
@@ -803,6 +805,14 @@ const handleReplayFrame = (frame) => {
   replayViewRef.value?.updateCurrentDeviceData(frame);
 };
 
+const handleReplayFrames = (frames) => {
+  replayViewRef.value?.updateFrames(frames);
+};
+
+const handleReplayHeading = (degrees) => {
+  replayViewRef.value?.setHeading(degrees);
+};
+
 const handleReplayDataLoaded = (data) => {
   isReplayParsing.value = false;
   replayViewRef.value?.onDataLoaded(data);
@@ -906,37 +916,70 @@ const initializeYawConnection = () => {
   }
 };
 
+// The autopilot streams VFR_HUD much faster than ATTITUDE, so its heading drives the
+// view. ATTITUDE is only used when VFR_HUD has gone quiet.
+const MAV_COMP_ID_AUTOPILOT1 = 1;
+const VFR_HUD_STALE_MS = 2000;
+let lastVfrHudHeadingAt = 0;
+
+// Saved URLs may filter to ATTITUDE only, which would drop VFR_HUD.
+const withHeadingFilter = (url) => {
+  try {
+    const parsed = new URL(url);
+    const filter = parsed.searchParams.get('filter');
+    if (filter === null || filter.includes('VFR_HUD')) return url;
+    parsed.searchParams.set('filter', filter ? `${filter}|VFR_HUD` : 'VFR_HUD');
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+};
+
 const connectYawWebSocket = (url) => {
   if (yawWebSocket?.readyState === WebSocket.OPEN) {
     return;
   }
 
+  cleanupYawConnection();
+
   try {
-    yawWebSocket = new WebSocket(url);
+    const socket = new WebSocket(withHeadingFilter(url));
+    yawWebSocket = socket;
     yawConnectionStatus.value = 'Connecting';
 
-    yawWebSocket.onopen = () => {
+    socket.onopen = () => {
       yawConnectionStatus.value = 'Connected';
       localStorage.setItem('yawWebsocketUrl', url);
     };
 
-    yawWebSocket.onmessage = (event) => {
+    socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.message && data.message.type === 'ATTITUDE') {
-          yawAngle.value = 180 - (data.message.yaw * 180) / Math.PI;
+        const message = data.message;
+        if (!message) return;
+        if (message.type === 'VFR_HUD') {
+          if (data.header?.component_id !== MAV_COMP_ID_AUTOPILOT1) return;
+          if (!Number.isFinite(message.heading)) return;
+          lastVfrHudHeadingAt = Date.now();
+          yawAngle.value = message.heading;
+        } else if (message.type === 'ATTITUDE') {
+          if (Date.now() - lastVfrHudHeadingAt < VFR_HUD_STALE_MS) return;
+          yawAngle.value = (message.yaw * 180) / Math.PI;
         }
       } catch (error) {
         console.error('Error parsing yaw message:', error);
       }
     };
 
-    yawWebSocket.onerror = (error) => {
+    socket.onerror = (error) => {
+      if (socket !== yawWebSocket) return;
       console.error('Yaw WebSocket error:', error);
       yawConnectionStatus.value = 'Error';
     };
 
-    yawWebSocket.onclose = () => {
+    // Sockets closed by cleanupYawConnection are already detached and must not reconnect.
+    socket.onclose = () => {
+      if (socket !== yawWebSocket) return;
       yawConnectionStatus.value = 'Disconnected';
       yawWebSocket = null;
 
@@ -973,8 +1016,10 @@ const cleanupYawConnection = () => {
   }
 
   if (yawWebSocket) {
-    yawWebSocket.close();
+    const socket = yawWebSocket;
     yawWebSocket = null;
+    socket.close();
+    yawConnectionStatus.value = 'Disconnected';
   }
 };
 
