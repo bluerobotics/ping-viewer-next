@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use mavlink::ardupilotmega::ATTITUDE_DATA;
 use mavlink::ardupilotmega::GLOBAL_POSITION_INT_DATA;
+use mavlink::ardupilotmega::VFR_HUD_DATA;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -16,6 +17,8 @@ pub struct VehicleData {
     pub pitch: f32,
     #[schemars(description = "Yaw angle in radians")]
     pub yaw: f32,
+    #[schemars(description = "Compass heading in degrees (0-360, 0=north), from VFR_HUD")]
+    pub heading: Option<f32>,
     #[schemars(description = "Altitude in meters above sea level")]
     pub alt: f64,
     #[schemars(description = "Latitude in decimal degrees")]
@@ -92,10 +95,21 @@ pub async fn zenoh_client_bridge(latest_pose: Arc<RwLock<Option<VehicleData>>>) 
                 continue;
             }
         };
-        info!("Subscribed to mavlink/**/1/ATTITUDE and mavlink/**/1/GLOBAL_POSITION_INT");
+        let vfr_hud_sub = match session.declare_subscriber("mavlink/**/1/VFR_HUD").await {
+            Ok(subscription) => subscription,
+            Err(error) => {
+                error!(
+                    error,
+                    reconnect_delay_secs, "Zenoh subscribe error for VFR_HUD, retrying"
+                );
+                continue;
+            }
+        };
+        info!("Subscribed to mavlink/**/1/ATTITUDE, mavlink/**/1/GLOBAL_POSITION_INT and mavlink/**/1/VFR_HUD");
 
         let mut latest_attitude: Option<ATTITUDE_DATA> = None;
         let mut latest_position: Option<GLOBAL_POSITION_INT_DATA> = None;
+        let mut latest_heading: Option<f32> = None;
 
         loop {
             tokio::select! {
@@ -125,6 +139,19 @@ pub async fn zenoh_client_bridge(latest_pose: Arc<RwLock<Option<VehicleData>>>) 
                         }
                     }
                 }
+                res = vfr_hud_sub.recv_async() => {
+                    match res {
+                        Ok(sample) => {
+                            if let Ok(env) = serde_json5::from_slice::<Envelope<VFR_HUD_DATA>>(&sample.payload().to_bytes()) {
+                                latest_heading = Some(env.message.heading as f32);
+                            }
+                        },
+                        Err(error) => {
+                            error!(error, reconnect_delay_secs, "Zenoh VFR_HUD recv error, reconnecting");
+                            break;
+                        }
+                    }
+                }
             }
 
             if let (Some(att), Some(pos)) = (&latest_attitude, &latest_position) {
@@ -132,6 +159,7 @@ pub async fn zenoh_client_bridge(latest_pose: Arc<RwLock<Option<VehicleData>>>) 
                     roll: att.roll,
                     pitch: att.pitch,
                     yaw: att.yaw,
+                    heading: latest_heading,
                     alt: pos.alt as f64 / 1000.0,
                     lat: pos.lat as f64 / 1e7,
                     lon: pos.lon as f64 / 1e7,
