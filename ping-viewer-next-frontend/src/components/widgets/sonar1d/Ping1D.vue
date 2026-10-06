@@ -1,8 +1,9 @@
 <template>
   <div class="flex flex-col h-full bg-transparent py-2" ref="containerRef">
-    <WaterfallDisplay
+    <WaterfallMask
       :width="width"
       :height="height"
+      :isFrozen="isFrozen"
       :sensorData="sensorData"
       :currentDepth="currentDepth"
       :minDepth="minDepth"
@@ -38,15 +39,16 @@
 
 <script setup>
 import { ref } from 'vue';
-import { getColorFromPalette } from '../SonarColorOptions';
 import { useUnits } from '../../../composables/useUnits';
-import WaterfallDisplay from './WaterfallMask.vue';
+import { getColorFromPalette } from '../SonarColorOptions';
+import WaterfallMask from './WaterfallMask.vue';
 
 const { formatDepth } = useUnits();
 
 const props = defineProps({
   width: { type: Number, required: true },
   height: { type: Number, required: true },
+  isFrozen: { type: Boolean, required: true },
   sensorData: { type: Array, required: true },
   currentDepth: { type: Number, required: true },
   minDepth: { type: Number, required: true },
