@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use crate::device::{manager::ManagerActorHandler, recording::RecordingsManagerHandler};
 
 use super::protocols;
@@ -15,7 +17,7 @@ fn add_v1_paths(scope: Scope) -> Scope {
 }
 
 pub async fn run(
-    server_address: &str,
+    server_address: SocketAddr,
     devices_manager_handler: ManagerActorHandler,
     recordings_handler: RecordingsManagerHandler,
 ) -> std::io::Result<()> {
