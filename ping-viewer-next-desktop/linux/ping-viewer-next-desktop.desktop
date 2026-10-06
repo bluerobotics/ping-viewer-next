@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Ping Viewer
+Comment=Ping Viewer desktop app
+Exec=ping-viewer-next-desktop
+Icon=ping-viewer-next-desktop
+Terminal=false
+Categories=Utility;
