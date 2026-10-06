@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use std::sync::Arc;
 
 #[derive(Parser, Debug)]
-#[command(version = env!("CARGO_PKG_VERSION"), author = env!("CARGO_PKG_AUTHORS"), about = env!("CARGO_PKG_DESCRIPTION"))]
+#[command(version, author, about)]
 struct Args {
     /// Call AutoCreate on DeviceManager during application startup.
     #[arg(long, default_value = "false")]
