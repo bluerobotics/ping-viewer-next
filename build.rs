@@ -1,4 +1,5 @@
 use vergen_gix::{BuildBuilder, CargoBuilder, DependencyKind, GixBuilder};
+#[cfg(feature = "build-frontend")]
 use which::which;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
