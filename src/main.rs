@@ -38,7 +38,7 @@ async fn main() -> std::io::Result<()> {
     tokio::spawn(async move { manager.run().await });
 
     let result = server::manager::run(
-        &cli::manager::server_address(),
+        cli::manager::server_address(),
         handler.clone(),
         recordings_manager_handler.clone(),
     )
