@@ -2,7 +2,8 @@
 	<div class="waterfall-display relative w-full h-full" :style="{ paddingRight: `${rightOffset}px` }">
 		<WaterfallShader ref="waterfallShader" :width="width" :height="height" :max-depth="maxDepth"
 			:min-depth="minDepth" :column-count="columnCount" :sensor-data="sensorData" :color-palette="colorPalette"
-			:get-color-from-palette="getColorFromPalette" @update:columnCount="$emit('update:columnCount', $event)"
+			:get-color-from-palette="getColorFromPalette" :is-frozen="isFrozen"
+			@update:columnCount="$emit('update:columnCount', $event)"
 			@mousemove="handleMouseMove" @mouseleave="handleMouseLeave" />
 		<canvas ref="overlayCanvas" class="absolute top-0 left-0 h-full pointer-events-none" :style="{ width: `calc(100% - ${rightOffset}px)` }"></canvas>
 	<div class="depth-ruler absolute top-0 h-full pointer-events-none" :style="{
@@ -27,7 +28,7 @@
 		<AScanLine
 			v-if="showAScan"
 			class="absolute top-0 right-0 h-full"
-			:sensor-data="sensorData"
+			:sensor-data="isFrozen ? frozenSensorData : sensorData"
 			:max-depth="maxDepth"
 			:min-depth="minDepth"
 			:virtual-max-depth="virtualMaxDepth"
@@ -53,10 +54,10 @@
 	>
 		<div class="measurements-content text-sm px-1 rounded" :style="{ fontSize: `${fontSize}px` }">
 			<div class="text-left" :style="{ color: '#FFFFFF' }">
-				Depth: {{ formatDepth(currentDepth) }}
+				Depth: {{ formatDepth(displayedDepth) }}
 			</div>
 			<div class="text-left" :style="{ color: '#FFFFFF' }">
-				Confidence: {{ confidence }}%
+				Confidence: {{ displayedConfidence }}%
 			</div>
 		</div>
 	</vue-draggable-resizable>
@@ -68,19 +69,19 @@
 		}">
 		<div class="flex flex-col" :style="{ color: '#FFFFFF' }">
 			<span :style="{ fontSize: `${fontSize * 0.4}px` }">Depth</span>
-			<span>{{ formatDepth(historicalData[hoveredColumn]?.depth) }}</span>
+			<span>{{ formatDepth(displayedHistoricalData[hoveredColumn]?.depth) }}</span>
 		</div>
 		<div class="flex flex-col" :style="{ color: '#FFFFFF' }">
 			<span :style="{ fontSize: `${fontSize * 0.4}px` }">Confidence</span>
-			<span>{{ historicalData[hoveredColumn]?.confidence }}%</span>
+			<span>{{ displayedHistoricalData[hoveredColumn]?.confidence }}%</span>
 		</div>
 	</div>
 	</div>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { onKeyStroke } from '@vueuse/core';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import VueDraggableResizable from 'vue-draggable-resizable';
 import { useUnits } from '../../../composables/useUnits';
 import AScanLine from './AScanLine.vue';
@@ -96,6 +97,7 @@ const props = defineProps({
   maxDepth: { type: Number, required: true },
   minDepth: { type: Number, required: true },
   columnCount: { type: Number, default: 200 },
+  isFrozen: { type: Boolean, default: true },
   sensorData: { type: Array, required: true },
   colorPalette: { type: String, required: true },
   getColorFromPalette: { type: Function, required: true },
@@ -122,6 +124,10 @@ const ctx = ref(null);
 const virtualMaxDepth = ref(props.maxDepth);
 const hoveredColumn = ref(null);
 const historicalData = ref([]);
+const frozenSensorData = ref([]);
+const frozenHistoricalData = ref([]);
+const frozenDepth = ref(0);
+const frozenConfidence = ref(0);
 const mousePosition = ref(null);
 const containerHeight = ref(80);
 
@@ -181,12 +187,21 @@ function resetPosition() {
   savePosition(boxPosition.value);
 }
 
+const displayedDepth = computed(() => (props.isFrozen ? frozenDepth.value : props.currentDepth));
+const displayedConfidence = computed(() =>
+  props.isFrozen ? frozenConfidence.value : props.confidence
+);
+
 const hasValidMeasurement = computed(() => {
-  return Number.isFinite(props.currentDepth) && Number.isFinite(props.confidence);
+  return Number.isFinite(displayedDepth.value) && Number.isFinite(displayedConfidence.value);
 });
 
+const displayedHistoricalData = computed(() =>
+  props.isFrozen ? frozenHistoricalData.value : historicalData.value
+);
+
 const isValidColumnData = (column) => {
-  const data = historicalData.value[column];
+  const data = displayedHistoricalData.value[column];
   return data && Number.isFinite(data.depth) && Number.isFinite(data.confidence);
 };
 
@@ -207,6 +222,8 @@ const getHoveredBoxPosition = () => {
 };
 
 const updateVirtualMaxDepth = () => {
+  if (props.isFrozen) return;
+
   if (historicalData.value.length === 0) {
     virtualMaxDepth.value = props.maxDepth;
     return;
@@ -235,6 +252,22 @@ watch(
 
     if (historicalData.value.length > props.columnCount) {
       historicalData.value.pop();
+    }
+
+    updateVirtualMaxDepth();
+    drawOverlay();
+  }
+);
+
+watch(
+  () => props.isFrozen,
+  (frozen) => {
+    if (frozen) {
+      frozenSensorData.value = [...props.sensorData];
+      frozenHistoricalData.value = [...historicalData.value];
+      frozenDepth.value = props.currentDepth;
+      frozenConfidence.value = props.confidence;
+      return;
     }
 
     updateVirtualMaxDepth();
@@ -302,7 +335,7 @@ const depthTicks = computed(() => {
 
 const arrowPosition = computed(() => {
   const depthRange = virtualMaxDepth.value - props.minDepth;
-  const relativeDepth = props.currentDepth - props.minDepth;
+  const relativeDepth = displayedDepth.value - props.minDepth;
   return (relativeDepth / depthRange) * 100;
 });
 
@@ -337,7 +370,7 @@ const drawOverlay = () => {
       ctx.value.lineWidth = 2;
       ctx.value.strokeRect(x, 0, columnWidth, overlayCanvas.value.height);
 
-      const columnData = historicalData.value[hoveredColumn.value];
+      const columnData = displayedHistoricalData.value[hoveredColumn.value];
       const y =
         ((columnData.depth - props.minDepth) / (virtualMaxDepth.value - props.minDepth)) *
         overlayCanvas.value.height;
