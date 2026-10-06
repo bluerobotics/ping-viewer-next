@@ -252,8 +252,8 @@ jobs:
           dockerfile-location: "./blueos-ping-viewer-next"
           skip-checkout: 'true'
 
-  build-tauri:
-    needs: quick-tests
+  build-desktop:
+    needs: [quick-tests, build-frontend]
     permissions:
       contents: write
     strategy:
@@ -261,66 +261,130 @@ jobs:
       matrix:
         include:
           - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
+            target: 'aarch64-apple-darwin'
+            formats: 'dmg'
             label: 'Mac-ARM64'
           - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
+            target: 'x86_64-apple-darwin'
+            formats: 'dmg'
             label: 'Mac-x86'
           - platform: 'ubuntu-22.04'
-            args: ''
+            target: ''
+            formats: 'deb,appimage'
             label: 'Linux'
           - platform: 'windows-latest'
-            args: ''
+            target: ''
+            formats: 'nsis'
             label: 'Windows'
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
+      - name: Install dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-        # webkitgtk 4.0 is for Tauri v1 - webkitgtk 4.1 is for Tauri v2.
+          sudo apt-get install -y \
+            libfuse2 \
+            libgirepository1.0-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf \
+            xdg-utils
 
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          registry-url: "https://registry.npmjs.org"
-
-      - name: install Rust stable
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.target }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
-        with:
-          workspaces: './src-tauri -> target'
 
-      - name: Install dependencies
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: ./ping-viewer-next-frontend/dist
+
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked
+
+      - name: Install cargo-generate-rpm (Linux only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: cargo install cargo-generate-rpm --locked
+
+      - name: Use newer linuxdeploy (Linux only)
+        if: matrix.platform == 'ubuntu-22.04'
+        # cargo-packager only downloads linuxdeploy if it's missing from its cache, so seed it with the
+        # newer build Tauri uses, whose excludelist keeps libwayland-client out of the AppImage
+        # TODO: Remove after <https://github.com/crabnebula-dev/cargo-packager/issues/493>
         run: |
-          cd ping-viewer-next-desktop
-          npm ci
+          mkdir -p "$HOME/.cache/.cargo-packager/AppImage"
+          curl -fsSL -o "$HOME/.cache/.cargo-packager/AppImage/linuxdeploy-x86_64.AppImage" \
+            https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy-07333c6/linuxdeploy-x86_64.AppImage
+          chmod 764 "$HOME/.cache/.cargo-packager/AppImage/linuxdeploy-x86_64.AppImage"
 
-      - name: Build the app
-        id: tauri-build
-        uses: tauri-apps/tauri-action@v0.5.19
+      - name: Package (native)
+        if: matrix.target == ''
+        shell: bash
+        run: |
+          cargo packager \
+            --packages ping-viewer-next-desktop \
+            --release \
+            --formats ${{ matrix.formats }}
+
+      - name: Package RPM (Linux only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: cargo generate-rpm --package ping-viewer-next-desktop
+
+      - name: Package (cross-target, macOS)
+        if: matrix.target != ''
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: './ping-viewer-next-desktop'
-          args: ${{ matrix.args }}
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Ping Viewer 2 qv{0}', github.ref_name) || '' }}
-          releaseDraft: false
+          CARGO_BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          cargo packager \
+          --packages ping-viewer-next-desktop \
+          --release \
+          --target ${{ matrix.target }} \
+          --formats ${{ matrix.formats }}
+
+      - name: Collect artifacts
+        id: collect
+        if: matrix.target == ''
+        shell: bash
+        run: |
+          mkdir -p dist-packages
+          find target/release -maxdepth 1 -type f \
+            \( -name '*.deb' -o -name '*.AppImage' -o -name '*-setup.exe' \) \
+            -exec cp {} dist-packages/ \;
+          if [ -d target/generate-rpm ]; then
+            cp target/generate-rpm/*.rpm dist-packages/
+          fi
+          ls -la dist-packages
+
+      - name: Collect artifacts (macOS only)
+        id: collect-target
+        if: matrix.target != ''
+        shell: bash
+        run: |
+          mkdir -p dist-packages
+          find target -type f \
+            -name '*.dmg' \
+            -exec cp {} dist-packages/ \;
+          ls -la dist-packages
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: 'ping-viewer_${{steps.tauri-build.outputs.appVersion}}_${{ matrix.label }}'
-          path: "${{ join(fromJSON(steps.tauri-build.outputs.artifactPaths), '\n') }}"
+          name: 'ping-viewer_${{ matrix.label }}'
+          path: dist-packages/*
           retention-days: 5
+
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: 'Ping Viewer 2 v${{ github.ref_name }}'
+          files: dist-packages/*
