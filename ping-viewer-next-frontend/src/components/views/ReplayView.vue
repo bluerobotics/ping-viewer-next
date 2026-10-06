@@ -18,6 +18,7 @@ const currentDeviceData = ref(null);
 const deviceView = ref(null);
 const isComponentReady = ref(false);
 const loadedDeviceType = ref(null);
+const heading = ref(null);
 
 const componentDimensions = ref({
   width: 800,
@@ -63,10 +64,12 @@ const deviceSpecificProps = computed(() => {
       ...commonSettings,
       ...ping360Settings,
       measurement: currentDeviceData.value.data.measurement,
+      measurements: currentDeviceData.value.data.measurements,
       angle: currentDeviceData.value.data.measurement.angle,
       maxDistance: maxRange,
       startAngle,
       endAngle,
+      yaw_angle: heading.value ?? 0,
     };
   }
 
@@ -109,37 +112,53 @@ const handleDeviceTypeChange = async (newType) => {
   isComponentReady.value = true;
 };
 
-const updateCurrentDeviceData = async (frame) => {
-  if (!frame || !frame.device) return;
+const toMeasurement = (sample) => {
+  const dataArray = Array.isArray(sample.data) ? sample.data : Object.values(sample.data);
+  return {
+    angle: sample.angle,
+    data: new Uint8Array(dataArray),
+  };
+};
 
-  await handleDeviceTypeChange(frame.device.device_type);
+const applyPing360Frames = (frames) => {
+  const lines = frames.map((frame) => toMeasurement(frame.data));
+  const last = frames[frames.length - 1];
+  currentDeviceData.value = {
+    device: last.device,
+    data: {
+      measurement: lines[lines.length - 1],
+      measurements: lines,
+      measurementRaw: last.data,
+    },
+  };
+};
 
-  if (frame.device.device_type === 'Ping360') {
-    const d = frame.data;
-    const dataArray = Array.isArray(d.data) ? d.data : Object.values(d.data);
-    currentDeviceData.value = {
-      device: frame.device,
-      data: {
-        measurement: {
-          angle: d.angle,
-          data: new Uint8Array(dataArray),
-        },
-        measurementRaw: d,
-      },
-    };
-  } else {
-    currentDeviceData.value = {
-      device: frame.device,
-      data: frame.data,
-    };
+const updateFrames = async (frames) => {
+  if (!frames?.length) return;
+  const last = frames[frames.length - 1];
+  if (!last?.device) return;
+
+  await handleDeviceTypeChange(last.device.device_type);
+
+  if (last.device.device_type === 'Ping360') {
+    applyPing360Frames(frames);
+    return;
   }
 
-  nextTick(() => {
-    updateComponentDimensions();
-  });
+  currentDeviceData.value = {
+    device: last.device,
+    data: last.data,
+  };
+};
+
+const updateCurrentDeviceData = (frame) => updateFrames([frame]);
+
+const setHeading = (degrees) => {
+  heading.value = typeof degrees === 'number' && Number.isFinite(degrees) ? degrees : null;
 };
 
 const onDataLoaded = async (data) => {
+  heading.value = null;
   if (data.length > 0) {
     isComponentReady.value = false;
     currentDeviceData.value = null;
@@ -170,6 +189,8 @@ onUnmounted(() => {
 
 defineExpose({
   updateCurrentDeviceData,
+  updateFrames,
+  setHeading,
   onDataLoaded,
 });
 </script>
