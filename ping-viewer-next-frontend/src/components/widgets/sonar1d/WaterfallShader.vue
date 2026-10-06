@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { onKeyStroke } from '@vueuse/core';
-import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = withDefaults(
   defineProps<{
@@ -16,8 +16,9 @@ const props = withDefaults(
     sensorData: number[];
     colorPalette: string;
     getColorFromPalette: (value: number, palette: string) => number[];
+    isFrozen?: boolean;
   }>(),
-  { columnCount: 200 }
+  { columnCount: 200, isFrozen: false }
 );
 
 defineEmits<{ 'update:columnCount': [value: number] }>();
@@ -118,6 +119,7 @@ let writeIndex = 0;
 let columnsWritten = 0;
 let currentBinCount = 0;
 let needsRender = false;
+let pendingColumns: { data: number[]; maxDepth: number }[] = [];
 let rafId = 0;
 let resizeObserver: ResizeObserver | null = null;
 let virtualMaxDepth = 0;
@@ -218,7 +220,13 @@ function buildPaletteTexture() {
   gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
 }
 
-function pushColumn(data: number[]) {
+function queueColumn(data: number[]) {
+  pendingColumns.push({ data: data.slice(), maxDepth: props.maxDepth });
+  const extra = pendingColumns.length - props.columnCount;
+  if (extra > 0) pendingColumns.splice(0, extra);
+}
+
+function pushColumn(data: number[], maxDepth = props.maxDepth, shouldRender = true) {
   if (!gl || !dataTexture || !depthTexture) return;
   const bins = data.length;
   if (bins === 0) return;
@@ -240,8 +248,8 @@ function pushColumn(data: number[]) {
   gl.texSubImage2D(gl.TEXTURE_2D, 0, writeIndex, 0, 1, bins, gl.RED, gl.UNSIGNED_BYTE, col);
 
   // Record this column's maxDepth in the depth metadata texture
-  depthValues![writeIndex] = props.maxDepth;
-  depthUploadBuf[0] = props.maxDepth;
+  depthValues![writeIndex] = maxDepth;
+  depthUploadBuf[0] = maxDepth;
   gl.activeTexture(gl.TEXTURE2);
   gl.bindTexture(gl.TEXTURE_2D, depthTexture);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, writeIndex, 0, 1, 1, gl.RED, gl.FLOAT, depthUploadBuf);
@@ -250,13 +258,33 @@ function pushColumn(data: number[]) {
   if (columnsWritten < props.columnCount) columnsWritten++;
 
   // Recompute virtualMaxDepth from all valid columns
-  let maxD = props.maxDepth;
+  let maxD = maxDepth;
   const valid = Math.min(columnsWritten, props.columnCount);
   for (let i = 0; i < valid; i++) {
     if (depthValues![i] > maxD) maxD = depthValues![i];
   }
   virtualMaxDepth = maxD;
 
+  if (shouldRender) scheduleRender();
+}
+
+function flushPendingColumns() {
+  if (!gl || !dataTexture || pendingColumns.length === 0) return;
+
+  const extra = pendingColumns.length - props.columnCount;
+  if (extra > 0) pendingColumns.splice(0, extra);
+
+  // A column-count change during pause leaves the frozen texture at the old size
+  // Rebuild it before catching up so uploads stay in range
+  if (!depthValues || depthValues.length !== props.columnCount) {
+    createDataTexture(props.columnCount, currentBinCount || pendingColumns[0].data.length || 200);
+  }
+
+  const columns = pendingColumns;
+  pendingColumns = [];
+  for (const column of columns) {
+    pushColumn(column.data, column.maxDepth, false);
+  }
   scheduleRender();
 }
 
@@ -362,7 +390,12 @@ function syncCanvasSize() {
 
 onMounted(() => {
   const canvas = canvasRef.value!;
-  gl = canvas.getContext('webgl2', { antialias: false, alpha: true, premultipliedAlpha: false });
+  gl = canvas.getContext('webgl2', {
+    antialias: false,
+    alpha: true,
+    premultipliedAlpha: false,
+    preserveDrawingBuffer: true,
+  });
   if (!gl) {
     console.error('WaterfallShader: WebGL 2 not available');
     return;
@@ -408,7 +441,10 @@ onMounted(() => {
   resizeObserver.observe(canvas);
 
   // Ingest initial data if available
-  if (props.sensorData && props.sensorData.length > 0) {
+  // While frozen, keep the blank frame until resume flushes
+  if (!props.isFrozen && pendingColumns.length > 0) {
+    flushPendingColumns();
+  } else if (!props.isFrozen && props.sensorData && props.sensorData.length > 0) {
     pushColumn(props.sensorData);
   }
 });
@@ -439,9 +475,22 @@ onBeforeUnmount(() => {
 });
 
 watch(
+  () => props.isFrozen,
+  (frozen) => {
+    if (!frozen) flushPendingColumns();
+  }
+);
+
+watch(
   () => props.sensorData,
   (data) => {
-    if (data && data.length > 0) pushColumn(data);
+    if (!data || data.length === 0) return;
+    if (props.isFrozen) {
+      queueColumn(data);
+      return;
+    }
+    if (pendingColumns.length > 0) flushPendingColumns();
+    pushColumn(data);
   }
 );
 
@@ -455,7 +504,11 @@ watch([() => props.colorPalette, () => props.getColorFromPalette], () => {
 watch(
   () => props.columnCount,
   (next, prev) => {
-    if (gl && next !== prev) {
+    if (pendingColumns.length > next) {
+      pendingColumns.splice(0, pendingColumns.length - next);
+    }
+    // Don't rebuild when the frame is frozen
+    if (gl && next !== prev && !props.isFrozen) {
       createDataTexture(next, currentBinCount || 200);
       scheduleRender();
     }
