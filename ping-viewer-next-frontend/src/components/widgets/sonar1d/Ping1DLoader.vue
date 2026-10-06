@@ -3,9 +3,13 @@
     <FloatingControls v-if="showControls" :is-recording="isRecording">
       <DataRecorder :device="device" :server-url="serverUrl"
         @recording-started="handleRecordingStarted" @recording-stopped="handleRecordingStopped" />
-      <v-btn icon @click="toggleFreeze" class="glass-button" size="x-large">
-        <v-icon :color="isFreeze ? '#ef4444' : undefined" size="36">{{ isFreeze ? 'mdi-play' : 'mdi-pause' }}</v-icon>
-      </v-btn>
+      <v-tooltip :text="isFrozen ? 'Clear and resume the sonar animation' : 'Pause the sonar animation (data is still streamed and recorded normally)'">
+          <template v-slot:activator="{ props }">
+            <v-btn v-bind="props" icon @click="toggleFreeze" class="glass-button" size="x-large">
+                <v-icon :color="isFrozen ? '#ef4444' : undefined" size="36">{{ isFrozen ? 'mdi-play' : 'mdi-pause' }}</v-icon>
+            </v-btn>
+          </template>
+      </v-tooltip>
       <v-btn icon @click="openSettings" class="glass-button" size="x-large">
         <v-icon size="36">mdi-cog</v-icon>
       </v-btn>
@@ -14,9 +18,9 @@
       </v-dialog>
     </FloatingControls>
 
-    <Ping1D v-bind="$props" :sensorData="displayData.sensorData" :currentDepth="displayData.currentDepth"
-      :minDepth="displayData.minDepth" :maxDepth="displayData.maxDepth" :confidence="displayData.confidence"
-      :accuracy="displayData.accuracy" class="flex-grow" />
+    <Ping1D v-bind="$props" :isFrozen="isFrozen" :sensorData="liveData.sensorData" :currentDepth="liveData.currentDepth"
+      :minDepth="liveData.minDepth" :maxDepth="liveData.maxDepth" :confidence="liveData.confidence"
+      :accuracy="liveData.accuracy" class="flex-grow" />
   </div>
 </template>
 
@@ -97,7 +101,7 @@ const props = defineProps({
 const emit = defineEmits(['settings-change']);
 
 const socket = ref(null);
-const isFreeze = ref(false);
+const isFrozen = ref(false);
 const isSettingsOpen = ref(false);
 
 const recordingSessions = inject('recordingSessions', ref(new Map()));
@@ -107,15 +111,6 @@ const isRecording = computed(() => {
 });
 
 const liveData = ref({
-  sensorData: [],
-  currentDepth: 0,
-  minDepth: 0,
-  maxDepth: 0,
-  confidence: 0,
-  accuracy: 0,
-});
-
-const displayData = ref({
   sensorData: [],
   currentDepth: 0,
   minDepth: 0,
@@ -138,10 +133,7 @@ const handleRecordingStarted = () => {};
 const handleRecordingStopped = () => {};
 
 const toggleFreeze = () => {
-  isFreeze.value = !isFreeze.value;
-  if (!isFreeze.value) {
-    displayData.value = { ...liveData.value };
-  }
+  isFrozen.value = !isFrozen.value;
 };
 
 const connectWebSocket = () => {
@@ -177,10 +169,6 @@ const connectWebSocket = () => {
         });
 
         liveData.value = newData;
-
-        if (!isFreeze.value) {
-          displayData.value = { ...newData };
-        }
 
         if (props.debug) {
           console.debug('Processed Ping1D data:', newData);
