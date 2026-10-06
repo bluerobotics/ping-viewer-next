@@ -27,6 +27,7 @@ const props = withDefaults(
     // `Sonar360Mask`'s `maxRadius / 50` so the rendered data ends exactly at
     // the outermost depth arc instead of overshooting it by half a stroke.
     maxRadius?: number;
+    isFrozen?: boolean;
   }>(),
   {
     lineLength: 1200,
@@ -35,6 +36,7 @@ const props = withDefaults(
     endAngle: 360,
     yaw_angle: 0,
     maxRadius: 0.99,
+    isFrozen: false,
   }
 );
 
@@ -201,19 +203,9 @@ const resizeTextureBuffers = (newLineLength: number) => {
   tempBuffer = new Uint8Array(props.numLines * newLineLength * 4);
   currentLineLength = newLineLength;
 
-  if (gl && texture) {
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      currentLineLength,
-      props.numLines,
-      0,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      textureData
-    );
+  // Don't rebuild when the frame is frozen
+  if (gl && texture && !props.isFrozen) {
+    uploadFullTexture();
     render();
   }
 };
@@ -242,6 +234,23 @@ const setupTexture = () => {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    currentLineLength,
+    props.numLines,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    textureData
+  );
+};
+
+const uploadFullTexture = () => {
+  if (!gl || !texture) return;
+
+  gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texImage2D(
     gl.TEXTURE_2D,
     0,
@@ -297,7 +306,9 @@ const updateSonarData = (angle: number, newData: Uint8Array) => {
     textureData[index + 3] = color[3]; // A
   }
 
-  if (!gl || !texture) return;
+  currentAngle.value = angle;
+
+  if (props.isFrozen || !gl || !texture) return;
 
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texSubImage2D(
@@ -312,7 +323,6 @@ const updateSonarData = (angle: number, newData: Uint8Array) => {
     textureData.subarray(textureStart, textureStart + currentLineLength * 4)
   );
 
-  currentAngle.value = angle;
   render();
 };
 
@@ -377,22 +387,20 @@ watch(
       rotateTextureData(lineOffset);
       previousYaw.value = newYaw;
 
-      if (gl && texture) {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(
-          gl.TEXTURE_2D,
-          0,
-          gl.RGBA,
-          currentLineLength,
-          props.numLines,
-          0,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
-          textureData
-        );
+      if (!props.isFrozen && gl && texture) {
+        uploadFullTexture();
+        render();
       }
-      render();
     }
+  }
+);
+
+watch(
+  () => props.isFrozen,
+  (frozen) => {
+    if (frozen) return;
+    uploadFullTexture();
+    render();
   }
 );
 
