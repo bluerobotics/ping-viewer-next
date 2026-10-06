@@ -1,12 +1,12 @@
 <template>
   <div ref="containerRef" class="w-full h-full flex items-center justify-center bg-transparent">
     <div class="relative shrink-0" :style="containerStyle">
-			<Sonar360Mask :angle="angle" :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="maxDistance"
+			<Sonar360Mask :angle="isFrozen ? frozenAngle : angle" :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="maxDistance"
 				:numMarkers="numMarkers" :showRadiusLines="showRadiusLines" :showMarkers="showMarkers"
 				:radiusLineColor="radiusLineColor" :markerColor="markerColor"
 				:markerBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"
 				:startAngle="startAngle" :endAngle="endAngle">
-			<Sonar360Shader :measurement="measurement" :numLines="400"
+			<Sonar360Shader :measurement="measurement" :is-frozen="isFrozen" :numLines="400"
 				:color-palette="colorPalette" :get-color-from-palette="getColorFromPalette" :startAngle="startAngle"
 				:endAngle="endAngle" :yaw_angle="yaw_angle" :max-radius="shaderMaxRadius" :debug=false />
 			</Sonar360Mask>
@@ -39,6 +39,10 @@ import { useHeadDown } from './useHeadDown';
 const headDown = useHeadDown();
 
 const props = defineProps({
+  isFrozen: {
+    type: Boolean,
+    required: true,
+  },
   measurement: {
     type: Object,
     default: null,
@@ -109,6 +113,7 @@ const props = defineProps({
   },
 });
 
+const frozenAngle = ref(0);
 const containerRef = ref(null);
 const size = ref(300);
 
@@ -244,4 +249,11 @@ onUnmounted(() => {
 watch([() => props.startAngle, () => props.endAngle], () => {
   updateSize();
 });
+
+watch(
+  () => props.isFrozen,
+  (frozen) => {
+    if (frozen) frozenAngle.value = props.angle;
+  }
+);
 </script>
