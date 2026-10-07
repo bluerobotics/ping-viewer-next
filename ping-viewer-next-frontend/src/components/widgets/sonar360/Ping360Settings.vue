@@ -234,8 +234,12 @@ const props = defineProps({
     type: String,
     required: true,
   },
-  deviceId: {
+  deviceType: {
     type: String,
+    required: true,
+  },
+  deviceSlot: {
+    type: Number,
     required: true,
   },
   initialAngles: {
@@ -343,7 +347,8 @@ const debouncedSaveSettings = useDebounceFn(async (updatedSettings) => {
       command: 'ModifyDevice',
       module: 'DeviceManager',
       payload: {
-        uuid: props.deviceId,
+        device_type: props.deviceType,
+        slot: props.deviceSlot,
         modify: {
           SetPing360Config: {
             mode: 1,
@@ -402,7 +407,8 @@ const fetchCurrentSettings = async () => {
       command: 'ModifyDevice',
       module: 'DeviceManager',
       payload: {
-        uuid: props.deviceId,
+        device_type: props.deviceType,
+        slot: props.deviceSlot,
         modify: 'GetPing360Config',
       },
     };

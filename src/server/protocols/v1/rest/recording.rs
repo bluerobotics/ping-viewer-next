@@ -1,4 +1,4 @@
-use crate::device::manager::UuidWrapper;
+use crate::device::manager::{DeviceSelection, DeviceSlotWrapper};
 use crate::device::recording::{RecordingManagerCommand, RecordingsManagerHandler};
 use crate::server::protocols::v1::errors::Error;
 use actix_web::Responder;
@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use tracing::debug;
-use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Apiv2Schema)]
 pub struct McapFileInfo {
@@ -230,24 +229,25 @@ async fn recording_manager_get(
 }
 
 #[api_v2_operation(tags("Recordings Manager : Device"))]
-#[post("recordings_manager/{device}/{selection}")]
+#[post("recordings_manager/{device_type}/{slot}/{selection}")]
 async fn recording_manager_post(
     recording_tx: web::Data<RecordingsManagerHandler>,
-    info: web::Path<(Uuid, RecordingsManagerPostOptionsV1)>,
+    info: web::Path<(DeviceSelection, u8, RecordingsManagerPostOptionsV1)>,
 ) -> Result<Json<crate::device::recording::Answer>, Error> {
     let info = info.into_inner();
-    let uuid = info.0;
-    let request = info.1;
+    let device_type = info.0;
+    let slot = info.1;
+    let request = info.2;
 
     let request: RecordingManagerCommand = match request {
         RecordingsManagerPostOptionsV1::StartRecording => {
-            RecordingManagerCommand::StartRecording(UuidWrapper { uuid })
+            RecordingManagerCommand::StartRecording(DeviceSlotWrapper { device_type, slot })
         }
         RecordingsManagerPostOptionsV1::StopRecording => {
-            RecordingManagerCommand::StopRecording(UuidWrapper { uuid })
+            RecordingManagerCommand::StopRecording(DeviceSlotWrapper { device_type, slot })
         }
         RecordingsManagerPostOptionsV1::GetRecordingStatus => {
-            RecordingManagerCommand::GetRecordingStatus(UuidWrapper { uuid })
+            RecordingManagerCommand::GetRecordingStatus(DeviceSlotWrapper { device_type, slot })
         }
     };
 

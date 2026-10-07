@@ -54,7 +54,7 @@
 								expandedDevices[deviceId] ? "−" : "+"
 							}}</span>
 							<h4 class="font-bold text-lg">
-								Device ID: {{ deviceId }}
+								Device: {{ deviceId }}
 								<span class="text-gray-600 text-base ml-2">({{ Object.keys(device)[0] }})</span>
 							</h4>
 						</div>
@@ -87,6 +87,7 @@
 </template>
 
 <script>
+import { deviceKey } from '@/ping-device/utils/device-slot';
 import { nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
 
 export default {
@@ -142,8 +143,15 @@ export default {
     const parseAndOrganizeMessage = (message) => {
       try {
         const data = JSON.parse(message);
-        const deviceId = data.DeviceMessage.device_id;
-        const pingMessage = data.DeviceMessage.PingMessage;
+        const deviceMessage = data.DeviceMessage;
+        if (
+          !deviceMessage?.PingMessage ||
+          deviceMessage.device_type == null ||
+          deviceMessage.slot == null
+        )
+          return;
+        const deviceId = deviceKey(deviceMessage);
+        const pingMessage = deviceMessage.PingMessage;
 
         if (!organizedData[deviceId]) {
           organizedData[deviceId] = {};

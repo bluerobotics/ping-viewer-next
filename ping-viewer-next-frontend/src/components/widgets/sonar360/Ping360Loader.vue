@@ -16,7 +16,8 @@
         </v-btn>
         <v-dialog v-model="isSettingsOpen" max-width="300px">
 
-          <Ping360Settings ref="settingsRef" :server-url="serverUrl" :device-id="device.id"
+          <Ping360Settings ref="settingsRef" :server-url="serverUrl" :device-type="device.device_type"
+            :device-slot="device.slot"
             :initial-angles="{ startAngle, endAngle }" :isOpen="isSettingsOpen" @update:angles="handleAngleUpdate"
             @rangeChange="handleRangeChange" @close="closeSettings" />
         </v-dialog>
@@ -33,6 +34,7 @@
 </template>
 
 <script setup>
+import { deviceKey, slotPayload } from '@/ping-device/utils/device-slot';
 import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import DataRecorder from '../DataRecorder.vue';
 import FloatingControls from '../FloatingControls.vue';
@@ -116,7 +118,7 @@ const isSettingsOpen = ref(false);
 
 const recordingSessions = inject('recordingSessions', ref(new Map()));
 const isRecording = computed(() => {
-  const session = recordingSessions.value.get(props.device.id);
+  const session = recordingSessions.value.get(deviceKey(props.device));
   return session?.is_active ?? false;
 });
 const offset = ref(0);
@@ -150,7 +152,7 @@ const sendGetConfigRequest = () => {
     command: 'ModifyDevice',
     module: 'DeviceManager',
     payload: {
-      uuid: props.device.id,
+      ...slotPayload(props.device),
       modify: 'GetPing360Config',
     },
   };

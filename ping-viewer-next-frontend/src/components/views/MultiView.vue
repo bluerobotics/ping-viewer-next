@@ -24,7 +24,7 @@
       </div>
 
       <div v-else ref="contentContainer" class="h-full p-4 grid gap-4" :style="gridStyle">
-        <div v-for="device in selectedDevices" :key="device.id"
+        <div v-for="device in selectedDevices" :key="deviceKey(device)"
           class="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center">
           <div class="absolute top-0 right-0 z-10 p-2 flex gap-2">
             <v-btn icon="mdi-close" size="small" color="error" variant="text" @click="removeDevice(device)" />
@@ -46,7 +46,7 @@
 
         <v-card-text class="pa-6">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <DeviceCard v-for="device in availableDevices" :key="device.id" :device="device"
+            <DeviceCard v-for="device in availableDevices" :key="deviceKey(device)" :device="device"
               :selected="isDeviceSelected(device)" :showActions="true" @toggle="toggleDevice(device)" />
           </div>
         </v-card-text>
@@ -64,6 +64,7 @@
 
 <script setup>
 import { useDeviceFetching } from '@/composables/useDeviceFetching';
+import { deviceKey, deviceWebSocketUrl } from '@/ping-device/utils/device-slot';
 import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import DeviceCard from '../utils/DeviceCard.vue';
 import Ping1DLoader from '../widgets/sonar1d/Ping1DLoader.vue';
@@ -167,7 +168,7 @@ const closeDialog = () => {
 };
 
 const toggleDevice = (device) => {
-  const index = selectedDevices.value.findIndex((d) => d.id === device.id);
+  const index = selectedDevices.value.findIndex((d) => deviceKey(d) === deviceKey(device));
   if (index === -1) {
     selectedDevices.value.push(device);
   } else {
@@ -180,7 +181,7 @@ const toggleDevice = (device) => {
 };
 
 const removeDevice = (device) => {
-  const index = selectedDevices.value.findIndex((d) => d.id === device.id);
+  const index = selectedDevices.value.findIndex((d) => deviceKey(d) === deviceKey(device));
   if (index !== -1) {
     selectedDevices.value.splice(index, 1);
   }
@@ -191,7 +192,7 @@ const removeDevice = (device) => {
 };
 
 const isDeviceSelected = (device) => {
-  return selectedDevices.value.some((d) => d.id === device.id);
+  return selectedDevices.value.some((d) => deviceKey(d) === deviceKey(device));
 };
 
 const getDeviceComponent = (device) => {
@@ -217,9 +218,7 @@ const triggerChildrenResize = () => {
 
 const getWebSocketUrl = (device) => {
   if (!device) return '';
-  const url = new URL(props.serverUrl);
-  const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${url.host}/ws?device_number=${device.id}`;
+  return deviceWebSocketUrl(props.serverUrl, device);
 };
 
 const handleResize = () => {
