@@ -18,6 +18,7 @@ const props = withDefaults(
     numLines: number;
     lineLength?: number;
     measurement: SonarMeasurement | null;
+    measurements?: SonarMeasurement[] | null;
     colorPalette: string;
     getColorFromPalette: (value: number, palette: string) => number[];
     startAngle: number;
@@ -32,6 +33,7 @@ const props = withDefaults(
   {
     lineLength: 1200,
     measurement: null,
+    measurements: null,
     startAngle: 0,
     endAngle: 360,
     yaw_angle: 0,
@@ -43,14 +45,13 @@ const props = withDefaults(
 const canvas = ref<HTMLCanvasElement | null>(null);
 
 let gl: WebGLRenderingContext | null = null;
+let renderFrame = 0;
 let shaderProgram: WebGLProgram | null = null;
 let texture: WebGLTexture | null = null;
 
 let textureData = new Uint8Array(props.numLines * props.lineLength * 4);
-let tempBuffer = new Uint8Array(props.numLines * props.lineLength * 4);
 let currentLineLength = props.lineLength;
 const currentAngle = ref(0);
-const previousYaw = ref(0);
 
 const vsSource = `
 	attribute vec4 aVertexPosition;
@@ -69,12 +70,14 @@ const fsSource = `
   uniform float uStartAngle;
   uniform float uEndAngle;
   uniform float uMaxRadius;
+  uniform float uYawAngle;
 
   void main(void) {
     vec2 polar = vTextureCoord;
     float angle = atan(polar.y - 0.5, polar.x - 0.5) + 3.14159/2.0;
-    float angleDegrees = degrees(angle);
-    if (angleDegrees < 0.0) angleDegrees += 360.0;
+    // The plot stays in the sonar frame. Sonar360Mask rotates the canvas for heading,
+    // so uYawAngle is normally 0 and compass changes do not redraw this texture.
+    float angleDegrees = mod(degrees(angle) - uYawAngle, 360.0);
     float radius = length(polar - 0.5) * 2.0;
 
     bool inSector = uStartAngle <= uEndAngle
@@ -84,10 +87,7 @@ const fsSource = `
     if (radius > uMaxRadius || !inSector) {
       gl_FragColor = vec4(0.1, 0.1, 0.1, 0.0); // Transparent background
     } else {
-      float texAngle = (angle + 3.14159) / (2.0 * 3.14159);
-      if (texAngle > 1.0) {
-        texAngle -= 1.0;
-      }
+      float texAngle = fract(angleDegrees / 360.0 + 0.5);
       gl_FragColor = texture2D(uSampler, vec2(radius / uMaxRadius, texAngle));
     }
   }
@@ -200,25 +200,12 @@ const resizeTextureBuffers = (newLineLength: number) => {
   if (newLineLength === currentLineLength) return;
 
   textureData = new Uint8Array(props.numLines * newLineLength * 4);
-  tempBuffer = new Uint8Array(props.numLines * newLineLength * 4);
   currentLineLength = newLineLength;
 
   // Don't rebuild when the frame is frozen
   if (gl && texture && !props.isFrozen) {
     uploadFullTexture();
     render();
-  }
-};
-
-const rotateTextureData = (lineOffset: number) => {
-  tempBuffer.set(textureData);
-  const bytesPerLine = currentLineLength * 4;
-
-  for (let i = 0; i < props.numLines; i++) {
-    const sourceLineIndex = (i - lineOffset + props.numLines) % props.numLines;
-    const destStart = i * bytesPerLine;
-    const sourceStart = sourceLineIndex * bytesPerLine;
-    textureData.set(tempBuffer.subarray(sourceStart, sourceStart + bytesPerLine), destStart);
   }
 };
 
@@ -276,21 +263,23 @@ const render = () => {
   gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uStartAngle'), props.startAngle);
   gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uEndAngle'), props.endAngle);
   gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uMaxRadius'), props.maxRadius);
+  gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uYawAngle'), props.yaw_angle);
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 };
 
-const updateSonarData = (angle: number, newData: Uint8Array) => {
+// Several samples can land in one display frame. Upload all of them, then draw once.
+const scheduleRender = () => {
+  if (renderFrame) return;
+  renderFrame = requestAnimationFrame(() => {
+    renderFrame = 0;
+    render();
+  });
+};
+
+const writeLine = (angle: number, newData: Uint8Array) => {
   if (newData.length !== currentLineLength) {
     resizeTextureBuffers(newData.length);
-  }
-
-  const yawDiff = props.yaw_angle - previousYaw.value;
-  if (yawDiff !== 0) {
-    const linesPerDegree = props.numLines / 360;
-    const lineOffset = Math.round(yawDiff * linesPerDegree);
-    rotateTextureData(lineOffset);
-    previousYaw.value = props.yaw_angle;
   }
 
   const lineIndex = angle % props.numLines;
@@ -322,17 +311,19 @@ const updateSonarData = (angle: number, newData: Uint8Array) => {
     gl.UNSIGNED_BYTE,
     textureData.subarray(textureStart, textureStart + currentLineLength * 4)
   );
-
-  render();
 };
 
 const resizeCanvas = () => {
   if (!canvas.value) return;
 
   const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.value.getBoundingClientRect();
-  canvas.value.width = rect.width * dpr;
-  canvas.value.height = rect.height * dpr;
+  // clientWidth ignores the heading rotation. The axis-aligned box of a rotated
+  // canvas is larger than the plot and would stretch the buffer.
+  const width = canvas.value.clientWidth;
+  const height = canvas.value.clientHeight;
+  if (width === 0 || height === 0) return;
+  canvas.value.width = width * dpr;
+  canvas.value.height = height * dpr;
 
   if (gl) {
     gl.viewport(0, 0, canvas.value.width, canvas.value.height);
@@ -342,7 +333,6 @@ const resizeCanvas = () => {
 
 const clearShaderContent = () => {
   textureData.fill(0);
-  tempBuffer.fill(0);
 
   if (gl && texture) {
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -375,25 +365,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', resizeCanvas);
+  if (renderFrame) cancelAnimationFrame(renderFrame);
 });
-
-watch(
-  () => props.yaw_angle,
-  (newYaw) => {
-    if (newYaw !== previousYaw.value) {
-      const yawDiff = newYaw - previousYaw.value;
-      const linesPerDegree = props.numLines / 360;
-      const lineOffset = Math.round(yawDiff * linesPerDegree);
-      rotateTextureData(lineOffset);
-      previousYaw.value = newYaw;
-
-      if (!props.isFrozen && gl && texture) {
-        uploadFullTexture();
-        render();
-      }
-    }
-  }
-);
 
 watch(
   () => props.isFrozen,
@@ -405,16 +378,31 @@ watch(
 );
 
 watch(
-  () => props.measurement,
-  (newMeasurement) => {
-    if (newMeasurement) {
-      updateSonarData(newMeasurement.angle, newMeasurement.data);
+  () => props.measurements,
+  (lines) => {
+    if (!lines?.length) return;
+    for (const line of lines) {
+      if (line?.data) writeLine(line.angle, line.data);
     }
-  },
-  { deep: true }
+    scheduleRender();
+  }
 );
 
-watch([() => props.startAngle, () => props.endAngle, () => props.maxRadius], () => {
-  render();
-});
+watch(
+  () => props.measurement,
+  (line) => {
+    if (props.measurements?.length) return;
+    if (line?.data) {
+      writeLine(line.angle, line.data);
+      scheduleRender();
+    }
+  }
+);
+
+watch(
+  [() => props.startAngle, () => props.endAngle, () => props.maxRadius, () => props.yaw_angle],
+  () => {
+    scheduleRender();
+  }
+);
 </script>

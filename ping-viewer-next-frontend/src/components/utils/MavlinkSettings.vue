@@ -12,7 +12,7 @@
       <div class="mb-6">
         <h2 class="text-xl mb-4">WebSocket Configuration</h2>
         <v-text-field v-model="localWebsocketUrl" label="WebSocket URL"
-          :hint="'Example: ws://192.168.1.241:6040/ws/mavlink?filter=ATTITUDE'" persistent-hint
+          :hint="'Example: ws://192.168.1.241:6040/ws/mavlink?filter=VFR_HUD|ATTITUDE'" persistent-hint
           :error-messages="connectionError" :disabled="isConnected" class="mb-4" />
 
         <div class="flex gap-4">
@@ -60,7 +60,7 @@ const cleanupYawConnection = inject('cleanupYawConnection');
 
 const localWebsocketUrl = ref(
   localStorage.getItem('yawWebsocketUrl') ||
-    `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:6040/ws/mavlink?filter=ATTITUDE`
+    `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:6040/ws/mavlink?filter=VFR_HUD|ATTITUDE`
 );
 const connectionError = ref('');
 const updateCount = ref(0);

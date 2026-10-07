@@ -73,7 +73,6 @@ export default defineComponent({
     });
 
     let resizeObserver = null;
-    let datalakeUnsubscribe = null;
     let recordingWebSocket = null;
 
     const updateDimensions = () => {
@@ -83,6 +82,26 @@ export default defineComponent({
         width: rect.width,
         height: rect.height,
       };
+    };
+
+    // Cockpit exposes the main vehicle's messages under the system/component scoped name, and
+    // duplicates them under the flat legacy name only while "Legacy variable names" is enabled.
+    // VFR_HUD heading streams faster than ATTITUDE yaw, which is only used while it is silent.
+    const vfrHudHeadingVariableIds = ['/mavlink/1/1/VFR_HUD/heading', 'VFR_HUD/heading'];
+    const headingVariableIds = ['/mavlink/1/1/ATTITUDE/yaw', 'ATTITUDE/yaw'];
+    const VFR_HUD_STALE_MS = 2000;
+    let lastVfrHudHeadingAt = 0;
+
+    const setHeadingFromVfrHud = (headingDegrees) => {
+      if (typeof headingDegrees !== 'number' || !Number.isFinite(headingDegrees)) return;
+      lastVfrHudHeadingAt = Date.now();
+      yawAngle.value = headingDegrees;
+    };
+
+    const setHeadingFromYaw = (yawRadians) => {
+      if (typeof yawRadians !== 'number' || !Number.isFinite(yawRadians)) return;
+      if (Date.now() - lastVfrHudHeadingAt < VFR_HUD_STALE_MS) return;
+      yawAngle.value = (yawRadians * 180) / Math.PI;
     };
 
     const widgetType = computed(() => route.params.type?.toLowerCase());
@@ -780,13 +799,12 @@ export default defineComponent({
       }
 
       if (widgetType.value === 'ping360') {
-        datalakeUnsubscribe = listenToDatalakeVariable(
-          'ATTITUDE/yaw',
-          (data) => {
-            yawAngle.value = -(data * 180) / Math.PI;
-          },
-          10
-        );
+        for (const variableId of vfrHudHeadingVariableIds) {
+          listenToDatalakeVariable(variableId, setHeadingFromVfrHud, 10);
+        }
+        for (const variableId of headingVariableIds) {
+          listenToDatalakeVariable(variableId, setHeadingFromYaw, 10);
+        }
       }
 
       if (!isLoading.value && deviceData.value && deviceId.value) {
@@ -817,10 +835,6 @@ export default defineComponent({
     onUnmounted(() => {
       if (resizeObserver) {
         resizeObserver.disconnect();
-      }
-
-      if (datalakeUnsubscribe) {
-        datalakeUnsubscribe();
       }
 
       if (deviceInstance.value) {
