@@ -1,13 +1,15 @@
 use clap;
 use clap::Parser;
 use lazy_static::lazy_static;
-use std::sync::Arc;
+use std::net::SocketAddr;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 
 #[derive(Parser, Debug)]
-#[command(version = env!("CARGO_PKG_VERSION"), author = env!("CARGO_PKG_AUTHORS"), about = env!("CARGO_PKG_DESCRIPTION"))]
+#[command(version, author, about)]
 struct Args {
     /// Call AutoCreate on DeviceManager during application startup.
-    #[arg(long, default_value = "false")]
+    #[arg(long)]
     enable_auto_create: bool,
 
     /// Deletes settings file before starting.
@@ -16,11 +18,11 @@ struct Args {
 
     /// Sets the address for the REST API server
     #[arg(long, value_name = "IP>:<PORT", default_value = "0.0.0.0:4936")]
-    rest_server: String,
+    rest_server: SocketAddr,
 
     /// Sets the address of the Zenoh router used to receive vehicle data
     #[arg(long, value_name = "IP>:<PORT", default_value = "127.0.0.1:7447")]
-    zenoh_server: String,
+    zenoh_server: SocketAddr,
 
     /// Turns all log categories up to Debug, for more information check RUST_LOG env variable.
     #[arg(short, long)]
@@ -28,14 +30,14 @@ struct Args {
 
     /// Specifies the path in witch the logs will be stored.
     #[arg(long, default_value = "./logs")]
-    log_path: Option<String>,
+    log_path: PathBuf,
 
     /// Turns all log categories up to Trace to the log file, for more information check RUST_LOG env variable.
     #[arg(long)]
     enable_tracing_level_log_file: bool,
 
     /// Filter to show only own crate related logs
-    #[arg(long, default_value = "false")]
+    #[arg(long)]
     log_include_all_dependencies: bool,
 
     /// Turns on the Tracy tool integration.
@@ -43,7 +45,7 @@ struct Args {
     enable_tracy: bool,
 
     /// Turns on the debug mode.
-    #[arg(long, default_value = "false")]
+    #[arg(long)]
     debug: bool,
 }
 
@@ -94,24 +96,41 @@ pub fn is_enable_auto_create() -> bool {
     MANAGER.clap_matches.enable_auto_create
 }
 
-pub fn log_path() -> String {
-    let log_path =
-        MANAGER.clap_matches.log_path.clone().expect(
-            "Clap arg \"log-path\" should always be \"Some(_)\" because of the default value.",
-        );
+static BASE_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-    shellexpand::full(&log_path)
-        .expect("Failed to expand path")
-        .to_string()
+/// Sets the directory against which relative data paths (logs, recordings) are resolved.
+pub fn set_base_dir(base_dir: impl Into<PathBuf>) {
+    BASE_DIR
+        .set(base_dir.into())
+        .expect("base directory should only be set once");
+}
+
+fn resolve_path(path: impl AsRef<Path>) -> PathBuf {
+    match BASE_DIR.get() {
+        Some(base_dir) => base_dir.join(path),
+        None => path.as_ref().to_path_buf(),
+    }
+}
+
+pub fn log_path() -> PathBuf {
+    let log_path = resolve_path(&MANAGER.clap_matches.log_path);
+    std::fs::create_dir_all(&log_path).expect("Failed to create log path");
+    log_path
+        .canonicalize()
+        .expect("Failed to canonicalize log path")
+}
+
+pub fn recordings_path() -> PathBuf {
+    resolve_path("recordings")
 }
 
 // Return the desired address for the REST API
-pub fn server_address() -> String {
+pub fn server_address() -> SocketAddr {
     MANAGER.clap_matches.rest_server.clone()
 }
 
 // Return the desired address for the Zenoh router
-pub fn zenoh_server_address() -> String {
+pub fn zenoh_server_address() -> SocketAddr {
     MANAGER.clap_matches.zenoh_server.clone()
 }
 

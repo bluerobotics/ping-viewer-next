@@ -142,23 +142,6 @@ fn custom_rolling_appender<P: AsRef<std::path::Path>>(
         .expect("failed to initialize rolling file appender")
 }
 
-#[allow(unused)]
-#[cfg(feature = "desktop-app")]
-static APP_DIR: &str = "Ping-Viewer-Next";
-
-#[cfg(feature = "desktop-app")]
-pub fn get_app_home_dir() -> PathBuf {
-    dirs::home_dir().expect("failed to get homedir")
-}
-
 pub fn get_app_log_dir() -> PathBuf {
-    #[cfg(feature = "desktop-app")]
-    {
-        get_app_home_dir().join("logs")
-    }
-
-    #[cfg(not(feature = "desktop-app"))]
-    {
-        PathBuf::from(cli::manager::log_path())
-    }
+    cli::manager::log_path()
 }

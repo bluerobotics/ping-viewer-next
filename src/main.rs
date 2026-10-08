@@ -29,7 +29,7 @@ async fn main() -> std::io::Result<()> {
     let (recordings_manager, recordings_manager_handler) =
         device::recording::RecordingManager::new_with_pose(
             10,
-            "recordings",
+            cli::manager::recordings_path(),
             handler.clone(),
             vehicle_data,
         );
@@ -38,7 +38,7 @@ async fn main() -> std::io::Result<()> {
     tokio::spawn(async move { manager.run().await });
 
     let result = server::manager::run(
-        &cli::manager::server_address(),
+        cli::manager::server_address(),
         handler.clone(),
         recordings_manager_handler.clone(),
     )
