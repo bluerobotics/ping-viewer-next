@@ -60,7 +60,7 @@
 			class="absolute pointer-events-none transition-opacity top-0 left-0"
 			:style="{
 				opacity: displayTooltip ? '100%' : '0%',
-				transform: `translate(calc(${mousePosition.x} + 10px), calc(${mousePosition.y} - 30px))`,
+				transform: `translate(calc(${mousePosition.x} + 10px), calc(${mousePosition.y} - 30px))${headDown ? ' scaleX(-1)' :''}`,
 			}">
 			{{ tooltipValue }}
 		</v-chip>
