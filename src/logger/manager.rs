@@ -143,5 +143,5 @@ fn custom_rolling_appender<P: AsRef<std::path::Path>>(
 }
 
 pub fn get_app_log_dir() -> PathBuf {
-    cli::manager::log_path()
+    cli::manager::log_directory().expect("Failed to get log directory")
 }
