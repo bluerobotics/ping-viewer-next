@@ -300,6 +300,11 @@ import Ping360Settings from '../components/widgets/sonar360/Ping360Settings.vue'
 import { useMenuCoordination } from '../composables/useMenuCoordination';
 import { wsManager } from '../composables/useRecordingSessions';
 import { useUnits } from '../composables/useUnits';
+import {
+  syncViewerSettings,
+  updateViewerSettings,
+  viewerSettings,
+} from '../composables/useViewerSettings';
 import { deviceKey, deviceWebSocketUrl } from '../ping-device/utils/device-slot';
 import { useNotificationStore } from '../stores/notificationStore';
 
@@ -598,7 +603,6 @@ const saveSettings = () => {
     localStorage.setItem('common-settings', JSON.stringify(commonSettings));
     localStorage.setItem('ping1d-settings', JSON.stringify(ping1DSettings));
     localStorage.setItem('ping360-settings', JSON.stringify(ping360Settings));
-    localStorage.setItem('display-settings', JSON.stringify(displaySettings));
     localStorage.setItem('glassMode', isGlassMode.value.toString());
     if (commonSettings.customPalette?.length > 0) {
       localStorage.setItem('customColorPalette', JSON.stringify(commonSettings.customPalette));
@@ -608,11 +612,37 @@ const saveSettings = () => {
   }
 };
 
+const applyDisplayProfile = (display) => {
+  displaySettings.aScan = display.a_scan;
+  displaySettings.colorPalette = display.color_palette;
+  displaySettings.debugMode = display.debug_mode;
+  displaySettings.backgroundMode = display.background_mode;
+  displaySettings.backgroundColor = display.background_color;
+  ping1DSettings.colorPalette = display.color_palette;
+  ping360Settings.colorPalette = display.color_palette;
+};
+
+watch(viewerSettings, (settings) => {
+  if (settings) {
+    applyDisplayProfile(settings.display);
+  }
+});
+
 const updateDisplaySettings = (newSettings) => {
   Object.assign(displaySettings, newSettings);
   ping1DSettings.colorPalette = newSettings.colorPalette;
   ping360Settings.colorPalette = newSettings.colorPalette;
-  localStorage.setItem('display-settings', JSON.stringify(displaySettings));
+  updateViewerSettings({
+    display: {
+      a_scan: displaySettings.aScan,
+      color_palette: displaySettings.colorPalette,
+      debug_mode: displaySettings.debugMode,
+      background_mode: displaySettings.backgroundMode,
+      background_color: displaySettings.backgroundColor,
+    },
+  }).catch((error) => {
+    console.error('Error saving display profile:', error);
+  });
 };
 
 const updateDarkMode = (value) => {
@@ -1041,6 +1071,12 @@ const debouncedSaveSettings = () => {
     saveSettings();
   }, 500);
 };
+
+watch(serverUrl, (url) => {
+  if (url) {
+    syncViewerSettings(url);
+  }
+});
 
 watchOnce(serverUrl, (newUrl) => {
   if (newUrl) {
