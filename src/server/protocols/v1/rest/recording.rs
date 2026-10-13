@@ -32,7 +32,8 @@ pub enum RecordingsManagerPostOptionsV1 {
 #[api_v2_operation(tags("Recordings Server"))]
 #[get("/recordings/list")]
 async fn list_mcap_recordings(req: web::HttpRequest) -> Result<Json<Vec<McapFileInfo>>, Error> {
-    let recordings_path = cli::manager::recordings_path();
+    let recordings_path =
+        cli::manager::recordings_directory().expect("recordings directory should exist");
     let recordings_dir = recordings_path.as_path();
     debug!(?recordings_dir, "Listing MCAP files");
 
@@ -142,7 +143,8 @@ async fn download_mcap_file(
     req: web::HttpRequest,
     query: web::Query<std::collections::HashMap<String, String>>,
 ) -> impl Responder {
-    let recordings_path = cli::manager::recordings_path();
+    let recordings_path =
+        cli::manager::recordings_directory().expect("recordings directory should exist");
     let recordings_dir = recordings_path.as_path();
     let canonical_file = match secure_file_path(recordings_dir, &file_name) {
         Ok(path) => path,
@@ -198,7 +200,8 @@ async fn download_mcap_file(
 #[api_v2_operation(tags("Recordings Server"))]
 #[delete("/recordings/delete/{file_name}")]
 async fn delete_mcap_file(file_name: web::Path<String>) -> impl Responder {
-    let recordings_path = cli::manager::recordings_path();
+    let recordings_path =
+        cli::manager::recordings_directory().expect("recordings directory should exist");
     let recordings_dir = recordings_path.as_path();
     let canonical_file = match secure_file_path(recordings_dir, &file_name) {
         Ok(path) => path,
