@@ -2,6 +2,7 @@ pub mod cli;
 pub mod device;
 pub mod logger;
 pub mod server;
+pub(crate) mod settings;
 pub mod vehicle;
 
 use serde::{Deserialize, Serialize};
