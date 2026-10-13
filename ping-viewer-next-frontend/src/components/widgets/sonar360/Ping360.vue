@@ -31,7 +31,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { getColorFromPalette } from '../SonarColorOptions.vue';
 import Sonar360Mask from './Sonar360Mask.vue';
 import Sonar360Shader from './Sonar360Shader.vue';
-import { useHeadDown } from './useHeadDown';
+import { useHeadDown } from '@/composables/useHeadDown';
 
 // When headDown is on we mirror the whole sonar container horizontally.
 // `Sonar360Mask` applies a second `scaleX(-1)` to its depth markers so their
