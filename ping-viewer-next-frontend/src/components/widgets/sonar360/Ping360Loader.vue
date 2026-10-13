@@ -34,6 +34,7 @@
 </template>
 
 <script setup>
+import { syncViewerSettings } from '@/composables/useViewerSettings';
 import { deviceKey, slotPayload } from '@/ping-device/utils/device-slot';
 import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import DataRecorder from '../DataRecorder.vue';
@@ -139,6 +140,16 @@ const serverUrl = computed(() => {
     return '';
   }
 });
+
+watch(
+  serverUrl,
+  (url) => {
+    if (url) {
+      syncViewerSettings(url);
+    }
+  },
+  { immediate: true }
+);
 
 const toggleFreeze = () => {
   isFrozen.value = !isFrozen.value;
