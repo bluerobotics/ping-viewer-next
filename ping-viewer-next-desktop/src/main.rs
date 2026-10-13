@@ -27,15 +27,13 @@ async fn main() {
     .expect("should create app directory");
     cli::manager::set_base_dir(app_dir);
 
-    cli::manager::init();
-
     logger::manager::init();
 
-    let (manager, handler) = device::manager::DeviceManager::new(10);
+    let (manager, handler) = device::manager::DeviceManager::new(10).await;
 
     let (recordings_manager, recordings_manager_handler) = device::recording::RecordingManager::new(
         10,
-        cli::manager::recordings_path(),
+        cli::manager::recordings_directory().expect("failed to get recordings directory"),
         handler.clone(),
     );
     tokio::spawn(async move { recordings_manager.run().await });
