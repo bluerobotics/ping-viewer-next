@@ -16,7 +16,7 @@ use std::{
     fmt::Display,
     hash::Hash,
     net::{Ipv4Addr, SocketAddrV4, UdpSocket},
-    sync::{atomic::AtomicU16, Arc, RwLock},
+    sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
 use tokio::{
@@ -28,7 +28,10 @@ use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
 use tracing::{debug, error, info, trace, warn};
 use udp_stream::UdpStream;
 
-use crate::device::manager::slots::{DeviceConnection, DeviceIdentity, SlotRegistry};
+use crate::{
+    device::manager::slots::{DeviceConnection, DeviceIdentity, SlotRegistry},
+    settings::SETTINGS,
+};
 
 use super::{
     devices::{DeviceActor, DeviceActorHandler, DeviceType, PingAnswer},
@@ -63,6 +66,10 @@ pub enum DeviceProperties {
     Ping360(Ping360Properties),
 }
 
+fn default_ping360_speed_of_sound() -> u16 {
+    1500
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Apiv2Schema)]
 pub struct Ping360Config {
     pub mode: u8,
@@ -75,6 +82,8 @@ pub struct Ping360Config {
     pub stop_angle: u16,
     pub num_steps: u8,
     pub delay: u8,
+    #[serde(default = "default_ping360_speed_of_sound")]
+    pub speed_of_sound: u16,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -213,15 +222,29 @@ pub struct SourceSerialStruct {
     pub baudrate: u32,
 }
 
-// Generate distinct IDs for each fake device
+// Generate distinct IDs for each fake device. Clients cannot choose the id:
+// deserialization always assigns the next free one, and deleted ids stay retired
+// until the u16 space wraps.
 fn get_fake_source_id() -> u16 {
-    static FAKE_ID: AtomicU16 = AtomicU16::new(1);
-    FAKE_ID.fetch_add(1, std::sync::atomic::Ordering::AcqRel)
+    let mut settings = SETTINGS.lock().expect("not poisoned");
+    let starting_id = settings.fake_id_counter.max(1);
+    let mut candidate = starting_id;
+    loop {
+        if candidate != 0 && !settings.fake_devices.contains_key(&candidate) {
+            break;
+        }
+        candidate = candidate.checked_add(1).unwrap_or(1);
+        if candidate == starting_id {
+            panic!("no free fake device ids");
+        }
+    }
+    settings.fake_id_counter = candidate.checked_add(1).unwrap_or(1);
+    candidate
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Hash, Apiv2Schema, PartialEq, Eq)]
 pub struct SourceFakeStruct {
-    #[serde(skip, default = "get_fake_source_id")]
+    #[serde(skip_deserializing, default = "get_fake_source_id")]
     fake_id: u16,
 }
 
@@ -478,13 +501,13 @@ impl DeviceManager {
         }
     }
 
-    pub fn new(size: usize) -> (Self, ManagerActorHandler) {
+    pub async fn new(size: usize) -> (Self, ManagerActorHandler) {
         let (sender, receiver) = mpsc::channel(size);
 
         let actor_handler = ManagerActorHandler { sender };
         let (recovery_tx, recovery_rx) = mpsc::channel(size);
         let (health_tx, health_rx) = mpsc::channel(size);
-        let actor = DeviceManager {
+        let mut actor = DeviceManager {
             receiver,
             device: HashMap::new(),
             slot_registry: SlotRegistry::new(),
@@ -495,6 +518,48 @@ impl DeviceManager {
             health_tx,
             health_rx,
         };
+
+        let (saved_slots, saved_fakes) = {
+            let settings = SETTINGS.lock().expect("not poisoned");
+            let saved_slots: Vec<(DeviceConnection, u8)> = settings
+                .ping360
+                .iter()
+                .map(|entry| (entry.connection.clone(), entry.slot))
+                .collect();
+            let saved_fakes: Vec<(u16, DeviceSelection)> = settings
+                .fake_devices
+                .iter()
+                .map(|(id, device_type)| (*id, *device_type))
+                .collect();
+            (saved_slots, saved_fakes)
+        };
+
+        for (connection, slot) in saved_slots {
+            actor.slot_registry.remember(
+                &DeviceIdentity {
+                    device_type: DeviceSelection::Ping360,
+                    connection,
+                },
+                slot,
+            );
+        }
+
+        for (id, device_type) in saved_fakes {
+            if let Err(error) = actor
+                .create(
+                    SourceSelection::FakeStream(SourceFakeStruct { fake_id: id }),
+                    device_type,
+                )
+                .await
+            {
+                error!(
+                    id,
+                    %device_type,
+                    ?error,
+                    "failed to restore saved fake device"
+                );
+            }
+        }
 
         trace!("DeviceManager and handler successfully created: Success");
         (actor, actor_handler)
@@ -878,6 +943,14 @@ impl DeviceManager {
 
         self.device.insert(source.clone(), device);
 
+        if let SourceSelection::FakeStream(fake) = &source {
+            SETTINGS
+                .lock()
+                .expect("not poisoned")
+                .fake_devices
+                .insert(fake.fake_id, device_selection);
+        }
+
         trace!(?source, "Updating device properties");
         self.update_device_properties(device_type, slot).await?;
 
@@ -1035,13 +1108,16 @@ impl DeviceManager {
                     slot,
                     "Removing errored device to reuse its slot"
                 );
-                if let Err(error) = self.delete(identity.device_type, slot).await {
+                if let Err(error) = self.delete_inner(identity.device_type, slot, false).await {
                     warn!(
                         device_type = %identity.device_type,
                         slot,
                         ?error,
                         "Failed to remove errored device before reusing its slot"
                     );
+                } else {
+                    // delete forgets the slot; this device is about to reuse it
+                    self.slot_registry.remember(identity, slot);
                 }
             }
         }
@@ -1238,6 +1314,17 @@ impl DeviceManager {
         device_type: DeviceSelection,
         slot: u8,
     ) -> Result<Answer, ManagerError> {
+        self.delete_inner(device_type, slot, true).await
+    }
+
+    /// `forget_persisted` is false when the slot is recycled internally, where
+    /// the saved entries still belong to the device being recreated
+    async fn delete_inner(
+        &mut self,
+        device_type: DeviceSelection,
+        slot: u8,
+        forget_persisted: bool,
+    ) -> Result<Answer, ManagerError> {
         if let Err(error) = self
             .stop_then_teardown_device_runtime(device_type, slot)
             .await
@@ -1250,7 +1337,16 @@ impl DeviceManager {
             );
         }
         let device = self.remove_device(device_type, slot)?;
-        self.slot_registry.release(device_type, slot);
+        if forget_persisted {
+            if let SourceSelection::FakeStream(fake) = &device.source {
+                crate::settings::forget_fake_device(
+                    &mut SETTINGS.lock().expect("not poisoned"),
+                    fake.fake_id,
+                    slot,
+                );
+            }
+        }
+        self.slot_registry.forget(device_type, slot);
         let device_info = device.info();
 
         if let Ok(sources) = self.sources().await {
@@ -1423,6 +1519,7 @@ impl DeviceManager {
                 device.properties = Some(DeviceProperties::Ping1D(ping_1d_properties))
             }
             DeviceSelection::Ping360 => {
+                let connection = DeviceConnection::from(&device.source);
                 let device_data = handler
                     .send(super::devices::PingRequest::Ping360(
                         super::devices::Ping360Request::DeviceData,
@@ -1442,18 +1539,21 @@ impl DeviceManager {
                     )))
                 };
 
-                let auto_transmit = Ping360Config {
-                    mode: device_data.mode,
-                    gain_setting: device_data.gain_setting,
-                    transmit_duration: device_data.transmit_duration,
-                    sample_period: device_data.sample_period,
-                    transmit_frequency: device_data.transmit_frequency,
-                    number_of_samples: 1200,
-                    start_angle: 0,
-                    stop_angle: 399,
-                    num_steps: 1,
-                    delay: 0,
-                };
+                // A saved profile wins over the device's current registers
+                let auto_transmit = crate::settings::stored_ping360_config(&connection, slot)
+                    .unwrap_or(Ping360Config {
+                        mode: device_data.mode,
+                        gain_setting: device_data.gain_setting,
+                        transmit_duration: device_data.transmit_duration,
+                        sample_period: device_data.sample_period,
+                        transmit_frequency: device_data.transmit_frequency,
+                        number_of_samples: 1200,
+                        start_angle: 0,
+                        stop_angle: 399,
+                        num_steps: 1,
+                        delay: 0,
+                        speed_of_sound: default_ping360_speed_of_sound(),
+                    });
 
                 let ping_360_properties = Ping360Properties {
                     common: common_properties,
@@ -1549,6 +1649,10 @@ impl DeviceManager {
             ModifyDeviceCommand::SetPing360Config(config) => {
                 self.update_ping360_config(request.device_type, request.slot, config)
                     .await?;
+                let connection = DeviceConnection::from(
+                    &self.get_device(request.device_type, request.slot)?.source,
+                );
+                crate::settings::remember_ping360_config(connection, request.slot, config);
                 Ok(Answer::DeviceConfig(ModifyDeviceResult::ConfigAcknowledge(
                     request,
                 )))
