@@ -4,7 +4,6 @@ use actix::{
 };
 use actix_web::HttpRequest;
 use actix_web_actors::ws;
-use lazy_static::lazy_static;
 use paperclip::actix::{
     api_v2_operation, get,
     web::{self, HttpResponse},
@@ -13,7 +12,7 @@ use paperclip::actix::{
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::sync::{Arc, Mutex};
+use std::sync::{LazyLock, Mutex};
 use tokio::sync::broadcast;
 use tracing::info;
 
@@ -72,10 +71,8 @@ impl WebsocketManager {
     }
 }
 
-lazy_static! {
-    pub static ref MANAGER: Arc<Mutex<WebsocketManager>> =
-        Arc::new(Mutex::new(WebsocketManager::default()));
-}
+pub static MANAGER: LazyLock<Mutex<WebsocketManager>> =
+    LazyLock::new(|| Mutex::new(WebsocketManager::default()));
 
 pub fn send_to_websockets(message: Value, device: Option<DeviceSlotWrapper>) {
     MANAGER
@@ -85,7 +82,7 @@ pub fn send_to_websockets(message: Value, device: Option<DeviceSlotWrapper>) {
 }
 
 pub struct WebsocketActor {
-    server: Arc<Mutex<WebsocketManager>>,
+    server: &'static Mutex<WebsocketManager>,
     pub filter: String,
     pub device_number: Option<DeviceSlotWrapper>,
     pub manager_handler: web::Data<ManagerActorHandler>,
@@ -98,7 +95,7 @@ impl WebsocketActor {
         manager_handler: web::Data<ManagerActorHandler>,
     ) -> Self {
         Self {
-            server: MANAGER.clone(),
+            server: &MANAGER,
             filter: message_filter,
             device_number,
             manager_handler,
