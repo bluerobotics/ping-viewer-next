@@ -1,9 +1,9 @@
 use clap;
 use clap::Parser;
-use lazy_static::lazy_static;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
+use std::path::Path;
+use std::sync::OnceLock;
+use std::{path::PathBuf, sync::LazyLock};
 
 #[derive(Parser, Debug)]
 #[command(version, author, about)]
@@ -28,9 +28,17 @@ struct Args {
     #[arg(short, long)]
     verbose: bool,
 
-    /// Specifies the path in witch the logs will be stored.
+    /// Specifies the path in which the logs will be stored.
     #[arg(long, default_value = "./logs")]
     log_path: PathBuf,
+
+    /// Specifies the path in which recordings will be stored.
+    #[arg(long, default_value = "./recordings")]
+    recordings_path: PathBuf,
+
+    /// Specifies the path in which settings will be stored.
+    #[arg(long, default_value = "./settings")]
+    settings_path: PathBuf,
 
     /// Turns all log categories up to Trace to the log file, for more information check RUST_LOG env variable.
     #[arg(long)]
@@ -54,9 +62,7 @@ struct Manager {
     clap_matches: Args,
 }
 
-lazy_static! {
-    static ref MANAGER: Arc<Manager> = Arc::new(Manager::new());
-}
+static MANAGER: LazyLock<Manager> = LazyLock::new(|| Manager::new());
 
 impl Manager {
     fn new() -> Self {
@@ -64,11 +70,6 @@ impl Manager {
             clap_matches: Args::parse(),
         }
     }
-}
-
-// Construct our manager, should be done inside main
-pub fn init() {
-    MANAGER.as_ref();
 }
 
 pub fn is_debug() -> bool {
@@ -96,9 +97,13 @@ pub fn is_enable_auto_create() -> bool {
     MANAGER.clap_matches.enable_auto_create
 }
 
+pub fn is_reset() -> bool {
+    MANAGER.clap_matches.reset
+}
+
 static BASE_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-/// Sets the directory against which relative data paths (logs, recordings) are resolved.
+/// Sets the directory against which relative data paths (logs, recordings, settings) are resolved.
 pub fn set_base_dir(base_dir: impl Into<PathBuf>) {
     BASE_DIR
         .set(base_dir.into())
@@ -112,16 +117,22 @@ fn resolve_path(path: impl AsRef<Path>) -> PathBuf {
     }
 }
 
-pub fn log_path() -> PathBuf {
-    let log_path = resolve_path(&MANAGER.clap_matches.log_path);
-    std::fs::create_dir_all(&log_path).expect("Failed to create log path");
-    log_path
-        .canonicalize()
-        .expect("Failed to canonicalize log path")
+fn prepare_directory(path: PathBuf) -> std::io::Result<PathBuf> {
+    let path = resolve_path(&path);
+    std::fs::create_dir_all(&path)?;
+    path.canonicalize()
 }
 
-pub fn recordings_path() -> PathBuf {
-    resolve_path("recordings")
+pub fn log_directory() -> std::io::Result<PathBuf> {
+    prepare_directory(MANAGER.clap_matches.log_path.clone())
+}
+
+pub fn recordings_directory() -> std::io::Result<PathBuf> {
+    prepare_directory(MANAGER.clap_matches.recordings_path.clone())
+}
+
+pub fn settings_directory() -> std::io::Result<PathBuf> {
+    prepare_directory(MANAGER.clap_matches.settings_path.clone())
 }
 
 // Return the desired address for the REST API
