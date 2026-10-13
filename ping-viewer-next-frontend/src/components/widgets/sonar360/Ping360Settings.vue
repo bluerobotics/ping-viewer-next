@@ -225,7 +225,7 @@
 import { useDebounceFn } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
 import { useUnits } from '../../../composables/useUnits';
-import { useHeadDown } from './useHeadDown';
+import { useHeadDown } from '@/composables/useHeadDown';
 
 const { distanceLabel, speedUnit } = useUnits();
 

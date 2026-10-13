@@ -76,7 +76,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useUnits } from '../../../composables/useUnits';
-import { useHeadDown } from './useHeadDown';
+import { useHeadDown } from '@/composables/useHeadDown';
 
 const instanceId = ref(Math.random().toString(36).slice(2, 8));
 const sweepGradientId = computed(() => `sweep-grad-${instanceId.value}`);
