@@ -436,7 +436,7 @@ const fetchCurrentSettings = async () => {
         sample_period: config.sample_period,
         transmit_frequency: config.transmit_frequency,
         number_of_samples: config.number_of_samples,
-        speed_of_sound: 1500,
+        speed_of_sound: config.speed_of_sound || 1500,
       };
 
       const isFullCircleConfig = (config.stop_angle + 1) % 400 === config.start_angle % 400;
