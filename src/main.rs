@@ -6,8 +6,6 @@ use ping_viewer_next::{cli, device, logger, server, vehicle::zenoh_client_bridge
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    // CLI should be started before logger to allow control over verbosity
-    cli::manager::init();
     // Logger should start before everything else to register any log information
     logger::manager::init();
 
@@ -16,9 +14,8 @@ async fn main() -> std::io::Result<()> {
     // Start the Zenoh-client with shared data
     tokio::spawn(zenoh_client_bridge(vehicle_data.clone()));
 
-    let (mut manager, handler) = device::manager::DeviceManager::new(10);
+    let (mut manager, handler) = device::manager::DeviceManager::new(10).await;
 
-    //Todo: Load previous devices
     if cli::manager::is_enable_auto_create() {
         match manager.auto_create().await {
             Ok(answer) => info!(?answer, "DeviceManager initialized with following devices"),
@@ -29,7 +26,7 @@ async fn main() -> std::io::Result<()> {
     let (recordings_manager, recordings_manager_handler) =
         device::recording::RecordingManager::new_with_pose(
             10,
-            cli::manager::recordings_path(),
+            cli::manager::recordings_directory().expect("failed to get recordings directory"),
             handler.clone(),
             vehicle_data,
         );
