@@ -17,11 +17,11 @@
           </div>
 
           <v-list v-else :class="{ 'glass-inner': glass }" density="compact">
-            <v-list-item v-for="device in devices" :key="device.id" :value="device" class="mb-2"
+            <v-list-item v-for="device in devices" :key="deviceKey(device)" :value="device" class="mb-2"
               @click="selectDevice(device)">
               <template v-slot:prepend>
-                <v-badge :content="isDeviceRecording(device.id) ? 'Rec' : ''" :location="'top end'" color="error"
-                  :model-value="isDeviceRecording(device.id)">
+                <v-badge :content="isDeviceRecording(device) ? 'Rec' : ''" :location="'top end'" color="error"
+                  :model-value="isDeviceRecording(device)">
                   <v-icon :icon="device.device_type === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'" />
                 </v-badge>
               </template>
@@ -80,8 +80,8 @@
                           <v-list-item-subtitle>View device data</v-list-item-subtitle>
                         </v-list-item>
 
-                        <v-list-item v-if="device.status === 'ContinuousMode'" @click="disableContinuousMode(device.id)"
-                          :disabled="loadingStates[device.id]">
+                        <v-list-item v-if="device.status === 'ContinuousMode'" @click="disableContinuousMode(device)"
+                          :disabled="loadingStates[deviceKey(device)]">
                           <template v-slot:prepend>
                             <v-icon variant="tonal">mdi-pause</v-icon>
                           </template>
@@ -89,8 +89,8 @@
                           <v-list-item-subtitle>Pause device data stream</v-list-item-subtitle>
                         </v-list-item>
 
-                        <v-list-item v-else @click="enableContinuousMode(device.id)"
-                          :disabled="loadingStates[device.id]">
+                        <v-list-item v-else @click="enableContinuousMode(device)"
+                          :disabled="loadingStates[deviceKey(device)]">
                           <template v-slot:prepend>
                             <v-icon variant="tonal">mdi-play</v-icon>
                           </template>
@@ -98,10 +98,10 @@
                           <v-list-item-subtitle>Start device data stream</v-list-item-subtitle>
                         </v-list-item>
 
-                        <v-divider v-if="isDeviceRecording(device.id) || (device.status === 'ContinuousMode' || device.status === 'Running')" ></v-divider>
+                        <v-divider v-if="isDeviceRecording(device) || (device.status === 'ContinuousMode' || device.status === 'Running')" ></v-divider>
 
-                        <v-list-item v-if="isDeviceRecording(device.id)" @click="stopRecording(device.id)"
-                          :disabled="loadingStates[device.id]">
+                        <v-list-item v-if="isDeviceRecording(device)" @click="stopRecording(device)"
+                          :disabled="loadingStates[deviceKey(device)]">
                           <template v-slot:prepend>
                             <v-icon color="error">mdi-stop</v-icon>
                           </template>
@@ -110,8 +110,8 @@
                         </v-list-item>
 
                         <v-list-item v-else-if="device.status === 'ContinuousMode' || device.status === 'Running'"
-                          @click="startRecording(device.id)"
-                          :disabled="loadingStates[device.id]">
+                          @click="startRecording(device)"
+                          :disabled="loadingStates[deviceKey(device)]">
                           <template v-slot:prepend>
                             <v-icon color="success">mdi-record</v-icon>
                           </template>
@@ -119,10 +119,10 @@
                           <v-list-item-subtitle>Start recording device data</v-list-item-subtitle>
                         </v-list-item>
 
-                        <v-divider v-if="isDeviceRecording(device.id) || (device.status === 'ContinuousMode' || device.status === 'Running')" class="my-2"></v-divider>
+                        <v-divider v-if="isDeviceRecording(device) || (device.status === 'ContinuousMode' || device.status === 'Running')" class="my-2"></v-divider>
                         <v-divider v-else class="my-2"></v-divider>
 
-                        <v-list-item @click="confirmDelete(device)" :disabled="loadingStates[device.id]">
+                        <v-list-item @click="confirmDelete(device)" :disabled="loadingStates[deviceKey(device)]">
                           <template v-slot:prepend>
                             <v-icon color="error">mdi-delete</v-icon>
                           </template>
@@ -222,7 +222,7 @@
               Are you sure you want to delete this device?
               <div class="mt-2">
                 <strong>Type:</strong> {{ deviceToDelete?.device_type }}<br>
-                <strong>ID:</strong> {{ deviceToDelete?.id }}
+                <strong>Slot:</strong> {{ deviceToDelete?.slot }}
               </div>
             </v-card-text>
             <v-card-actions>
@@ -238,12 +238,18 @@
 </template>
 
 <script setup>
-import { inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
+  deviceKey,
+  recordingsActionUrl,
+  slotPayload,
+  widgetUrl,
+} from '@/ping-device/utils/device-slot';
+import {
+  deviceStatusReason,
   deviceStatusColor as getStatusColor,
   deviceStatusLabel as getStatusLabel,
-  deviceStatusReason,
 } from '@/ping-device/utils/device-status';
+import { inject, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
   serverUrl: {
@@ -276,8 +282,8 @@ const loadingStates = ref({});
 
 const recordingSessions = inject('recordingSessions');
 
-const isDeviceRecording = (deviceId) => {
-  const session = recordingSessions.value.get(deviceId);
+const isDeviceRecording = (device) => {
+  const session = recordingSessions.value.get(deviceKey(device));
   return session?.is_active || false;
 };
 
@@ -290,7 +296,7 @@ const fetchInitialRecordingStatuses = async () => {
     const data = await response.json();
     if (data.AllRecordingStatus) {
       for (const session of data.AllRecordingStatus) {
-        recordingSessions.value.set(session.device_id, session);
+        recordingSessions.value.set(deviceKey(session), session);
       }
     }
   } catch (err) {
@@ -342,16 +348,14 @@ const toggleManualCreate = () => {
 };
 
 const getWidgetUrl = (device) => {
-  const widgetType = device.device_type?.toLowerCase();
-  if (widgetType === undefined) return null;
-  return `${window.location.origin}/addons/widget/${widgetType}/?server=${props.serverUrl}&uuid=${device.id}`;
+  return widgetUrl(window.location.origin, props.serverUrl, device);
 };
 
 const logWidgetUrls = () => {
   for (const device of devices.value) {
     const url = getWidgetUrl(device);
     if (url) {
-      console.log(`Widget URL [${device.device_type} ${device.id}]: ${url}`);
+      console.log(`Widget URL [${device.device_type} slot ${device.slot}]: ${url}`);
     }
   }
 };
@@ -466,8 +470,9 @@ const createDevice = async () => {
   }
 };
 
-const enableContinuousMode = async (deviceId) => {
-  loadingStates.value[deviceId] = true;
+const enableContinuousMode = async (device) => {
+  const key = deviceKey(device);
+  loadingStates.value[key] = true;
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
       method: 'POST',
@@ -475,7 +480,7 @@ const enableContinuousMode = async (deviceId) => {
       body: JSON.stringify({
         command: 'EnableContinuousMode',
         module: 'DeviceManager',
-        payload: { uuid: deviceId },
+        payload: slotPayload(device),
       }),
     });
 
@@ -485,12 +490,13 @@ const enableContinuousMode = async (deviceId) => {
     console.error('Error enabling continuous mode:', err);
     error.value = `Failed to enable continuous mode: ${err.message}`;
   } finally {
-    loadingStates.value[deviceId] = false;
+    loadingStates.value[key] = false;
   }
 };
 
-const disableContinuousMode = async (deviceId) => {
-  loadingStates.value[deviceId] = true;
+const disableContinuousMode = async (device) => {
+  const key = deviceKey(device);
+  loadingStates.value[key] = true;
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
       method: 'POST',
@@ -498,7 +504,7 @@ const disableContinuousMode = async (deviceId) => {
       body: JSON.stringify({
         command: 'DisableContinuousMode',
         module: 'DeviceManager',
-        payload: { uuid: deviceId },
+        payload: slotPayload(device),
       }),
     });
 
@@ -508,22 +514,20 @@ const disableContinuousMode = async (deviceId) => {
     console.error('Error disabling continuous mode:', err);
     error.value = `Failed to disable continuous mode: ${err.message}`;
   } finally {
-    loadingStates.value[deviceId] = false;
+    loadingStates.value[key] = false;
   }
 };
 
-const startRecording = async (deviceId) => {
-  loadingStates.value[deviceId] = true;
+const startRecording = async (device) => {
+  const key = deviceKey(device);
+  loadingStates.value[key] = true;
   try {
-    const response = await fetch(
-      `${props.serverUrl}/v1/recordings_manager/${deviceId}/StartRecording`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const response = await fetch(recordingsActionUrl(props.serverUrl, device, 'StartRecording'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
     if (!response.ok) {
       throw new Error('Failed to start recording');
@@ -532,22 +536,20 @@ const startRecording = async (deviceId) => {
     console.error('Error starting recording:', err);
     error.value = `Failed to start recording: ${err.message}`;
   } finally {
-    loadingStates.value[deviceId] = false;
+    loadingStates.value[key] = false;
   }
 };
 
-const stopRecording = async (deviceId) => {
-  loadingStates.value[deviceId] = true;
+const stopRecording = async (device) => {
+  const key = deviceKey(device);
+  loadingStates.value[key] = true;
   try {
-    const response = await fetch(
-      `${props.serverUrl}/v1/recordings_manager/${deviceId}/StopRecording`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const response = await fetch(recordingsActionUrl(props.serverUrl, device, 'StopRecording'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
     if (!response.ok) {
       throw new Error('Failed to stop recording');
@@ -556,7 +558,7 @@ const stopRecording = async (deviceId) => {
     console.error('Error stopping recording:', err);
     error.value = `Failed to stop recording: ${err.message}`;
   } finally {
-    loadingStates.value[deviceId] = false;
+    loadingStates.value[key] = false;
   }
 };
 
@@ -576,7 +578,7 @@ const deleteDevice = async () => {
       body: JSON.stringify({
         command: 'Delete',
         module: 'DeviceManager',
-        payload: { uuid: deviceToDelete.value.id },
+        payload: slotPayload(deviceToDelete.value),
       }),
     });
 
@@ -595,8 +597,8 @@ const deleteDevice = async () => {
 const selectDevice = async (device) => {
   try {
     if (device.status !== 'ContinuousMode') {
-      loadingStates.value[device.id] = true;
-      await enableContinuousMode(device.id);
+      loadingStates.value[deviceKey(device)] = true;
+      await enableContinuousMode(device);
       await fetchDevices();
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
@@ -605,7 +607,7 @@ const selectDevice = async (device) => {
   } catch (error) {
     console.error('Error selecting device:', error);
   } finally {
-    loadingStates.value[device.id] = false;
+    loadingStates.value[deviceKey(device)] = false;
   }
 };
 

@@ -4,7 +4,6 @@ use actix::{
 };
 use actix_web::HttpRequest;
 use actix_web_actors::ws;
-use lazy_static::lazy_static;
 use paperclip::actix::{
     api_v2_operation, get,
     web::{self, HttpResponse},
@@ -13,13 +12,15 @@ use paperclip::actix::{
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::sync::{Arc, Mutex};
+use std::sync::{LazyLock, Mutex};
 use tokio::sync::broadcast;
 use tracing::info;
-use uuid::Uuid;
 
 use crate::device::{
-    manager::{ManagerActorHandler, Request},
+    manager::{
+        DeviceRequestStruct, DeviceSelection, DeviceSlotWrapper, ManagerActorHandler, ModifyDevice,
+        Request,
+    },
     recording::{RecordingManagerCommand, RecordingsManagerHandler},
 };
 
@@ -38,7 +39,7 @@ pub struct WebsocketError {
 pub struct WebsocketActorContent {
     pub actor: Addr<WebsocketActor>,
     pub re: Option<Regex>,
-    pub device_number: Option<Uuid>,
+    pub device_number: Option<DeviceSlotWrapper>,
 }
 
 #[derive(Debug, Default)]
@@ -47,7 +48,12 @@ pub struct WebsocketManager {
 }
 
 impl WebsocketManager {
-    pub fn send(&self, value: &serde_json::Value, name: &str, device_number: Option<Uuid>) {
+    pub fn send(
+        &self,
+        value: &serde_json::Value,
+        name: &str,
+        device_number: Option<DeviceSlotWrapper>,
+    ) {
         if self.clients.is_empty() {
             return;
         }
@@ -65,12 +71,10 @@ impl WebsocketManager {
     }
 }
 
-lazy_static! {
-    pub static ref MANAGER: Arc<Mutex<WebsocketManager>> =
-        Arc::new(Mutex::new(WebsocketManager::default()));
-}
+pub static MANAGER: LazyLock<Mutex<WebsocketManager>> =
+    LazyLock::new(|| Mutex::new(WebsocketManager::default()));
 
-pub fn send_to_websockets(message: Value, device: Option<Uuid>) {
+pub fn send_to_websockets(message: Value, device: Option<DeviceSlotWrapper>) {
     MANAGER
         .lock()
         .unwrap()
@@ -78,20 +82,20 @@ pub fn send_to_websockets(message: Value, device: Option<Uuid>) {
 }
 
 pub struct WebsocketActor {
-    server: Arc<Mutex<WebsocketManager>>,
+    server: &'static Mutex<WebsocketManager>,
     pub filter: String,
-    pub device_number: Option<Uuid>,
+    pub device_number: Option<DeviceSlotWrapper>,
     pub manager_handler: web::Data<ManagerActorHandler>,
 }
 
 impl WebsocketActor {
     pub fn new(
         message_filter: String,
-        device_number: Option<Uuid>,
+        device_number: Option<DeviceSlotWrapper>,
         manager_handler: web::Data<ManagerActorHandler>,
     ) -> Self {
         Self {
-            server: MANAGER.clone(),
+            server: &MANAGER,
             filter: message_filter,
             device_number,
             manager_handler,
@@ -121,7 +125,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebsocketActor {
             .push(WebsocketActorContent {
                 actor: ctx.address(),
                 re: Regex::new(&self.filter).ok(),
-                device_number: (self.device_number),
+                device_number: self.device_number.clone(),
             });
     }
 
@@ -155,17 +159,26 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebsocketActor {
                         crate::ModuleType::DeviceManager(request) => {
                             let manager_handler = self.manager_handler.clone();
 
-                            let request_has_id = match &request {
-                                Request::ModifyDevice(modify) => Some(modify.uuid),
-                                Request::Ping(device_request) => Some(device_request.uuid),
-                                Request::Delete(uuid_wrapper) => Some(uuid_wrapper.uuid),
-                                Request::Info(uuid_wrapper) => Some(uuid_wrapper.uuid),
-                                Request::EnableContinuousMode(uuid_wrapper) => {
-                                    Some(uuid_wrapper.uuid)
-                                }
-                                Request::DisableContinuousMode(uuid_wrapper) => {
-                                    Some(uuid_wrapper.uuid)
-                                }
+                            let request_has_device_slot = match &request {
+                                Request::ModifyDevice(ModifyDevice {
+                                    device_type, slot, ..
+                                })
+                                | Request::Ping(DeviceRequestStruct {
+                                    device_type, slot, ..
+                                })
+                                | Request::Delete(DeviceSlotWrapper { device_type, slot })
+                                | Request::Info(DeviceSlotWrapper { device_type, slot })
+                                | Request::EnableContinuousMode(DeviceSlotWrapper {
+                                    device_type,
+                                    slot,
+                                })
+                                | Request::DisableContinuousMode(DeviceSlotWrapper {
+                                    device_type,
+                                    slot,
+                                }) => Some(DeviceSlotWrapper {
+                                    device_type: *device_type,
+                                    slot: *slot,
+                                }),
                                 _ => None,
                             };
 
@@ -176,9 +189,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebsocketActor {
                                 .then(move |res, actor, ctx| {
                                     match &res {
                                         Ok(result) => {
-                                            let device_number = match request_has_id{
+                                            let device_number = match request_has_device_slot {
                                                 Some(device_number) => Some(device_number),
-                                                None => actor.device_number,
+                                                None => actor.device_number.clone(),
                                             };
                                             crate::server::protocols::v1::websocket::send_to_websockets(
                                                 json!(result),
@@ -216,12 +229,15 @@ pub async fn websocket(
         Some(filter) => filter,
         _ => ".*".to_owned(),
     };
-    let device_number = query_inner.device_number;
+    let device_number = query_inner.device_type.and_then(|device_type| {
+        query_inner
+            .slot
+            .map(|slot| DeviceSlotWrapper { device_type, slot })
+    });
 
-    if let Some(device_number) = device_number {
-        let request = crate::device::manager::Request::Info(crate::device::manager::UuidWrapper {
-            uuid: device_number,
-        });
+    if let Some(DeviceSlotWrapper { device_type, slot }) = device_number {
+        let request =
+            crate::device::manager::Request::Info(DeviceSlotWrapper { device_type, slot });
         match manager_handler.send(request).await {
             Ok(response) => {
                 info!(
@@ -318,5 +334,6 @@ pub async fn recording_websocket(
 pub struct WebsocketQuery {
     /// Regex filter to select the desired incoming messages
     filter: Option<String>,
-    device_number: Option<Uuid>,
+    device_type: Option<DeviceSelection>,
+    slot: Option<u8>,
 }

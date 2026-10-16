@@ -11,6 +11,7 @@
 </template>
 
 <script setup>
+import { deviceKey, recordingsActionUrl } from '@/ping-device/utils/device-slot';
 import { computed, inject, ref } from 'vue';
 
 const props = defineProps({
@@ -30,7 +31,7 @@ const recordingSessions = inject('recordingSessions', ref(new Map()));
 const isLoading = ref(false);
 
 const isRecording = computed(() => {
-  const session = recordingSessions.value.get(props.device.id);
+  const session = recordingSessions.value.get(deviceKey(props.device));
   return session?.is_active ?? false;
 });
 
@@ -46,7 +47,7 @@ const startRecording = async () => {
   isLoading.value = true;
   try {
     const response = await fetch(
-      `${props.serverUrl}/v1/recordings_manager/${props.device.id}/StartRecording`,
+      recordingsActionUrl(props.serverUrl, props.device, 'StartRecording'),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,7 +68,7 @@ const stopRecording = async () => {
   isLoading.value = true;
   try {
     const response = await fetch(
-      `${props.serverUrl}/v1/recordings_manager/${props.device.id}/StopRecording`,
+      recordingsActionUrl(props.serverUrl, props.device, 'StopRecording'),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -8,7 +8,7 @@
         <v-icon :icon="device.device_type === 'Ping360' ? 'mdi-radar' : 'mdi-altimeter'" size="large" class="mr-4" />
       </template>
       <v-card-title>{{ device.device_type }}</v-card-title>
-      <v-card-subtitle>ID: {{ device.id }}</v-card-subtitle>
+      <v-card-subtitle>Slot: {{ device.slot }}</v-card-subtitle>
     </v-card-item>
 
     <v-card-text>
@@ -63,9 +63,9 @@
 
 <script setup>
 import {
+  deviceStatusReason,
   deviceStatusColor as getStatusColor,
   deviceStatusLabel as getStatusLabel,
-  deviceStatusReason,
 } from '@/ping-device/utils/device-status';
 
 const props = defineProps({
