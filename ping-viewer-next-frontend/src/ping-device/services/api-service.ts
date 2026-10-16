@@ -5,6 +5,8 @@ import type {
   RangeResponse,
   SpeedOfSoundResponse,
 } from '../types/responses';
+import type { DeviceSlot } from '../utils/device-slot';
+import { slotPayload } from '../utils/device-slot';
 
 /**
  * Service for making HTTP API calls to the device server
@@ -50,29 +52,33 @@ export class ApiService {
     }
   }
 
-  async enableContinuousMode(uuid: string, parameters?: Record<string, unknown>): Promise<unknown> {
+  async enableContinuousMode(
+    device: DeviceSlot,
+    parameters?: Record<string, unknown>
+  ): Promise<unknown> {
     return this.sendHttpRequest('EnableContinuousMode', 'device_manager', {
-      uuid,
+      ...slotPayload(device),
       ...parameters,
     });
   }
 
-  async disableContinuousMode(uuid: string): Promise<unknown> {
-    return this.sendHttpRequest('DisableContinuousMode', 'device_manager', {
-      uuid,
-    });
+  async disableContinuousMode(device: DeviceSlot): Promise<unknown> {
+    return this.sendHttpRequest('DisableContinuousMode', 'device_manager', slotPayload(device));
   }
 
-  async getPing360Settings(uuid: string): Promise<Ping360ConfigResponse> {
+  async getPing360Settings(device: DeviceSlot): Promise<Ping360ConfigResponse> {
     return this.sendHttpRequest('ModifyDevice', 'device_manager', {
-      uuid,
+      ...slotPayload(device),
       modify: 'GetPing360Config',
     }) as Promise<Ping360ConfigResponse>;
   }
 
-  async setPing360Settings(uuid: string, settings: Record<string, unknown>): Promise<unknown> {
+  async setPing360Settings(
+    device: DeviceSlot,
+    settings: Record<string, unknown>
+  ): Promise<unknown> {
     return this.sendHttpRequest('ModifyDevice', 'device_manager', {
-      uuid,
+      ...slotPayload(device),
       modify: {
         SetPing360Config: {
           mode: 1,
@@ -83,31 +89,31 @@ export class ApiService {
   }
 
   async sendPing1DCommand(
-    uuid: string,
+    device: DeviceSlot,
     command: string,
     payload: Record<string, unknown> | null = null
   ): Promise<unknown> {
     return this.sendHttpRequest('Ping', 'device_manager', {
+      ...slotPayload(device),
       device_request: {
         Ping1D: payload ? { [command]: payload } : command,
       },
-      uuid,
     });
   }
 
-  async getPing1DModeAuto(uuid: string): Promise<ModeAutoResponse> {
-    return this.sendPing1DCommand(uuid, 'ModeAuto') as Promise<ModeAutoResponse>;
+  async getPing1DModeAuto(device: DeviceSlot): Promise<ModeAutoResponse> {
+    return this.sendPing1DCommand(device, 'ModeAuto') as Promise<ModeAutoResponse>;
   }
 
-  async getPing1DRange(uuid: string): Promise<RangeResponse> {
-    return this.sendPing1DCommand(uuid, 'Range') as Promise<RangeResponse>;
+  async getPing1DRange(device: DeviceSlot): Promise<RangeResponse> {
+    return this.sendPing1DCommand(device, 'Range') as Promise<RangeResponse>;
   }
 
-  async getPing1DGainSetting(uuid: string): Promise<GainSettingResponse> {
-    return this.sendPing1DCommand(uuid, 'GainSetting') as Promise<GainSettingResponse>;
+  async getPing1DGainSetting(device: DeviceSlot): Promise<GainSettingResponse> {
+    return this.sendPing1DCommand(device, 'GainSetting') as Promise<GainSettingResponse>;
   }
 
-  async getPing1DSpeedOfSound(uuid: string): Promise<SpeedOfSoundResponse> {
-    return this.sendPing1DCommand(uuid, 'SpeedOfSound') as Promise<SpeedOfSoundResponse>;
+  async getPing1DSpeedOfSound(device: DeviceSlot): Promise<SpeedOfSoundResponse> {
+    return this.sendPing1DCommand(device, 'SpeedOfSound') as Promise<SpeedOfSoundResponse>;
   }
 }

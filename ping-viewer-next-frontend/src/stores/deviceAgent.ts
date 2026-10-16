@@ -4,7 +4,7 @@ import { ApiService } from '../ping-device/services/api-service';
 import { DeviceAgent } from '../ping-device/services/device-agent';
 export { PolarModeService } from '../ping-device/services/polar-mode-service';
 import type { PingDeviceAPI } from '../ping-device/types/common';
-import type { ConfigRequest, Ping1DRequest } from '../ping-device/types/requests';
+import type { DeviceSelection } from '../ping-device/types/requests';
 import {
   MAX_NUMBER_OF_POINTS,
   MAX_SAMPLE_PERIOD,
@@ -14,6 +14,7 @@ import {
   MIN_TRANSMIT_DURATION,
   SAMPLE_PERIOD_TICK_DURATION,
 } from '../ping-device/utils/constants';
+import { type DeviceSlot, deviceKey } from '../ping-device/utils/device-slot';
 import {
   calculateRange,
   calculateSamplePeriod,
@@ -24,16 +25,18 @@ import {
 } from '../ping-device/utils/ping360-utils';
 
 interface RecordingStatus {
-  device_id: string;
+  device_type: string;
+  slot: number;
   is_active: boolean;
   file_path?: string;
   start_time?: string;
-  device_type?: string;
 }
 
 interface RecordingStatusData {
-  device_id: string;
-  RecordingStatus?: RecordingStatus;
+  device_type?: string;
+  slot?: number;
+  RecordingStatus?: RecordingStatus | null;
+  AllRecordingStatus?: RecordingStatus[];
   is_active?: boolean;
   [key: string]: unknown;
 }
@@ -62,67 +65,68 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
     wsManager.value = manager;
     if (manager) {
       manager.addListener((data: RecordingStatusData) => {
-        if (data.device_id) {
-          const sessionData = data.RecordingStatus || data;
-          recordingState.value.set(data.device_id, !!sessionData.is_active);
+        if (!data) return;
+        const sessionData = data.RecordingStatus || data;
+        if (sessionData.device_type != null && sessionData.slot != null) {
+          recordingState.value.set(deviceKey(sessionData as DeviceSlot), !!sessionData.is_active);
         }
       });
     }
   }
 
-  async function fetchInitialRecordingStatus(uuid: string) {
+  async function fetchInitialRecordingStatus(device: DeviceSlot) {
+    const key = deviceKey(device);
     try {
       const response = await apiService.sendHttpRequest(
         'GetRecordingStatus',
         'recordings_manager',
-        { uuid }
+        { device_type: device.device_type, slot: device.slot }
       );
-      const status = response as { RecordingStatus?: RecordingStatus };
+      const status = response as { RecordingStatus?: RecordingStatus | null };
       if (status?.RecordingStatus) {
-        recordingState.value.set(uuid, status.RecordingStatus.is_active);
+        recordingState.value.set(key, status.RecordingStatus.is_active);
       } else {
-        recordingState.value.set(uuid, false);
+        recordingState.value.set(key, false);
       }
     } catch (error) {
       console.error('Error fetching initial recording status:', error);
-      recordingState.value.set(uuid, false);
+      recordingState.value.set(key, false);
     }
   }
 
-  function getAgent(uuid: string): DeviceAgent {
-    if (!agents.has(uuid)) {
-      const agent = new DeviceAgent(uuid, config.serverUrl.value);
-      agents.set(uuid, agent);
-      recordingState.value.set(uuid, false);
-      fetchInitialRecordingStatus(uuid);
+  function getAgent(deviceType: string, slot: number): DeviceAgent {
+    const device = { device_type: deviceType, slot };
+    const key = deviceKey(device);
+    if (!agents.has(key)) {
+      const agent = new DeviceAgent(device, config.serverUrl.value);
+      agents.set(key, agent);
+      recordingState.value.set(key, false);
+      fetchInitialRecordingStatus(device);
     }
 
-    const agent = agents.get(uuid);
+    const agent = agents.get(key);
     if (!agent) {
-      throw new Error(`Agent for uuid ${uuid} should exist but was not found`);
+      throw new Error(`Agent for ${key} should exist but was not found`);
     }
     return agent;
   }
 
-  function usePingDevice(uuid: string): PingDeviceAPI {
-    const agent = getAgent(uuid);
-
-    const sendConfigRequest = (key: string, value: number | string | boolean): boolean => {
-      const request: ConfigRequest = { type: 'config', uuid, key, value };
-      return agent.sendRequest(request);
-    };
+  function usePingDevice(deviceType: DeviceSelection, slot: number): PingDeviceAPI {
+    const device = { device_type: deviceType, slot };
+    const key = deviceKey(device);
+    const agent = getAgent(deviceType, slot);
 
     const connect = () => {
       agent.connect();
-      fetchInitialRecordingStatus(uuid);
+      fetchInitialRecordingStatus(device);
     };
 
     function disconnect() {
-      const agent = agents.get(uuid);
+      const agent = agents.get(key);
       if (agent) {
         agent.disconnect();
-        agents.delete(uuid);
-        recordingState.value.delete(uuid);
+        agents.delete(key);
+        recordingState.value.delete(key);
       }
     }
 
@@ -135,18 +139,18 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
     const isPing1D = computed(() => agent.deviceType.value === 'ping1d');
 
     // Recording functionality
-    const isRecording = computed(() => recordingState.value.get(uuid) || false);
+    const isRecording = computed(() => recordingState.value.get(key) || false);
 
     const getRecordingStatus = async () => {
       try {
         const response = await apiService.sendHttpRequest(
           'GetRecordingStatus',
           'recordings_manager',
-          { uuid }
+          { device_type: deviceType, slot }
         );
-        const status = response as { RecordingStatus?: RecordingStatus };
+        const status = response as { RecordingStatus?: RecordingStatus | null };
         if (status?.RecordingStatus) {
-          recordingState.value.set(uuid, status.RecordingStatus.is_active);
+          recordingState.value.set(key, status.RecordingStatus.is_active);
         }
         return status?.RecordingStatus || null;
       } catch (error) {
@@ -164,10 +168,11 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
         }
 
         const response = await apiService.sendHttpRequest('StartRecording', 'recordings_manager', {
-          uuid,
+          device_type: deviceType,
+          slot,
         });
         if (response) {
-          recordingState.value.set(uuid, true);
+          recordingState.value.set(key, true);
           return true;
         }
         return false;
@@ -186,10 +191,11 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
         }
 
         const response = await apiService.sendHttpRequest('StopRecording', 'recordings_manager', {
-          uuid,
+          device_type: deviceType,
+          slot,
         });
         if (response) {
-          recordingState.value.set(uuid, false);
+          recordingState.value.set(key, false);
           return true;
         }
         return false;
@@ -214,7 +220,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
 
     const setSettings = async (settings) => {
       try {
-        const response = await apiService.setPing360Settings(uuid, settings);
+        const response = await apiService.setPing360Settings(device, settings);
 
         if (agent.ping360Settings.value) {
           agent.ping360Settings.value = {
@@ -236,7 +242,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
           await setSettings(parameters);
         }
 
-        const response = await apiService.enableContinuousMode(uuid);
+        const response = await apiService.enableContinuousMode(device);
 
         if (agent.ping360Settings.value && Object.keys(parameters).length > 0) {
           agent.ping360Settings.value = {
@@ -255,7 +261,7 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
 
     const stopScan = async () => {
       try {
-        const response = await apiService.disableContinuousMode(uuid);
+        const response = await apiService.disableContinuousMode(device);
         return !!response;
       } catch (error) {
         console.error('Error stopping Ping360 scan:', error);
@@ -353,12 +359,15 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
         return false;
       }
 
-      const request: Ping1DRequest = {
-        type: 'ping1d',
-        uuid,
-        command: 'get_distance',
-      };
-      return agent.sendRequest(request);
+      return agent.sendRequest({
+        module: 'DeviceManager',
+        command: 'Ping',
+        payload: {
+          device_type: deviceType,
+          slot,
+          device_request: { Ping1D: 'Distance' },
+        },
+      });
     };
 
     const getProfile = () => {
@@ -367,12 +376,15 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
         return false;
       }
 
-      const request: Ping1DRequest = {
-        type: 'ping1d',
-        uuid,
-        command: 'get_profile',
-      };
-      return agent.sendRequest(request);
+      return agent.sendRequest({
+        module: 'DeviceManager',
+        command: 'Ping',
+        payload: {
+          device_type: deviceType,
+          slot,
+          device_request: { Ping1D: 'Profile' },
+        },
+      });
     };
 
     return {
@@ -409,7 +421,6 @@ export const usePingDeviceStore = defineStore('pingDevice', () => {
         connect,
         disconnect,
         reconnect,
-        sendConfigRequest,
         toggleRecording,
         startRecording,
         stopRecording,

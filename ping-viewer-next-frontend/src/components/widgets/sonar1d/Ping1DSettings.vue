@@ -103,8 +103,12 @@ const props = defineProps({
     type: String,
     required: true,
   },
-  deviceId: {
+  deviceType: {
     type: String,
+    required: true,
+  },
+  deviceSlot: {
+    type: Number,
     required: true,
   },
   isOpen: {
@@ -210,7 +214,8 @@ const enableContinuousMode = async () => {
         command: 'EnableContinuousMode',
         module: 'DeviceManager',
         payload: {
-          uuid: props.deviceId,
+          device_type: props.deviceType,
+          slot: props.deviceSlot,
         },
       }),
     });
@@ -231,7 +236,8 @@ const disableContinuousMode = async () => {
         command: 'DisableContinuousMode',
         module: 'DeviceManager',
         payload: {
-          uuid: props.deviceId,
+          device_type: props.deviceType,
+          slot: props.deviceSlot,
         },
       }),
     });
@@ -299,10 +305,11 @@ const sendCommand = async (command, payload = null) => {
       command: 'Ping',
       module: 'DeviceManager',
       payload: {
+        device_type: props.deviceType,
+        slot: props.deviceSlot,
         device_request: {
           Ping1D: payload ? { [command]: payload } : command,
         },
-        uuid: props.deviceId,
       },
     };
 
