@@ -1359,6 +1359,17 @@ impl DeviceManager {
         device_type: DeviceSelection,
         slot: u8,
     ) -> Result<Answer, ManagerError> {
+        if let Err(error) = self
+            .stop_then_teardown_device_runtime(device_type, slot)
+            .await
+        {
+            warn!(
+                ?error,
+                ?device_type,
+                slot,
+                "Failed to stop and teardown device before deleting"
+            );
+        }
         let device = self.remove_device(device_type, slot)?;
         self.slot_registry.release(device_type, slot);
         let device_info = device.info();
