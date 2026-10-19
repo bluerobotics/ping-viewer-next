@@ -2,7 +2,10 @@
   <div class="connection-manager">
     <div class="config-menu" :class="{ 'glass-inner disable-hover': glass }" v-show="isOpen">
       <div :class="['menu-content', { 'glass-inner disable-hover': glass }]">
-
+        <div v-for="[key, message] in menuErrorEntries" :key="key" class="manager-error mx-2 mt-2">
+          <span class="manager-error-text">{{ message }}</span>
+          <v-btn icon="mdi-close" variant="text" size="x-small" @click="clearError(key)" />
+        </div>
 
         <!-- Device List -->
         <div class="device-list mt-1 mb-2">
@@ -205,6 +208,10 @@
                     :rules="[v => !!v || 'Baudrate is required']" />
                 </template>
               </v-form>
+              <div v-if="errors.create" class="manager-error">
+                <span class="manager-error-text">{{ errors.create }}</span>
+                <v-btn icon="mdi-close" variant="text" size="x-small" @click="clearError('create')" />
+              </div>
             </v-card-text>
             <div class="flex w-full justify-end">
               <v-btn variant="plain" size="small" class="mb-1 mr-1" :loading="isCreating" @click="createDevice">
@@ -224,6 +231,10 @@
                 <strong>Type:</strong> {{ deviceToDelete?.device_type }}<br>
                 <strong>Slot:</strong> {{ deviceToDelete?.slot }}
               </div>
+              <div v-if="errors.delete" class="manager-error mt-3">
+                <span class="manager-error-text">{{ errors.delete }}</span>
+                <v-btn icon="mdi-close" variant="text" size="x-small" @click="clearError('delete')" />
+              </div>
             </v-card-text>
             <v-card-actions>
               <v-spacer />
@@ -238,6 +249,7 @@
 </template>
 
 <script setup>
+import { computed, inject, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import {
   deviceKey,
   recordingsActionUrl,
@@ -249,7 +261,6 @@ import {
   deviceStatusColor as getStatusColor,
   deviceStatusLabel as getStatusLabel,
 } from '@/ping-device/utils/device-status';
-import { inject, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
   serverUrl: {
@@ -277,8 +288,30 @@ const isDeleting = ref(false);
 const showManualCreate = ref(false);
 const showDeleteDialog = ref(false);
 const deviceToDelete = ref(null);
-const error = ref(null);
+const errors = reactive({
+  list: null,
+  autoCreate: null,
+  create: null,
+  enableContinuousMode: null,
+  disableContinuousMode: null,
+  startRecording: null,
+  stopRecording: null,
+  delete: null,
+});
 const loadingStates = ref({});
+
+const menuErrorEntries = computed(() =>
+  Object.entries(errors).filter(([key, message]) => {
+    if (!message) return false;
+    if (key === 'create' && showManualCreate.value) return false;
+    if (key === 'delete' && showDeleteDialog.value) return false;
+    return true;
+  })
+);
+
+const clearError = (key) => {
+  errors[key] = null;
+};
 
 const recordingSessions = inject('recordingSessions');
 
@@ -371,15 +404,20 @@ const fetchDevices = async () => {
       }),
     });
 
-    if (!response.ok) throw new Error('Failed to fetch devices');
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('Error fetching devices:', text);
+      errors.list = `Device list request failed: ${text}`;
+      return;
+    }
 
     const data = await response.json();
     devices.value = data.DeviceInfo || [];
-    error.value = null;
+    errors.list = null;
     logWidgetUrls();
   } catch (err) {
     console.error('Error fetching devices:', err);
-    error.value = `Failed to fetch devices: ${err.message}`;
+    errors.list = `Failed to fetch devices: ${err.message}`;
   }
 };
 
@@ -391,7 +429,7 @@ const refreshDevices = async () => {
 
 const autoCreateDevices = async () => {
   isAutoCreating.value = true;
-  error.value = null;
+  errors.autoCreate = null;
 
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
@@ -403,11 +441,16 @@ const autoCreateDevices = async () => {
       }),
     });
 
-    if (!response.ok) throw new Error('Failed to auto-create devices');
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('Error auto-creating devices:', text);
+      errors.autoCreate = `Device auto-create request failed: ${text}`;
+      return;
+    }
     await refreshDevices();
   } catch (err) {
     console.error('Error auto-creating devices:', err);
-    error.value = `Failed to auto-create devices: ${err.message}`;
+    errors.autoCreate = `Failed to auto-create devices: ${err.message}`;
   } finally {
     isAutoCreating.value = false;
   }
@@ -415,7 +458,7 @@ const autoCreateDevices = async () => {
 
 const createDevice = async () => {
   isCreating.value = true;
-  error.value = null;
+  errors.create = null;
 
   try {
     let source;
@@ -458,13 +501,18 @@ const createDevice = async () => {
       }),
     });
 
-    if (!response.ok) throw new Error('Failed to create device');
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('Error creating device:', text);
+      errors.create = `Device creation request failed: ${text}`;
+      return;
+    }
 
     await refreshDevices();
     showManualCreate.value = false;
   } catch (err) {
     console.error('Error creating device:', err);
-    error.value = `Failed to create device: ${err.message}`;
+    errors.create = `Failed to create device: ${err.message}`;
   } finally {
     isCreating.value = false;
   }
@@ -473,6 +521,7 @@ const createDevice = async () => {
 const enableContinuousMode = async (device) => {
   const key = deviceKey(device);
   loadingStates.value[key] = true;
+  errors.enableContinuousMode = null;
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
       method: 'POST',
@@ -488,7 +537,7 @@ const enableContinuousMode = async (device) => {
     await refreshDevices();
   } catch (err) {
     console.error('Error enabling continuous mode:', err);
-    error.value = `Failed to enable continuous mode: ${err.message}`;
+    errors.enableContinuousMode = `Failed to enable continuous mode: ${err.message}`;
   } finally {
     loadingStates.value[key] = false;
   }
@@ -497,6 +546,7 @@ const enableContinuousMode = async (device) => {
 const disableContinuousMode = async (device) => {
   const key = deviceKey(device);
   loadingStates.value[key] = true;
+  errors.disableContinuousMode = null;
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
       method: 'POST',
@@ -508,11 +558,16 @@ const disableContinuousMode = async (device) => {
       }),
     });
 
-    if (!response.ok) throw new Error('Failed to disable continuous mode');
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('Error disabling continuous mode:', text);
+      errors.autoCreate = `Disabling continous mode failed: ${text}`;
+      return;
+    }
     await refreshDevices();
   } catch (err) {
     console.error('Error disabling continuous mode:', err);
-    error.value = `Failed to disable continuous mode: ${err.message}`;
+    errors.disableContinuousMode = `Failed to disable continuous mode: ${err.message}`;
   } finally {
     loadingStates.value[key] = false;
   }
@@ -521,6 +576,7 @@ const disableContinuousMode = async (device) => {
 const startRecording = async (device) => {
   const key = deviceKey(device);
   loadingStates.value[key] = true;
+  errors.startRecording = null;
   try {
     const response = await fetch(recordingsActionUrl(props.serverUrl, device, 'StartRecording'), {
       method: 'POST',
@@ -530,11 +586,14 @@ const startRecording = async (device) => {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to start recording');
+      const text = await response.text();
+      console.error('Error starting recording:', text);
+      errors.autoCreate = `Start recording request failed: ${text}`;
+      return;
     }
   } catch (err) {
     console.error('Error starting recording:', err);
-    error.value = `Failed to start recording: ${err.message}`;
+    errors.startRecording = `Failed to start recording: ${err.message}`;
   } finally {
     loadingStates.value[key] = false;
   }
@@ -543,6 +602,7 @@ const startRecording = async (device) => {
 const stopRecording = async (device) => {
   const key = deviceKey(device);
   loadingStates.value[key] = true;
+  errors.stopRecording = null;
   try {
     const response = await fetch(recordingsActionUrl(props.serverUrl, device, 'StopRecording'), {
       method: 'POST',
@@ -552,11 +612,14 @@ const stopRecording = async (device) => {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to stop recording');
+      const text = await response.text();
+      console.error('Error stopping recording:', text);
+      errors.autoCreate = `Stop recording request failed: ${text}`;
+      return;
     }
   } catch (err) {
     console.error('Error stopping recording:', err);
-    error.value = `Failed to stop recording: ${err.message}`;
+    errors.stopRecording = `Failed to stop recording: ${err.message}`;
   } finally {
     loadingStates.value[key] = false;
   }
@@ -570,6 +633,7 @@ const confirmDelete = (device) => {
 const deleteDevice = async () => {
   if (!deviceToDelete.value) return;
   isDeleting.value = true;
+  errors.delete = null;
 
   try {
     const response = await fetch(`${props.serverUrl}/device_manager/request`, {
@@ -582,12 +646,17 @@ const deleteDevice = async () => {
       }),
     });
 
-    if (!response.ok) throw new Error('Failed to delete device');
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('Error deleting device:', text);
+      errors.autoCreate = `Device delete request failed: ${text}`;
+      return;
+    }
     await refreshDevices();
     showDeleteDialog.value = false;
   } catch (err) {
     console.error('Error deleting device:', err);
-    error.value = `Failed to delete device: ${err.message}`;
+    errors.delete = `Failed to delete device: ${err.message}`;
   } finally {
     isDeleting.value = false;
     deviceToDelete.value = null;
@@ -662,6 +731,25 @@ onUnmounted(() => {
 .device-list {
   max-height: 50vh;
   overflow-y: auto;
+}
+
+.manager-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #ff525277;
+  color: white;
+  border: 1px solid #ffffff44;
+  border-radius: 6px;
+  padding: 8px 4px 8px 16px;
+}
+
+.manager-error-text {
+  flex: 1;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  padding-top: 4px;
+  word-break: break-word;
 }
 
 @media (max-width: 600px) {
