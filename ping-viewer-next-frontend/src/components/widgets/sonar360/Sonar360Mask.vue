@@ -1,6 +1,6 @@
 <template>
 	<div @mouseleave="onMouseLeave" @mousemove="onMouseMove" class="relative w-full h-full overflow-visible">
-		<div class="absolute inset-0 pointer-events-none" :style="{ transform: `rotate(${yawAngle}deg)`, transformOrigin: 'center' }">
+		<div class="absolute inset-0 pointer-events-none" :style="{ transform: `rotate(${effectiveYaw}deg)`, transformOrigin: 'center' }">
 			<slot></slot>
 		</div>
 
@@ -20,7 +20,7 @@
 				Everything drawn here is fixed to the sonar head, so it takes the same heading
 				offset the shader applies to the data. The depth labels below stay upright.
 			-->
-			<g :transform="`rotate(${yawAngle} 50 50)`">
+			<g :transform="`rotate(${effectiveYaw} 50 50)`">
 				<path v-if="!isFullCircle" :d="sectorPath" fill="none" :stroke="radiusLineColor"
 					:stroke-width="radiusLineWidth" vector-effect="non-scaling-stroke" />
 
@@ -108,6 +108,8 @@ const props = defineProps<{
 const isFullCircle = computed(() => {
   return props.startAngle === 0 && props.endAngle === 360;
 });
+
+const effectiveYaw = computed(() => (isFullCircle.value ? props.yawAngle : 0));
 
 const angleLines = computed(() => {
   const all = [0, 45, 90, 135, 180, 225, 270, 315];
