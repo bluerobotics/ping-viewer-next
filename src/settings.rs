@@ -21,6 +21,10 @@ fn default_fake_id_counter() -> u16 {
     1
 }
 
+fn default_mount_offset() -> u16 {
+    180
+}
+
 fn default_a_scan() -> bool {
     true
 }
@@ -69,6 +73,8 @@ pub struct ViewerSettings {
     /// Starts at 0 and increases with every update
     pub revision: u64,
     pub head_down: bool,
+    /// Degrees of display rotation for a Ping360 mounted away from its default heading
+    pub mount_offset: u16,
     pub display: DisplayProfile,
 }
 
@@ -79,6 +85,8 @@ pub struct ViewerSettingsUpdate {
     pub expected_revision: Option<u64>,
     #[serde(default)]
     pub head_down: Option<bool>,
+    #[serde(default)]
+    pub mount_offset: Option<u16>,
     #[serde(default)]
     pub display: Option<DisplayProfile>,
 }
@@ -102,6 +110,8 @@ pub(crate) struct PingViewerNextV1Settings {
     pub(crate) revision: u64,
     #[serde(default)]
     pub(crate) head_down: bool,
+    #[serde(default = "default_mount_offset")]
+    pub(crate) mount_offset: u16,
     #[serde(default)]
     pub(crate) display: DisplayProfile,
 }
@@ -114,6 +124,7 @@ impl Default for PingViewerNextV1Settings {
             ping360: Vec::new(),
             revision: 0,
             head_down: false,
+            mount_offset: default_mount_offset(),
             display: DisplayProfile::default(),
         }
     }
@@ -145,6 +156,7 @@ fn viewer_snapshot(settings: &PingViewerNextV1Settings) -> ViewerSettings {
     ViewerSettings {
         revision: settings.revision,
         head_down: settings.head_down,
+        mount_offset: settings.mount_offset,
         display: settings.display.clone(),
     }
 }
@@ -164,6 +176,9 @@ fn apply_viewer_update(settings: &mut PingViewerNextV1Settings, update: &ViewerS
     settings.revision += 1;
     if let Some(head_down) = update.head_down {
         settings.head_down = head_down;
+    }
+    if let Some(mount_offset) = update.mount_offset {
+        settings.mount_offset = mount_offset;
     }
     if let Some(display) = update.display.clone() {
         settings.display = display;
