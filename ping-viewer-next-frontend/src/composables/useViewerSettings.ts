@@ -11,6 +11,7 @@ export interface DisplayProfile {
 export interface ViewerSettings {
   revision: number;
   head_down: boolean;
+  mount_offset: number;
   display: DisplayProfile;
 }
 
