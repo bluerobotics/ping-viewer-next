@@ -112,6 +112,10 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
+  rotation: {
+    type: Number,
+    default: 0,
+  },
   markerBackgroundColor: {
     type: String,
     default: 'rgba(0, 0, 0, 0.5)',
