@@ -56,7 +56,7 @@
 <script lang="ts" setup>
 import blueRoboticsWhiteNameLogo from '../../assets/blue-robotics-white-name-logo.png';
 import pingViewerLogo from '../../assets/ping-2-logo.png';
-import splashBackground from '../../assets/splash-background.png';
+import splashBackground from '../../assets/splash-background.webp';
 
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
 
