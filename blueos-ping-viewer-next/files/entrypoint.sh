@@ -1,11 +1,14 @@
 #!/bin/bash
-set -m
+set -meuo pipefail
+
 echo "Starting ping viewer..."
-cd app
-mkdir logs
-mkdir recordings
-chmod -R 755 /app/logs
-chmod -R 755 /app/recordings
-chown -R pingviewer:pingviewer /app/logs
-chown -R pingviewer:pingviewer /app/recordings
+
+cd /app
+
+for dir in /app/logs /app/recordings /app/settings; do
+    mkdir -p "$dir"
+    chown -R pingviewer:pingviewer "$dir"
+    chmod 755 "$dir"
+done
+
 su pingviewer -c "./ping-viewer-next --enable-auto-create --rest-server 0.0.0.0:6060"

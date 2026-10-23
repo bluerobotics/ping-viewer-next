@@ -27,19 +27,21 @@
         :lineColor="lineColor" :lineWidth="lineWidth" :maxDistance="currentRange" :numMarkers="numMarkers"
         :showRadiusLines="showRadiusLines" :showMarkers="showMarkers" :radiusLineColor="radiusLineColor"
         :markerColor="markerColor" :textBackgroundColor="markerBackgroundColor" :radiusLineWidth="radiusLineWidth"
-        :debug="debug" :startAngle="startAngle" :endAngle="endAngle" :yaw_angle="yawAngle" v-bind="$attrs"
+        :debug="debug" :startAngle="startAngle" :endAngle="endAngle" :yaw_angle="yawAngle" :rotation="rotation" v-bind="$attrs"
         class="h-full w-full" />
     </div>
   </div>
 </template>
 
 <script setup>
+import { syncViewerSettings } from '@/composables/useViewerSettings';
 import { deviceKey, slotPayload } from '@/ping-device/utils/device-slot';
 import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import DataRecorder from '../DataRecorder.vue';
 import FloatingControls from '../FloatingControls.vue';
 import Ping360 from './Ping360.vue';
 import Ping360Settings from './Ping360Settings.vue';
+import { useMountOffset } from '@/composables/useMountOffset';
 
 const props = defineProps({
   device: {
@@ -111,10 +113,9 @@ const props = defineProps({
 const emit = defineEmits(['settings-change']);
 
 const liveMeasurement = ref(null);
-const liveAngle = ref(0);
+const liveRawAngle = ref(0);
 const currentRange = ref(props.maxDistance);
-const startAngle = ref(0);
-const endAngle = ref(360);
+const sectorWidth = ref(360);
 const connectionStatus = ref('Disconnected');
 const socket = ref(null);
 const isFrozen = ref(false);
@@ -125,7 +126,18 @@ const isRecording = computed(() => {
   const session = recordingSessions.value.get(deviceKey(props.device));
   return session?.is_active ?? false;
 });
-const offset = ref(0);
+const mountOffset = useMountOffset();
+const wrapDegrees = (degrees) => ((degrees % 360) + 360) % 360;
+const rotation = computed(() => mountOffset.value - 180);
+const liveAngle = computed(
+  () => (((liveRawAngle.value - (rotation.value * 400) / 360) % 400) + 400) % 400
+);
+const startAngle = computed(() =>
+  sectorWidth.value >= 360 ? 0 : wrapDegrees(180 - sectorWidth.value / 2 - mountOffset.value)
+);
+const endAngle = computed(() =>
+  sectorWidth.value >= 360 ? 360 : wrapDegrees(180 + sectorWidth.value / 2 - mountOffset.value)
+);
 
 const injectedYawAngle = inject('yawAngle', ref(0));
 const yawAngle = computed(() => props.yaw_angle ?? injectedYawAngle.value);
@@ -139,6 +151,16 @@ const serverUrl = computed(() => {
     return '';
   }
 });
+
+watch(
+  serverUrl,
+  (url) => {
+    if (url) {
+      syncViewerSettings(url);
+    }
+  },
+  { immediate: true }
+);
 
 const toggleFreeze = () => {
   isFrozen.value = !isFrozen.value;
@@ -196,26 +218,16 @@ const connectWebSocket = () => {
         );
 
         const isFullCircle = (config.stop_angle + 1) % 400 === config.start_angle % 400;
-        let mechanicalCenterGrad;
-        let sector = 360;
         if (isFullCircle) {
-          startAngle.value = 0;
-          endAngle.value = 360;
-          mechanicalCenterGrad = (config.start_angle + 200) % 400;
+          sectorWidth.value = 360;
         } else {
           const sectorLenGrad = (((config.stop_angle - config.start_angle) % 400) + 400) % 400;
-          const widthDeg = Math.max(90, Math.round((sectorLenGrad * 360) / 400 / 90) * 90);
-          sector = widthDeg;
-          const halfWidth = widthDeg / 2;
-          startAngle.value = (((360 - halfWidth) % 360) + 360) % 360;
-          endAngle.value = halfWidth;
-          mechanicalCenterGrad = (config.start_angle + sectorLenGrad / 2) % 400;
+          sectorWidth.value = Math.max(90, Math.round((sectorLenGrad * 360) / 400 / 90) * 90);
         }
-        offset.value = (((200 - mechanicalCenterGrad) % 400) + 400) % 400;
         emit('settings-change', {
           range: currentRange.value,
           gain: config.gain_setting,
-          sector,
+          sector: sectorWidth.value,
         });
 
         return;
@@ -227,13 +239,11 @@ const connectWebSocket = () => {
       const messageData = ping360Data.DeviceData || ping360Data.AutoDeviceData;
       if (!messageData || messageData.angle === undefined || !messageData.data) return;
 
-      const angleWithOffset = (messageData.angle + 400 + offset.value) % 400;
-
       liveMeasurement.value = {
-        angle: angleWithOffset,
+        angle: messageData.angle,
         data: new Uint8Array(messageData.data),
       };
-      liveAngle.value = angleWithOffset;
+      liveRawAngle.value = messageData.angle;
 
       if (props.debug) {
         console.debug('Processed Ping360 data:', messageData);
@@ -263,8 +273,8 @@ const disconnectWebSocket = () => {
 };
 
 const handleAngleUpdate = ({ startAngle: newStart, endAngle: newEnd }) => {
-  startAngle.value = newStart;
-  endAngle.value = newEnd;
+  const width = wrapDegrees(newEnd - newStart);
+  sectorWidth.value = width === 0 ? 360 : width;
 };
 
 const handleRangeChange = (newRange) => {

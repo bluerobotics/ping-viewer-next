@@ -8,7 +8,7 @@
 				:startAngle="startAngle" :endAngle="endAngle" :yawAngle="isFrozen ? frozenYaw : yaw_angle">
 			<Sonar360Shader :measurement="measurement" :measurements="measurements" :is-frozen="isFrozen" :numLines="400"
 				:color-palette="colorPalette" :get-color-from-palette="getColorFromPalette" :startAngle="startAngle"
-				:endAngle="endAngle" :yaw_angle="0" :max-radius="shaderMaxRadius" :debug=false />
+				:endAngle="endAngle" :yaw_angle="0" :rotation="rotation" :max-radius="shaderMaxRadius" :debug=false />
 			</Sonar360Mask>
 		</div>
 
@@ -31,7 +31,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { getColorFromPalette } from '../SonarColorOptions.vue';
 import Sonar360Mask from './Sonar360Mask.vue';
 import Sonar360Shader from './Sonar360Shader.vue';
-import { useHeadDown } from './useHeadDown';
+import { useHeadDown } from '@/composables/useHeadDown';
 
 // When headDown is on we mirror the whole sonar container horizontally.
 // `Sonar360Mask` applies a second `scaleX(-1)` to its depth markers so their
@@ -109,6 +109,10 @@ const props = defineProps({
     default: 360,
   },
   yaw_angle: {
+    type: Number,
+    default: 0,
+  },
+  rotation: {
     type: Number,
     default: 0,
   },

@@ -6,7 +6,7 @@ use crate::server::protocols::v1::errors::Error;
 use actix_web::{HttpRequest, Responder};
 use mime_guess::from_path;
 use paperclip::actix::{
-    api_v2_operation, get, post,
+    api_v2_operation, get, post, put,
     web::{self, HttpResponse, Json},
     Apiv2Schema,
 };
@@ -61,6 +61,29 @@ async fn server_metadata() -> Result<Json<ServerMetadata>, Error> {
     Ok(Json(package))
 }
 
+#[api_v2_operation]
+#[get("settings")]
+async fn get_viewer_settings() -> Result<Json<crate::settings::ViewerSettings>, Error> {
+    Ok(Json(crate::settings::viewer_settings()))
+}
+
+#[api_v2_operation]
+#[put("settings")]
+async fn put_viewer_settings(
+    update: web::Json<crate::settings::ViewerSettingsUpdate>,
+) -> impl Responder {
+    match crate::settings::update_viewer_settings(update.into_inner()) {
+        Ok(settings) => {
+            crate::server::protocols::v1::websocket::send_to_websockets(
+                json!({ "ViewerSettings": settings }),
+                None,
+            );
+            HttpResponse::Ok().json(settings)
+        }
+        Err(current) => HttpResponse::Conflict().json(current),
+    }
+}
+
 pub fn register_services(cfg: &mut web::ServiceConfig) {
     cfg.service(index)
         .service(post_request)
@@ -79,6 +102,8 @@ pub fn register_services(cfg: &mut web::ServiceConfig) {
         .service(recording::list_mcap_recordings)
         .service(recording::download_mcap_file)
         .service(recording::delete_mcap_file)
+        .service(get_viewer_settings)
+        .service(put_viewer_settings)
         .service(index_files);
 }
 

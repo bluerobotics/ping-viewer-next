@@ -76,8 +76,7 @@
 
               <div class="d-flex align-center gap-2">
                 <v-slider v-model="centerAngle" :min="0" :max="360" step="5" show-ticks="always" tick-size="4" thumb-label
-                  :ticks="{ 0: '0', 180: '180', 360: '360' }" density="compact" hide-details class="flex-grow-1"
-                  @update:modelValue="handleCenterAngleChange" />
+                  :ticks="{ 0: '0', 180: '180', 360: '360' }" density="compact" hide-details class="flex-grow-1" />
               </div>
             </div>
 
@@ -225,7 +224,8 @@
 import { useDebounceFn } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
 import { useUnits } from '../../../composables/useUnits';
-import { useHeadDown } from './useHeadDown';
+import { useHeadDown } from '@/composables/useHeadDown';
+import { useMountOffset } from '@/composables/useMountOffset';
 
 const { distanceLabel, speedUnit } = useUnits();
 
@@ -278,6 +278,7 @@ const autoMode = ref(true);
 const range = ref(10);
 const centerAngle = ref(180);
 const sharedHeadDown = useHeadDown();
+const sharedMountOffset = useMountOffset();
 const width = ref(180);
 const angleRange = ref([0, 360]);
 
@@ -292,15 +293,11 @@ const settings = ref({
 
 function calculateSectorAngles() {
   if (width.value >= 360) {
-    const startAngle = (((centerAngle.value - 180) % 360) + 360) % 360;
-    return { startAngle, endAngle: startAngle, isFullCircle: true };
+    return { startAngle: 0, endAngle: 0, isFullCircle: true };
   }
 
   const halfWidth = width.value / 2;
-  const startAngle = (((centerAngle.value - halfWidth) % 360) + 360) % 360;
-  const endAngle = (((centerAngle.value + halfWidth) % 360) + 360) % 360;
-
-  return { startAngle, endAngle, isFullCircle: false };
+  return { startAngle: 180 - halfWidth, endAngle: 180 + halfWidth, isFullCircle: false };
 }
 
 function emitSectorToDisplay(sector) {
@@ -314,12 +311,6 @@ function emitSectorToDisplay(sector) {
     startAngle: (((360 - halfWidth) % 360) + 360) % 360,
     endAngle: halfWidth,
   });
-}
-
-function handleCenterAngleChange(newCenter) {
-  centerAngle.value = newCenter;
-  emitSectorToDisplay(calculateSectorAngles());
-  debouncedSaveSettings({ ...settings.value });
 }
 
 function handleWidthChange(newWidth) {
@@ -436,18 +427,18 @@ const fetchCurrentSettings = async () => {
         sample_period: config.sample_period,
         transmit_frequency: config.transmit_frequency,
         number_of_samples: config.number_of_samples,
-        speed_of_sound: 1500,
+        speed_of_sound: config.speed_of_sound || 1500,
       };
 
       const isFullCircleConfig = (config.stop_angle + 1) % 400 === config.start_angle % 400;
 
+      centerAngle.value = ((sharedMountOffset.value % 360) + 360) % 360;
+      if (centerAngle.value === 0) {
+        centerAngle.value = 360;
+      }
+
       if (isFullCircleConfig) {
-        const startAngleDegrees = gradiansToDegrees(config.start_angle);
         width.value = 360;
-        centerAngle.value = (((startAngleDegrees + 180) % 360) + 360) % 360;
-        if (centerAngle.value === 0) {
-          centerAngle.value = 360;
-        }
         angleRange.value = [0, 360];
       } else {
         const startAngleDegrees = gradiansToDegrees(config.start_angle);
@@ -455,9 +446,6 @@ const fetchCurrentSettings = async () => {
 
         const rawWidth = (((stopAngleDegrees - startAngleDegrees) % 360) + 360) % 360;
         width.value = Math.max(90, Math.round(rawWidth / 90) * 90);
-        const halfWidth = width.value / 2;
-        const rawCenter = (startAngleDegrees + halfWidth + 360) % 360;
-        centerAngle.value = Math.round(rawCenter / 5) * 5;
 
         angleRange.value = [startAngleDegrees, stopAngleDegrees];
       }
@@ -616,6 +604,10 @@ watch(
   },
   { deep: true, immediate: true }
 );
+
+watch(centerAngle, (value) => {
+  sharedMountOffset.value = value;
+});
 
 watch(
   () => props.isOpen,
