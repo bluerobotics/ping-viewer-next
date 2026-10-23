@@ -31,11 +31,10 @@ lazy_static = "1.5.0"
 mavlink = { default-features = false, features = ["std", "ardupilotmega", "tokio-1", "serde"], version = "0.16.2"}
 mime_guess = "2.0.5"
 netdev = { version = "0.46.3", default-features = false, features = ["gateway"] }
-openssl = { version = "0.10.75", features = ["vendored"], optional = true }
 paperclip = { version = "0.9.5" , features = ["actix4", "swagger-ui", "uuid"] }
 rand = "0.10.2"
 regex = "1.12.2"
-reqwest = {version = "0.12.24", features = ["json"], optional = true }
+reqwest = {version = "0.12.24", default-features = false, features = ["json"], optional = true }
 rust-embed = "8.9.0"
 schemars = { version = "1.1.0"}
 serde = { workspace = true }
@@ -72,4 +71,4 @@ default = ["embed-frontend"]
 desktop-app = ["build-frontend"]
 build-frontend = ["embed-frontend"]
 embed-frontend =[]
-blueos-extension = ["dep:reqwest", "dep:openssl"]
+blueos-extension = ["dep:reqwest"]
