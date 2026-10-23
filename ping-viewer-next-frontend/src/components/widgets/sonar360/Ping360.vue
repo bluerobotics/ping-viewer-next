@@ -8,7 +8,7 @@
 				:startAngle="startAngle" :endAngle="endAngle" :yawAngle="isFrozen ? frozenYaw : yaw_angle">
 			<Sonar360Shader :measurement="measurement" :measurements="measurements" :is-frozen="isFrozen" :numLines="400"
 				:color-palette="colorPalette" :get-color-from-palette="getColorFromPalette" :startAngle="startAngle"
-				:endAngle="endAngle" :yaw_angle="0" :max-radius="shaderMaxRadius" :debug=false />
+				:endAngle="endAngle" :yaw_angle="0" :rotation="rotation" :max-radius="shaderMaxRadius" :debug=false />
 			</Sonar360Mask>
 		</div>
 
