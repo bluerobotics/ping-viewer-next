@@ -24,6 +24,7 @@ const props = withDefaults(
     startAngle: number;
     endAngle: number;
     yaw_angle: number;
+    rotation?: number;
     // Maximum data radius in normalized 0..1 units. Should match
     // `Sonar360Mask`'s `maxRadius / 50` so the rendered data ends exactly at
     // the outermost depth arc instead of overshooting it by half a stroke.
