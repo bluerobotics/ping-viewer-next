@@ -38,6 +38,7 @@ const props = withDefaults(
     startAngle: 0,
     endAngle: 360,
     yaw_angle: 0,
+    rotation: 0,
     maxRadius: 0.99,
     isFrozen: false,
   }
@@ -72,6 +73,7 @@ const fsSource = `
   uniform float uEndAngle;
   uniform float uMaxRadius;
   uniform float uYawAngle;
+  uniform float uRotation;
 
   void main(void) {
     vec2 polar = vTextureCoord;
@@ -88,7 +90,7 @@ const fsSource = `
     if (radius > uMaxRadius || !inSector) {
       gl_FragColor = vec4(0.1, 0.1, 0.1, 0.0); // Transparent background
     } else {
-      float texAngle = fract(angleDegrees / 360.0 + 0.5);
+      float texAngle = fract((angleDegrees + uRotation) / 360.0 + 0.5);
       gl_FragColor = texture2D(uSampler, vec2(radius / uMaxRadius, texAngle));
     }
   }
@@ -265,6 +267,7 @@ const render = () => {
   gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uEndAngle'), props.endAngle);
   gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uMaxRadius'), props.maxRadius);
   gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uYawAngle'), props.yaw_angle);
+  gl.uniform1f(gl.getUniformLocation(shaderProgram, 'uRotation'), props.rotation);
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 };
@@ -401,7 +404,13 @@ watch(
 );
 
 watch(
-  [() => props.startAngle, () => props.endAngle, () => props.maxRadius, () => props.yaw_angle],
+  [
+    () => props.startAngle,
+    () => props.endAngle,
+    () => props.maxRadius,
+    () => props.yaw_angle,
+    () => props.rotation,
+  ],
   () => {
     scheduleRender();
   }
