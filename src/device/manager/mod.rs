@@ -53,6 +53,7 @@ pub struct Device {
     pub recover_attempts: u32,
     // Next instant to attempt recovery at
     pub next_recover_at: Option<Instant>,
+    pub recovery: Option<tokio::task::JoinHandle<()>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -132,9 +133,11 @@ impl Device {
     }
 
     fn due_for_recover(&self) -> bool {
-        self.next_recover_at
-            .map(|at| Instant::now() >= at)
-            .unwrap_or(true)
+        self.recovery.is_none()
+            && self
+                .next_recover_at
+                .map(|at| Instant::now() >= at)
+                .unwrap_or(true)
     }
 
     fn mark_error(&mut self, reason: impl Into<String>) {
@@ -151,6 +154,9 @@ impl Drop for Device {
         trace!(?info, "Removing Device from DeviceManager",);
         if let Some(handle) = self.actor.take() {
             handle.abort();
+        }
+        if let Some(recovery) = self.recovery.take() {
+            recovery.abort();
         }
         if let Some(broadcast_handle) = &self.broadcast {
             trace!(device_id = %self.device_type, slot = self.slot, "Device broadcast handle closed");
@@ -230,8 +236,14 @@ pub struct DeviceManager {
     slot_registry: SlotRegistry,
     discovery_service: DiscoveryComponent,
     pub manager_handler: ManagerActorHandler,
+    recovery_tx: mpsc::Sender<RecoveryOutcome>,
+    recovery_rx: mpsc::Receiver<RecoveryOutcome>,
 }
 
+struct RecoveryOutcome {
+    source: SourceSelection,
+    result: Result<(DeviceActorHandler, tokio::task::JoinHandle<DeviceActor>), ManagerError>,
+}
 #[derive(Debug)]
 pub struct ManagerActorRequest {
     pub request: Request,
@@ -458,12 +470,15 @@ impl DeviceManager {
         let (sender, receiver) = mpsc::channel(size);
 
         let actor_handler = ManagerActorHandler { sender };
+        let (recovery_tx, recovery_rx) = mpsc::channel(size);
         let actor = DeviceManager {
             receiver,
             device: HashMap::new(),
             slot_registry: SlotRegistry::new(),
             discovery_service: DiscoveryComponent::new(),
             manager_handler: actor_handler.clone(),
+            recovery_tx,
+            recovery_rx,
         };
 
         trace!("DeviceManager and handler successfully created: Success");
@@ -491,6 +506,9 @@ impl DeviceManager {
             tokio::select! {
                 Some(msg) = self.receiver.recv() => {
                     self.handle_message(msg).await;
+                }
+                Some(outcome) = self.recovery_rx.recv() => {
+                    self.finish_recovery(outcome).await;
                 }
                 Ok(device_discovery_info) = discovery_rx.recv() => {
                     let slot = self.alloc_slot(&DeviceIdentity {
@@ -574,35 +592,14 @@ impl DeviceManager {
             }
         }
 
-        for (device_type, slot) in recover_ids {
-            if let Err(error) = self.recover_device(device_type, slot).await {
+        for (device_type, slot) in recover_ids.into_iter().chain(available_ids) {
+            if let Err(error) = self.start_recovery(device_type, slot) {
                 error!(
                     %device_type,
                     slot,
                     ?error,
-                    "Auto-heal failed"
+                    "Failed to start device recovery"
                 );
-            }
-        }
-
-        for (device_type, slot) in available_ids {
-            match self.auto_create_device(device_type, slot).await {
-                Ok(_) => {
-                    if let Ok(device) = self.get_mut_device(device_type, slot) {
-                        device.reset_recover_backoff();
-                    }
-                }
-                Err(error) => {
-                    error!(
-                        %device_type,
-                        slot,
-                        ?error,
-                        "Failed to auto create available device"
-                    );
-                    if let Ok(device) = self.get_mut_device(device_type, slot) {
-                        device.schedule_recover_backoff();
-                    }
-                }
             }
         }
 
@@ -966,6 +963,7 @@ impl DeviceManager {
             properties: None,
             recover_attempts: 0,
             next_recover_at: None,
+            recovery: None,
         };
 
         let Device {
@@ -1052,59 +1050,7 @@ impl DeviceManager {
         slot: u8,
         source: SourceSelection,
     ) -> Result<DeviceInfo, ManagerError> {
-        let port = match &source {
-            SourceSelection::UdpStream(source_udp_struct) => {
-                let socket_addr = SocketAddrV4::new(source_udp_struct.ip, source_udp_struct.port);
-
-                let udp_stream = UdpStream::connect(socket_addr.into())
-                    .await
-                    .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
-                SourceType::Udp(udp_stream)
-            }
-            SourceSelection::SerialStream(source_serial_struct) => {
-                let mut serial_stream: SerialStream =
-                    tokio_serial::new(&source_serial_struct.path, source_serial_struct.baudrate)
-                        .open_native_async()
-                        .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
-
-                device_discovery::set_baudrate_pre_routine(
-                    &mut serial_stream,
-                    source_serial_struct.baudrate,
-                )
-                .await?;
-
-                serial_stream
-                    .clear(tokio_serial::ClearBuffer::All)
-                    .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
-
-                SourceType::Serial(serial_stream)
-            }
-            SourceSelection::FakeStream(_) => SourceType::Fake(FakeStream::new(device_type)),
-        };
-
-        let device_type_inner = match port {
-            SourceType::Udp(udp_port) => match device_type {
-                DeviceSelection::Common | DeviceSelection::Auto => {
-                    DeviceType::Common(bluerobotics_ping::common::Device::new(udp_port))
-                }
-                DeviceSelection::Ping1D => DeviceType::Ping1D(Ping1D::new(udp_port)),
-                DeviceSelection::Ping360 => DeviceType::Ping360(Ping360::new(udp_port)),
-            },
-            SourceType::Serial(serial_port) => match device_type {
-                DeviceSelection::Common | DeviceSelection::Auto => {
-                    DeviceType::Common(bluerobotics_ping::common::Device::new(serial_port))
-                }
-                DeviceSelection::Ping1D => DeviceType::Ping1D(Ping1D::new(serial_port)),
-                DeviceSelection::Ping360 => DeviceType::Ping360(Ping360::new(serial_port)),
-            },
-            SourceType::Fake(fake_port) => match device_type {
-                DeviceSelection::Common | DeviceSelection::Auto => {
-                    DeviceType::Common(bluerobotics_ping::common::Device::new(fake_port))
-                }
-                DeviceSelection::Ping1D => DeviceType::Ping1D(Ping1D::new(fake_port)),
-                DeviceSelection::Ping360 => DeviceType::Ping360(Ping360::new(fake_port)),
-            },
-        };
+        let device_type_inner = open_device(&source, device_type).await?;
 
         let (device_actor, handler) = super::devices::DeviceActor::new(device_type_inner, 10);
         let actor = tokio::spawn(async move { device_actor.run().await });
@@ -1224,6 +1170,7 @@ impl DeviceManager {
             properties: device_info.properties,
             recover_attempts: 0,
             next_recover_at: None,
+            recovery: None,
         };
 
         let info = device.info();
@@ -1287,46 +1234,7 @@ impl DeviceManager {
             )
         };
 
-        if let Some(handler) = handler {
-            match device_type {
-                DeviceSelection::Ping1D => {
-                    let id = <bluerobotics_ping::ping1d::ProfileStruct as bluerobotics_ping::message::MessageInfo>::id();
-                    if let Err(error) = handler
-                        .send(super::devices::PingRequest::Ping1D(
-                            super::devices::Ping1DRequest::ContinuousStop(
-                                bluerobotics_ping::ping1d::ContinuousStopStruct { id },
-                            ),
-                        ))
-                        .await
-                    {
-                        warn!(
-                            %device_type,
-                            slot,
-                            ?error,
-                            "stop_then_teardown: ContinuousStop failed"
-                        );
-                    }
-                }
-                DeviceSelection::Ping360 => {
-                    if matches!(source, SourceSelection::SerialStream(_)) {
-                        if let Err(error) = handler
-                            .send(super::devices::PingRequest::Ping360(
-                                super::devices::Ping360Request::MotorOff,
-                            ))
-                            .await
-                        {
-                            warn!(%device_type, slot, ?error, "stop_then_teardown: MotorOff failed");
-                        }
-                    }
-                }
-                DeviceSelection::Common | DeviceSelection::Auto => {}
-            }
-        }
-
-        if let Err(error) = turnoff_device_continuous_mode(&source).await {
-            warn!(%device_type, slot, ?error, "stop_then_teardown: turnoff failed");
-        }
-        sleep(Duration::from_millis(500)).await;
+        stop_device_streaming(handler.as_ref(), device_type, slot, &source).await;
 
         self.teardown_device_runtime(device_type, slot)
     }
@@ -1336,20 +1244,78 @@ impl DeviceManager {
         device_type: DeviceSelection,
         slot: u8,
     ) -> Result<Answer, ManagerError> {
-        self.stop_then_teardown_device_runtime(device_type, slot)
-            .await?;
-        match self.auto_create_device(device_type, slot).await {
-            Ok(answer) => {
-                self.get_mut_device(device_type, slot)?
-                    .reset_recover_backoff();
-                Ok(answer)
+        self.start_recovery(device_type, slot)?;
+        self.info(device_type, slot).await
+    }
+
+    fn start_recovery(
+        &mut self,
+        device_type: DeviceSelection,
+        slot: u8,
+    ) -> Result<(), ManagerError> {
+        let recovery_tx = self.recovery_tx.clone();
+        let device = self.get_mut_device(device_type, slot)?;
+        if device.recovery.is_some() {
+            return Ok(());
+        }
+
+        if let Some(broadcast) = device.broadcast.take() {
+            broadcast.abort();
+        }
+        let old_handler = device.handler.take();
+        let old_actor = device.actor.take();
+        let source = device.source.clone();
+
+        device.recovery = Some(tokio::spawn(async move {
+            stop_device_streaming(old_handler.as_ref(), device_type, slot, &source).await;
+            if let Some(actor) = old_actor {
+                actor.abort();
+            }
+            let result = probe_device(&source, device_type).await;
+            let _ = recovery_tx.send(RecoveryOutcome { source, result }).await;
+        }));
+
+        Ok(())
+    }
+
+    async fn finish_recovery(&mut self, outcome: RecoveryOutcome) {
+        let Some(device) = self.device.get_mut(&outcome.source) else {
+            return;
+        };
+        device.recovery = None;
+        let (device_type, slot) = (device.device_type, device.slot);
+
+        let (handler, actor) = match outcome.result {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                error!(%device_type, slot, ?error, "Auto-heal failed");
+                if !matches!(device.status, DeviceStatus::Available) {
+                    device.mark_error(error.to_string());
+                }
+                device.schedule_recover_backoff();
+                return;
+            }
+        };
+
+        device.handler = Some(handler);
+        device.actor = Some(actor);
+        device.status = DeviceStatus::Running;
+
+        match self.continuous_mode(device_type, slot).await {
+            Ok(_) => {
+                info!(%device_type, slot, "Device recovered");
+                if let Ok(device) = self.get_mut_device(device_type, slot) {
+                    device.reset_recover_backoff();
+                }
             }
             Err(error) => {
-                error!(%device_type, slot, ?error, "Failed to recover device");
-                let device = self.get_mut_device(device_type, slot)?;
-                device.mark_error(error.to_string());
-                device.schedule_recover_backoff();
-                Err(error)
+                error!(%device_type, slot, ?error, "Auto-heal failed");
+                if self.teardown_device_runtime(device_type, slot).is_ok() {
+                    if let Ok(device) = self.get_mut_device(device_type, slot) {
+                        device.mark_error(error.to_string());
+                        device.schedule_recover_backoff();
+                    }
+                }
             }
         }
     }
@@ -1386,7 +1352,11 @@ impl DeviceManager {
         device_type: DeviceSelection,
         slot: u8,
     ) -> Result<Answer, ManagerError> {
-        match self.get_device(device_type, slot)?.status {
+        let device = self.get_device(device_type, slot)?;
+        if device.recovery.is_some() {
+            return Ok(Answer::DeviceInfo(vec![device.info()]));
+        }
+        match device.status {
             DeviceStatus::Available => {
                 self.auto_create_device(device_type, slot).await?;
                 trace!(%device_type, slot, "Successfully created device in continuous_mode");
@@ -1815,6 +1785,135 @@ impl ManagerActorHandler {
             }
         }
     }
+}
+
+async fn open_device(
+    source: &SourceSelection,
+    device_type: DeviceSelection,
+) -> Result<DeviceType, ManagerError> {
+    let port = match source {
+        SourceSelection::UdpStream(source_udp_struct) => {
+            let socket_addr = SocketAddrV4::new(source_udp_struct.ip, source_udp_struct.port);
+
+            let udp_stream = UdpStream::connect(socket_addr.into())
+                .await
+                .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
+            SourceType::Udp(udp_stream)
+        }
+        SourceSelection::SerialStream(source_serial_struct) => {
+            let mut serial_stream: SerialStream =
+                tokio_serial::new(&source_serial_struct.path, source_serial_struct.baudrate)
+                    .open_native_async()
+                    .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
+
+            device_discovery::set_baudrate_pre_routine(
+                &mut serial_stream,
+                source_serial_struct.baudrate,
+            )
+            .await?;
+
+            serial_stream
+                .clear(tokio_serial::ClearBuffer::All)
+                .map_err(|err| ManagerError::DeviceSourceError(err.to_string()))?;
+
+            SourceType::Serial(serial_stream)
+        }
+        SourceSelection::FakeStream(_) => SourceType::Fake(FakeStream::new(device_type)),
+    };
+
+    Ok(match port {
+        SourceType::Udp(udp_port) => match device_type {
+            DeviceSelection::Common | DeviceSelection::Auto => {
+                DeviceType::Common(bluerobotics_ping::common::Device::new(udp_port))
+            }
+            DeviceSelection::Ping1D => DeviceType::Ping1D(Ping1D::new(udp_port)),
+            DeviceSelection::Ping360 => DeviceType::Ping360(Ping360::new(udp_port)),
+        },
+        SourceType::Serial(serial_port) => match device_type {
+            DeviceSelection::Common | DeviceSelection::Auto => {
+                DeviceType::Common(bluerobotics_ping::common::Device::new(serial_port))
+            }
+            DeviceSelection::Ping1D => DeviceType::Ping1D(Ping1D::new(serial_port)),
+            DeviceSelection::Ping360 => DeviceType::Ping360(Ping360::new(serial_port)),
+        },
+        SourceType::Fake(fake_port) => match device_type {
+            DeviceSelection::Common | DeviceSelection::Auto => {
+                DeviceType::Common(bluerobotics_ping::common::Device::new(fake_port))
+            }
+            DeviceSelection::Ping1D => DeviceType::Ping1D(Ping1D::new(fake_port)),
+            DeviceSelection::Ping360 => DeviceType::Ping360(Ping360::new(fake_port)),
+        },
+    })
+}
+
+async fn probe_device(
+    source: &SourceSelection,
+    device_type: DeviceSelection,
+) -> Result<(DeviceActorHandler, tokio::task::JoinHandle<DeviceActor>), ManagerError> {
+    let device = open_device(source, device_type).await?;
+    let (device_actor, handler) = DeviceActor::new(device, 10);
+    let actor = tokio::spawn(async move { device_actor.run().await });
+
+    match handler
+        .send(super::devices::PingRequest::Common(
+            super::devices::PingCommonRequest::DeviceInformation,
+        ))
+        .await
+    {
+        Ok(_) => Ok((handler, actor)),
+        Err(error) => {
+            actor.abort();
+            Err(ManagerError::DeviceError(error))
+        }
+    }
+}
+
+async fn stop_device_streaming(
+    handler: Option<&DeviceActorHandler>,
+    device_type: DeviceSelection,
+    slot: u8,
+    source: &SourceSelection,
+) {
+    if let Some(handler) = handler {
+        match device_type {
+            DeviceSelection::Ping1D => {
+                let id = <bluerobotics_ping::ping1d::ProfileStruct as bluerobotics_ping::message::MessageInfo>::id();
+                if let Err(error) = handler
+                    .send(super::devices::PingRequest::Ping1D(
+                        super::devices::Ping1DRequest::ContinuousStop(
+                            bluerobotics_ping::ping1d::ContinuousStopStruct { id },
+                        ),
+                    ))
+                    .await
+                {
+                    warn!(
+                        %device_type,
+                        slot,
+                        ?error,
+                        "stop_then_teardown: ContinuousStop failed"
+                    );
+                }
+            }
+            DeviceSelection::Ping360 => {
+                if matches!(source, SourceSelection::SerialStream(_)) {
+                    if let Err(error) = handler
+                        .send(super::devices::PingRequest::Ping360(
+                            super::devices::Ping360Request::MotorOff,
+                        ))
+                        .await
+                    {
+                        warn!(%device_type, slot, ?error, "stop_then_teardown: MotorOff failed");
+                    }
+                }
+            }
+            DeviceSelection::Common | DeviceSelection::Auto => {}
+        }
+    }
+
+    if let Err(error) = turnoff_device_continuous_mode(source).await {
+        warn!(%device_type, slot, ?error, "stop_then_teardown: turnoff failed");
+    }
+    sleep(Duration::from_millis(500)).await;
 }
 
 pub async fn turnoff_device_continuous_mode(source: &SourceSelection) -> Result<(), ManagerError> {
