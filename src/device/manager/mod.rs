@@ -20,7 +20,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::{
-    sync::{broadcast::Receiver, mpsc, oneshot},
+    sync::{mpsc, oneshot},
     time::sleep,
 };
 
@@ -37,7 +37,6 @@ use super::{
 use bluerobotics_ping::{
     common::{DeviceInformationStruct, ProtocolVersionStruct},
     device::{Ping1D, Ping360},
-    message::ProtocolMessage,
 };
 use discovery_service::DiscoveryComponent;
 #[derive(Debug)]
@@ -54,6 +53,7 @@ pub struct Device {
     // Next instant to attempt recovery at
     pub next_recover_at: Option<Instant>,
     pub recovery: Option<tokio::task::JoinHandle<()>>,
+    pub health_check: Option<tokio::task::JoinHandle<()>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -158,6 +158,9 @@ impl Drop for Device {
         if let Some(recovery) = self.recovery.take() {
             recovery.abort();
         }
+        if let Some(health_check) = self.health_check.take() {
+            health_check.abort();
+        }
         if let Some(broadcast_handle) = &self.broadcast {
             trace!(device_id = %self.device_type, slot = self.slot, "Device broadcast handle closed");
             broadcast_handle.abort();
@@ -238,12 +241,21 @@ pub struct DeviceManager {
     pub manager_handler: ManagerActorHandler,
     recovery_tx: mpsc::Sender<RecoveryOutcome>,
     recovery_rx: mpsc::Receiver<RecoveryOutcome>,
+    health_tx: mpsc::Sender<HealthOutcome>,
+    health_rx: mpsc::Receiver<HealthOutcome>,
 }
 
 struct RecoveryOutcome {
     source: SourceSelection,
     result: Result<(DeviceActorHandler, tokio::task::JoinHandle<DeviceActor>), ManagerError>,
 }
+
+struct HealthOutcome {
+    source: SourceSelection,
+    handler: DeviceActorHandler,
+    result: Result<(), String>,
+}
+
 #[derive(Debug)]
 pub struct ManagerActorRequest {
     pub request: Request,
@@ -471,6 +483,7 @@ impl DeviceManager {
 
         let actor_handler = ManagerActorHandler { sender };
         let (recovery_tx, recovery_rx) = mpsc::channel(size);
+        let (health_tx, health_rx) = mpsc::channel(size);
         let actor = DeviceManager {
             receiver,
             device: HashMap::new(),
@@ -479,6 +492,8 @@ impl DeviceManager {
             manager_handler: actor_handler.clone(),
             recovery_tx,
             recovery_rx,
+            health_tx,
+            health_rx,
         };
 
         trace!("DeviceManager and handler successfully created: Success");
@@ -509,6 +524,9 @@ impl DeviceManager {
                 }
                 Some(outcome) = self.recovery_rx.recv() => {
                     self.finish_recovery(outcome).await;
+                }
+                Some(outcome) = self.health_rx.recv() => {
+                    self.finish_health_check(outcome);
                 }
                 Ok(device_discovery_info) = discovery_rx.recv() => {
                     let slot = self.alloc_slot(&DeviceIdentity {
@@ -603,202 +621,89 @@ impl DeviceManager {
             }
         }
 
-        let device_info = match self.list().await {
-            Ok(Answer::DeviceInfo(answer)) => answer,
-            _ => return,
-        };
-
-        for device in device_info {
-            if matches!(
-                device.status,
-                DeviceStatus::Error(_) | DeviceStatus::Available
-            ) {
+        for device in self.device.values_mut() {
+            let streaming = match device.status {
+                DeviceStatus::ContinuousMode => true,
+                DeviceStatus::Running => false,
+                DeviceStatus::Error(_) | DeviceStatus::Available => continue,
+            };
+            if device.health_check.is_some() {
                 continue;
             }
 
-            debug!(
-                device_type = %device.device_type,
-                slot = device.slot,
-                "Device Manager is checking"
-            );
+            let (device_type, slot) = (device.device_type, device.slot);
+            debug!(%device_type, slot, "Device Manager is checking");
 
-            let receiver = match self.get_subscriber(device.device_type, device.slot).await {
-                Ok(receiver) => receiver,
-                Err(error) => {
-                    error!(
-                        device_type = %device.device_type,
-                        slot = device.slot,
-                        ?error,
-                        "Device connection error, can't take subscriber"
-                    );
-                    if let Ok(entry) = self.get_mut_device(device.device_type, device.slot) {
-                        entry.mark_error(format!("Could not subscribe to the device: {error}"));
-                    }
-                    continue;
-                }
-            };
-
-            let device_entry = match self.get_mut_device(device.device_type, device.slot) {
-                Ok(entry) => entry,
-                Err(error) => {
-                    error!(
-                        ?error,
-                        device_type = %device.device_type,
-                        slot = device.slot,
-                        "Device Manager can't get device"
-                    );
-                    continue;
-                }
-            };
-
-            if let Some(handle) = &device_entry.actor {
-                if handle.is_finished() {
-                    error!(
-                        device_type = %device.device_type,
-                        slot = device.slot,
-                        "Device Actor main task finished, marking device with error",
-                    );
-                    device_entry.mark_error("Device Actor main task finished");
-                    continue;
-                }
+            if device
+                .actor
+                .as_ref()
+                .is_some_and(|handle| handle.is_finished())
+            {
+                error!(
+                    %device_type,
+                    slot,
+                    "Device Actor main task finished, marking device with error",
+                );
+                device.mark_error("Device Actor main task finished");
+                continue;
             }
 
-            match &device_entry.status {
-                DeviceStatus::ContinuousMode => {
-                    DeviceManager::check_continuous_mode_device(device_entry, receiver).await;
-                }
-                DeviceStatus::Running => {
-                    DeviceManager::check_running_device(device_entry).await;
-                }
-                status => {
-                    error!(
-                        ?status,
-                        device_type = %device.device_type,
-                        slot = device.slot,
-                        "Device Manager found an unhandled device status"
-                    );
-                    continue;
-                }
+            let Some(handler) = device.handler.clone() else {
+                error!(%device_type, slot, "Device handler missing, marking with error");
+                device.mark_error("Device handler missing");
+                continue;
+            };
+
+            if streaming
+                && !device
+                    .broadcast
+                    .as_ref()
+                    .is_some_and(|broadcast| !broadcast.is_finished())
+            {
+                error!(
+                    %device_type,
+                    slot,
+                    "Device actor broadcast service finished, marking device with error"
+                );
+                device.mark_error("Device actor broadcast service finished");
+                continue;
             }
+
+            let source = device.source.clone();
+            let health_tx = self.health_tx.clone();
+            device.health_check = Some(tokio::spawn(async move {
+                let result = if streaming {
+                    check_streaming_device(&handler, device_type, slot).await
+                } else {
+                    check_running_device(&handler, device_type, slot).await
+                };
+                let _ = health_tx
+                    .send(HealthOutcome {
+                        source,
+                        handler,
+                        result,
+                    })
+                    .await;
+            }));
         }
     }
 
-    async fn check_continuous_mode_device(
-        device_entry: &mut Device,
-        mut receiver: Receiver<ProtocolMessage>,
-    ) {
-        let Some(broadcast) = &device_entry.broadcast else {
-            error!(
-                device_type = %device_entry.device_type,
-                slot = device_entry.slot,
-                "Device actor broadcast service finished, marking device with error"
-            );
-            device_entry.mark_error("Device actor broadcast service finished");
+    fn finish_health_check(&mut self, outcome: HealthOutcome) {
+        let Some(device) = self.device.get_mut(&outcome.source) else {
             return;
         };
+        device.health_check = None;
 
-        if broadcast.is_finished() {
-            error!(
-                device_type = %device_entry.device_type,
-                slot = device_entry.slot,
-                "Device actor broadcast service finished, marking device with error"
-            );
-            device_entry.mark_error("Device actor broadcast service finished");
-            return;
-        }
-
-        match &device_entry.device_type {
-            DeviceSelection::Common | DeviceSelection::Ping1D | DeviceSelection::Ping360 => {
-                match tokio::time::timeout(std::time::Duration::from_secs(15), receiver.recv())
-                    .await
-                {
-                    Err(_) => {
-                        error!(
-                            device_type = %device_entry.device_type,
-                            slot = device_entry.slot,
-                            "Device connection timeout, marking with error",
-                        );
-                        device_entry.mark_error("Device connection timeout");
-                    }
-                    Ok(Err(error)) => match error {
-                        tokio::sync::broadcast::error::RecvError::Lagged(_) => error!(
-                            device_type = %device_entry.device_type,
-                            slot = device_entry.slot,
-                            ?error, "Device connection error",
-                        ),
-                        tokio::sync::broadcast::error::RecvError::Closed => {
-                            error!(
-                                device_type = %device_entry.device_type,
-                                slot = device_entry.slot,
-                                ?error, "Device connection error, marking with error",
-                            );
-                            device_entry.mark_error("Device connection error");
-                        }
-                    },
-                    Ok(Ok(_)) => {
-                        debug!(
-                            device_type = %device_entry.device_type,
-                            slot = device_entry.slot,
-                            "Device still responsive"
-                        );
-                    }
-                }
-            }
-            device_selection => {
-                error!(
-                    device_type = %device_entry.device_type,
-                    slot = device_entry.slot,
-                    "Device connection error, Cannot check health of {device_selection:?}"
-                );
-            }
-        }
-    }
-
-    async fn check_running_device(device_entry: &mut Device) {
-        let Some(handler) = &device_entry.handler else {
-            error!(
-                device_type = %device_entry.device_type,
-                slot = device_entry.slot,
-                "Device handler missing, marking with error",
-            );
-            device_entry.mark_error("Device handler missing");
-            return;
-        };
-
-        let handler_clone = handler.clone();
-
-        match tokio::time::timeout(
-            std::time::Duration::from_millis(2000),
-            handler_clone.send(super::devices::PingRequest::Common(
-                super::devices::PingCommonRequest::DeviceInformation,
-            )),
-        )
-        .await
-        {
-            Err(_) => {
-                error!(
-                    device_type = %device_entry.device_type,
-                    slot = device_entry.slot,
-                    "Device connection timeout, marking with error",
-                );
-                device_entry.mark_error("Device connection timeout");
-            }
-            Ok(Err(error)) => {
-                error!(
-                    device_type = %device_entry.device_type,
-                    slot = device_entry.slot,
-                    ?error,
-                    "Device connection error, marking with error",
-                );
-                device_entry.mark_error("Device connection error");
-            }
-            Ok(Ok(_)) => {
-                debug!(
-                    device_type = %device_entry.device_type,
-                    slot = device_entry.slot,
-                    "Device still responsive"
-                );
-            }
+        let same_runtime = device
+            .handler
+            .as_ref()
+            .is_some_and(|handler| handler.sender.same_channel(&outcome.handler.sender));
+        let checked = matches!(
+            device.status,
+            DeviceStatus::ContinuousMode | DeviceStatus::Running
+        );
+        if let (true, true, Err(reason)) = (same_runtime, checked, outcome.result) {
+            device.mark_error(reason);
         }
     }
 
@@ -964,6 +869,7 @@ impl DeviceManager {
             recover_attempts: 0,
             next_recover_at: None,
             recovery: None,
+            health_check: None,
         };
 
         let Device {
@@ -1171,6 +1077,7 @@ impl DeviceManager {
             recover_attempts: 0,
             next_recover_at: None,
             recovery: None,
+            health_check: None,
         };
 
         let info = device.info();
@@ -1214,6 +1121,9 @@ impl DeviceManager {
         }
         if let Some(broadcast) = device.broadcast.take() {
             broadcast.abort();
+        }
+        if let Some(health_check) = device.health_check.take() {
+            health_check.abort();
         }
         device.handler = None;
         device.status = DeviceStatus::Available;
@@ -1261,6 +1171,9 @@ impl DeviceManager {
 
         if let Some(broadcast) = device.broadcast.take() {
             broadcast.abort();
+        }
+        if let Some(health_check) = device.health_check.take() {
+            health_check.abort();
         }
         let old_handler = device.handler.take();
         let old_actor = device.actor.take();
@@ -1864,6 +1777,80 @@ async fn probe_device(
         Err(error) => {
             actor.abort();
             Err(ManagerError::DeviceError(error))
+        }
+    }
+}
+
+async fn check_streaming_device(
+    handler: &DeviceActorHandler,
+    device_type: DeviceSelection,
+    slot: u8,
+) -> Result<(), String> {
+    if device_type == DeviceSelection::Auto {
+        error!(
+            %device_type,
+            slot,
+            "Device connection error, Cannot check health of {device_type:?}"
+        );
+        return Ok(());
+    }
+
+    let mut receiver = match handler
+        .send(super::devices::PingRequest::GetSubscriber)
+        .await
+    {
+        Ok(PingAnswer::Subscriber(receiver)) => receiver,
+        Ok(_) => return Err("Could not subscribe to the device".to_string()),
+        Err(error) => {
+            error!(%device_type, slot, ?error, "Device connection error, can't take subscriber");
+            return Err(format!("Could not subscribe to the device: {error}"));
+        }
+    };
+
+    match tokio::time::timeout(Duration::from_secs(15), receiver.recv()).await {
+        Err(_) => {
+            error!(%device_type, slot, "Device connection timeout, marking with error");
+            Err("Device connection timeout".to_string())
+        }
+        Ok(Err(error @ tokio::sync::broadcast::error::RecvError::Lagged(_))) => {
+            error!(%device_type, slot, ?error, "Device connection error");
+            Ok(())
+        }
+        Ok(Err(error)) => {
+            error!(%device_type, slot, ?error, "Device connection error, marking with error");
+            Err("Device connection error".to_string())
+        }
+        Ok(Ok(_)) => {
+            debug!(%device_type, slot, "Device still responsive");
+            Ok(())
+        }
+    }
+}
+
+async fn check_running_device(
+    handler: &DeviceActorHandler,
+    device_type: DeviceSelection,
+    slot: u8,
+) -> Result<(), String> {
+    match tokio::time::timeout(
+        Duration::from_millis(2000),
+        handler.send(super::devices::PingRequest::Common(
+            super::devices::PingCommonRequest::DeviceInformation,
+        )),
+    )
+    .await
+    {
+        Err(_) => {
+            error!(%device_type, slot, "Device connection timeout, marking with error");
+            Err("Device connection timeout".to_string())
+        }
+        Ok(Err(error)) => {
+            error!(%device_type, slot, ?error, "Device connection error, marking with error");
+            Err("Device connection error".to_string())
+        }
+        Ok(Ok(_)) => {
+            debug!(%device_type, slot, "Device still responsive");
+            Ok(())
         }
     }
 }
