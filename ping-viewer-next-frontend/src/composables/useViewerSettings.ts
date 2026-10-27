@@ -12,7 +12,6 @@ export type UnitSystem = 'metric' | 'imperial';
 
 export interface ViewerSettings {
   revision: number;
-  head_down: boolean;
   unit_system: UnitSystem;
   display: DisplayProfile;
 }
@@ -59,15 +58,13 @@ function readLegacy(key: string) {
 // so the settings in this browser are imported
 async function migrateLegacySettings(current: ViewerSettings) {
   const display = readLegacy('display-settings');
-  const headDown = readLegacy('sonar360.headDown');
   const storedUnits = localStorage.getItem('unitSystem');
   const unitSystem = storedUnits === 'metric' || storedUnits === 'imperial' ? storedUnits : null;
   let settings = current;
-  if (current.revision === 0 && (display || unitSystem || typeof headDown === 'boolean')) {
+  if (current.revision === 0 && (display || unitSystem)) {
     const profile = current.display;
     settings = await updateViewerSettings({
       expected_revision: 0,
-      head_down: typeof headDown === 'boolean' ? headDown : undefined,
       unit_system: unitSystem ?? undefined,
       display: display
         ? {
