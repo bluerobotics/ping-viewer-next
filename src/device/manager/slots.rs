@@ -43,6 +43,15 @@ impl SlotRegistry {
         Default::default()
     }
 
+    /// Records a saved slot without occupying it, so the device can claim it later.
+    pub fn remember(&mut self, identity: &DeviceIdentity, slot: u8) {
+        self.assignments
+            .entry(identity.device_type)
+            .or_default()
+            .entry(identity.connection.clone())
+            .or_insert(slot);
+    }
+
     /// Called on successful connect, once device_type is known.
     pub fn resolve(&mut self, identity: &DeviceIdentity) -> u8 {
         let assignments = self.assignments.entry(identity.device_type).or_default();
@@ -54,7 +63,9 @@ impl SlotRegistry {
             }
         }
         let slot = (0..u8::MAX)
-            .find(|slot| !occupied.contains(slot))
+            .find(|slot| {
+                !occupied.contains(slot) && !assignments.values().any(|assigned| assigned == slot)
+            })
             .expect("no free slots for device type");
         assignments.insert(identity.connection.clone(), slot);
         occupied.insert(slot);
@@ -69,10 +80,18 @@ impl SlotRegistry {
             .copied()
     }
 
-    /// Called on disconnect, letting the slot become reusable.
+    /// Clears the occupied mark. The assignment keeps the slot reserved.
     pub fn release(&mut self, device_type: DeviceSelection, slot: u8) {
         if let Some(occupied) = self.occupied.get_mut(&device_type) {
             occupied.remove(&slot);
+        }
+    }
+
+    /// Drops the assignment and the occupied mark, freeing the slot for any device.
+    pub fn forget(&mut self, device_type: DeviceSelection, slot: u8) {
+        self.release(device_type, slot);
+        if let Some(assignments) = self.assignments.get_mut(&device_type) {
+            assignments.retain(|_, assigned| *assigned != slot);
         }
     }
 }
