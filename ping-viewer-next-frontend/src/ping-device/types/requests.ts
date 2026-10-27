@@ -33,6 +33,7 @@ export interface Ping360Config {
   num_steps: number;
   delay: number;
   mount_offset: number;
+  head_down: boolean;
 }
 
 export type ModifyDeviceCommand =
