@@ -84,11 +84,12 @@
               <template v-slot:activator="{ props }">
                 <div v-bind="props" style="display: inline-block">
                   <v-checkbox
-                    v-model="sharedHeadDown"
+                    v-model="settings.head_down"
                     label="Head-down"
                     hide-details
                     density="compact"
                     class="mt-2 mb-2"
+                    @update:modelValue="handleHeadDownChange"
                   />
                 </div>
               </template>
@@ -224,7 +225,6 @@
 import { useDebounceFn } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
 import { useUnits } from '../../../composables/useUnits';
-import { useHeadDown } from '@/composables/useHeadDown';
 
 const { distanceLabel, speedUnit } = useUnits();
 
@@ -256,6 +256,7 @@ const emit = defineEmits([
   'rangeChange',
   'update:angles',
   'update:mountOffset',
+  'update:headDown',
   'close',
 ]);
 
@@ -282,7 +283,6 @@ const showMountOptions = ref(false);
 const autoMode = ref(true);
 const range = ref(10);
 const centerAngle = ref(180);
-const sharedHeadDown = useHeadDown();
 const width = ref(180);
 const angleRange = ref([0, 360]);
 
@@ -294,6 +294,7 @@ const settings = ref({
   number_of_samples: MAX_NUMBER_OF_POINTS,
   speed_of_sound: 1500,
   mount_offset: 180,
+  head_down: false,
 });
 
 function calculateSectorAngles() {
@@ -434,6 +435,7 @@ const fetchCurrentSettings = async () => {
         number_of_samples: config.number_of_samples,
         speed_of_sound: config.speed_of_sound || 1500,
         mount_offset: config.mount_offset ?? 180,
+        head_down: config.head_down === true,
       };
 
       const isFullCircleConfig = (config.stop_angle + 1) % 400 === config.start_angle % 400;
@@ -456,6 +458,7 @@ const fetchCurrentSettings = async () => {
         angleRange.value = [startAngleDegrees, stopAngleDegrees];
       }
       emitSectorToDisplay(calculateSectorAngles());
+      emit('update:headDown', settings.value.head_down);
       range.value = calculateRange();
     }
   } catch (error) {
@@ -550,7 +553,6 @@ const handleRangeChange = (newRange) => {
 
   adjustTransmitDuration();
   range.value = Math.round(newRange);
-  emit('rangeChange', range.value);
   emit('update:range', range.value);
 
   debouncedSaveSettings({ ...settings.value });
@@ -590,6 +592,13 @@ const handleTransmitDurationChange = () => {
 
 const handleTransmitFrequencyChange = () => {
   debouncedSaveSettings({ ...settings.value });
+};
+
+const handleHeadDownChange = (headDown) => {
+  const next = headDown === true;
+  settings.value.head_down = next;
+  emit('update:headDown', next);
+  debouncedSaveSettings({ ...settings.value, head_down: next });
 };
 
 watch(
