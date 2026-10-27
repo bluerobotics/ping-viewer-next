@@ -91,6 +91,8 @@ pub struct Ping360Config {
     /// Degrees the view is rotated for a device mounted away from its default heading
     #[serde(default = "default_ping360_mount_offset")]
     pub mount_offset: u16,
+    #[serde(default)]
+    pub head_down: bool,
 }
 
 impl Ping360Config {
@@ -1577,6 +1579,7 @@ impl DeviceManager {
                         delay: 0,
                         speed_of_sound: default_ping360_speed_of_sound(),
                         mount_offset: default_ping360_mount_offset(),
+                        head_down: false,
                     });
 
                 let ping_360_properties = Ping360Properties {
@@ -2073,12 +2076,11 @@ pub async fn turnoff_device_continuous_mode(source: &SourceSelection) -> Result<
 
     Ok(())
 }
-
 #[cfg(test)]
 mod ping360_config_tests {
     use super::Ping360Config;
 
-    fn sample(mount_offset: u16) -> Ping360Config {
+    fn sample(mount_offset: u16, head_down: bool) -> Ping360Config {
         Ping360Config {
             mode: 1,
             gain_setting: 0,
@@ -2092,17 +2094,29 @@ mod ping360_config_tests {
             delay: 0,
             speed_of_sound: 1500,
             mount_offset,
+            head_down,
         }
     }
 
     #[test]
     fn mount_offset_alone_does_not_change_the_scan() {
-        let centered = sample(180);
-        let rotated = sample(90);
+        let centered = sample(180, false);
+        let rotated = sample(90, false);
         assert!(centered.same_scan(&rotated));
 
         let mut louder = rotated;
         louder.gain_setting = 1;
         assert!(!centered.same_scan(&louder));
+    }
+
+    #[test]
+    fn head_down_alone_does_not_change_the_scan() {
+        let upright = sample(180, false);
+        let flipped = sample(180, true);
+        assert!(upright.same_scan(&flipped));
+
+        let mut louder = flipped;
+        louder.gain_setting = 1;
+        assert!(!upright.same_scan(&louder));
     }
 }
