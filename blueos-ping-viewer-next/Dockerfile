@@ -36,8 +36,8 @@ LABEL permissions='{\
 }'
 LABEL authors='[\
     {\
-        "name": "Raul Victor Trombin",\
-        "email": "raulvtrombin@gmail.com"\
+        "name": "Blue Robotics",\
+        "email": "software@bluerobotics.com"\
     }\
 ]'
 LABEL company='{\
