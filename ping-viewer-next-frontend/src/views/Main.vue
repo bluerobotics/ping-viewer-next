@@ -94,8 +94,9 @@
               <component :class="['menu-content', { 'glass-inner disable-hover': glass }]"
                 :is="getDeviceSettingsComponent" :server-url="serverUrl"
                 :device-type="activeDevice.device.device_type" :device-slot="activeDevice.device.slot"
-                :initial-angles="currentDeviceAngles" :is-open="isMenuOpen" @update:angles="handleAngleUpdate"
-                @rangeChange="debouncedSaveSettings" @close="isMenuOpen = false" />
+                :initial-angles="currentDeviceAngles" :is-open="isMenuOpen" @update:angles="debouncedSaveSettings"
+                @update:range="debouncedSaveSettings"
+                @close="isMenuOpen = false" />
             </div>
           </div>
         </div>
@@ -1066,11 +1067,6 @@ const cleanupYawConnection = () => {
 
 const toggleMenu = () => {
   isMenuOpen.value = !isMenuOpen.value;
-};
-
-const handleAngleUpdate = (angles) => {
-  if (activeDevice.value && activeDevice.value.device.device_type === 'Ping360') {
-  }
 };
 
 let saveSettingsTimeout;
