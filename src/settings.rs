@@ -666,6 +666,7 @@ mod tests {
             delay: 10,
             speed_of_sound: 1482,
             mount_offset: 90,
+            head_down: true,
         };
         let settings = PingViewerNextV1Settings {
             head_down: true,
@@ -720,6 +721,7 @@ mod tests {
             delay: 10,
             speed_of_sound: 1482,
             mount_offset: 180,
+            head_down: false,
         }
     }
 
@@ -867,5 +869,56 @@ mod tests {
 
         assert_eq!(settings.ping360.len(), 1);
         assert_eq!(settings.ping360[0].slot, 3);
+    }
+
+    #[tokio::test]
+    async fn ping360_profile_without_head_down_still_loads() {
+        let directory = test_dir("legacy-ping360-config");
+        let config = Ping360Config {
+            mode: 1,
+            gain_setting: 2,
+            transmit_duration: 32,
+            sample_period: 80,
+            transmit_frequency: 740,
+            number_of_samples: 1200,
+            start_angle: 10,
+            stop_angle: 200,
+            num_steps: 1,
+            delay: 10,
+            speed_of_sound: 1482,
+            mount_offset: 180,
+            head_down: true,
+        };
+        let settings = PingViewerNextV1Settings {
+            ping360: vec![StoredPing360 {
+                connection: DeviceConnection::Ethernet {
+                    mac: "aa:bb:cc:dd:ee:ff".to_string(),
+                },
+                slot: 2,
+                config,
+            }],
+            ..Default::default()
+        };
+        persist_settings_to(&directory, &settings).unwrap();
+
+        let path = directory.join("settings_v1.json");
+        let mut value: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        value["ping360"][0]["config"]
+            .as_object_mut()
+            .unwrap()
+            .remove("head_down");
+        std::fs::write(&path, serde_json::to_string(&value).unwrap()).unwrap();
+
+        let loaded = load_settings_from(&directory, false);
+        let loaded = loaded
+            .lock()
+            .expect("settings mutex should not be poisoned");
+        assert!(!loaded.ping360[0].config.head_down);
+        assert_eq!(loaded.ping360[0].config.speed_of_sound, 1482);
+        assert_eq!(loaded.ping360[0].config.gain_setting, 2);
+        assert!(directory.join("settings_v1.json").exists());
+        drop(loaded);
+        std::fs::remove_dir_all(&directory).unwrap();
     }
 }
