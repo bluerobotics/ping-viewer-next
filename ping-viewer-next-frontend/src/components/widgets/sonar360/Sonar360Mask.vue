@@ -76,7 +76,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useUnits } from '../../../composables/useUnits';
-import { useHeadDown } from '@/composables/useHeadDown';
 
 const instanceId = ref(Math.random().toString(36).slice(2, 8));
 const sweepGradientId = computed(() => `sweep-grad-${instanceId.value}`);
@@ -85,8 +84,6 @@ const tooltipValue = ref('');
 const mousePosition = ref({ x: '50%', y: '50%' });
 
 const { formatDistance } = useUnits();
-
-const headDown = useHeadDown();
 
 const props = defineProps<{
   angle: number;
@@ -103,6 +100,7 @@ const props = defineProps<{
   endAngle: number;
   markerBackgroundColor: string;
   yawAngle: number;
+  headDown: boolean;
 }>();
 
 const isFullCircle = computed(() => {
