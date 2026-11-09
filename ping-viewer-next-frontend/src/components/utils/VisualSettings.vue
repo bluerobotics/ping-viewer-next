@@ -19,7 +19,7 @@
             <div class="setting-row">
               <span class="setting-label">Units:</span>
               <v-select
-                v-model="storedUnitSystem"
+                v-model="unitSystem"
                 :items="[{ title: 'Metric', value: 'metric' }, { title: 'Imperial', value: 'imperial' }]"
                 hide-details
                 density="compact"
@@ -173,7 +173,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { colorPalettes } from '../widgets/SonarColorOptions.vue';
 import { useUnits } from '../../composables/useUnits';
 
-const { storedUnitSystem } = useUnits();
+const { unitSystem } = useUnits();
 
 const props = defineProps({
   glass: {

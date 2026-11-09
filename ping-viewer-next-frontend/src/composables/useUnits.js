@@ -1,8 +1,7 @@
 import { listenToDatalakeVariable } from '@bluerobotics/cockpit-api';
 import { Measure, meters, feet, nauticalMiles } from 'safe-units';
 import { computed, ref, watch } from 'vue';
-
-const STORAGE_KEY = 'unitSystem';
+import { updateViewerSettings, viewerSettings } from './useViewerSettings';
 
 const DISTANCE_UNITS = {
   m: { label: 'meters', metersPerUnit: 1 },
@@ -22,14 +21,16 @@ const imperialFallback = {
   depth: 'ft',
 };
 
-const storedUnitSystem = ref(localStorage.getItem(STORAGE_KEY) || 'metric');
+const unitSystem = ref('metric');
+// Last value known to the service, whether it was received or sent
+let synced = 'metric';
 
-// Null until Cockpit sends its own choice, so the stored preference above reads until then.
+// Null until Cockpit sends its own choice, so the preference above reads until then.
 const cockpitDistanceUnit = ref(null);
 const cockpitDepthUnit = ref(null);
 
 const fallbackUnits = computed(() =>
-  storedUnitSystem.value === 'imperial' ? imperialFallback : metricFallback
+  unitSystem.value === 'imperial' ? imperialFallback : metricFallback
 );
 
 const distanceUnit = computed(() => cockpitDistanceUnit.value ?? fallbackUnits.value.distance);
@@ -41,8 +42,23 @@ const speedUnit = computed(() => (isImperial.value ? 'ft/s' : 'm/s'));
 const distanceLabel = computed(() => DISTANCE_UNITS[distanceUnit.value].label);
 const depthLabel = computed(() => DISTANCE_UNITS[depthUnit.value].label);
 
-watch(storedUnitSystem, (value) => {
-  localStorage.setItem(STORAGE_KEY, value);
+watch(
+  viewerSettings,
+  (settings) => {
+    if (settings) {
+      synced = settings.unit_system;
+      unitSystem.value = settings.unit_system;
+    }
+  },
+  { immediate: true }
+);
+
+watch(unitSystem, (value) => {
+  if (value === synced) return;
+  synced = value;
+  updateViewerSettings({ unit_system: value }).catch((error) => {
+    console.error('Failed to save unit system:', error);
+  });
 });
 
 // Inside Cockpit the widget follows the vehicle operator's units, which Cockpit only sends when
@@ -114,7 +130,7 @@ export function useUnits() {
   }
 
   return {
-    storedUnitSystem,
+    unitSystem,
     distanceUnit,
     depthUnit,
     isImperial,
