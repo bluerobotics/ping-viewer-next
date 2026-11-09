@@ -111,12 +111,12 @@ const props = defineProps({
 const emit = defineEmits(['button-click']);
 
 const isOpen = ref(false);
-const { formatDepth } = useUnits();
+const { formatDistance } = useUnits();
 
 const gainValues = ['Low', 'Normal', 'High'];
 
 const rangeLabel = computed(() =>
-  props.range == null ? '--' : formatDepth(props.range, props.range >= 10 ? 0 : 1)
+  props.range == null ? '--' : formatDistance(props.range, props.range >= 10 ? 0 : 1)
 );
 
 const gainLabel = computed(
