@@ -57,7 +57,7 @@
 					left: `calc(${getMarkerPositionPercent(line.radius).x}% + 50px)`,
 					top: `${getMarkerPositionPercent(line.radius).y}%`,
 				}">
-				{{ depthValue(line.distance).toFixed(1) }}{{ depthUnit }}
+				{{ formatDistance(line.distance, 1) }}
 			</div>
 		</div>
 
@@ -84,7 +84,7 @@ const displayTooltip = ref(false);
 const tooltipValue = ref('');
 const mousePosition = ref({ x: '50%', y: '50%' });
 
-const { depthValue, depthUnit } = useUnits();
+const { formatDistance } = useUnits();
 
 const headDown = useHeadDown();
 
@@ -206,7 +206,7 @@ const onMouseMove = (e: MouseEvent) => {
     displayTooltip.value = false;
   } else {
     displayTooltip.value = true;
-    tooltipValue.value = `${(props.maxDistance * distanceNormalized).toFixed(3)} m`;
+    tooltipValue.value = `${formatDistance(props.maxDistance * distanceNormalized, 3)}`;
     mousePosition.value = { x: `${e.offsetX}px`, y: `${e.offsetY}px` };
   }
 };
