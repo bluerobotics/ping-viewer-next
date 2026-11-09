@@ -22,14 +22,14 @@
         </div>
         <v-divider class="w-4/5 mt-2 mb-4" />
         <div class="d-flex align-center justify-space-between mb-1">
-          <v-tooltip :text="`Scanning range in ${distanceLabel}`" location="left">
+          <v-tooltip :text="`Scanning range in ${depthLabel}`" location="left">
             <template v-slot:activator="{ props }">
               <span v-bind="props" class="text-body-2 text-medium-emphasis">
                 Range
               </span>
             </template>
           </v-tooltip>
-          <span class="text-caption text-medium-emphasis mr-1">{{ distanceLabel }}</span>
+          <span class="text-caption text-medium-emphasis mr-1">{{ depthLabel }}</span>
         </div>
         <div class="d-flex align-center gap-2 mb-4">
           <v-text-field v-model.number="settings.scan_start" type="number" label="Start" :disabled="isAutoMode"
@@ -96,7 +96,7 @@ import { useDebounceFn } from '@vueuse/core';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useUnits } from '../../../composables/useUnits';
 
-const { distanceLabel, speedUnit } = useUnits();
+const { depthLabel, speedUnit } = useUnits();
 
 const props = defineProps({
   serverUrl: {
