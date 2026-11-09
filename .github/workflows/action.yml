@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   quick-tests:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Install build dependencies
         # Note: Dependencies after git are related to Tauri
@@ -60,7 +60,7 @@ jobs:
         run: cargo build --verbose --locked
 
   build-frontend:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: ping-viewer-next-frontend
@@ -99,22 +99,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - os: macos-14
+        - os: macos-26
           TARGET: aarch64-apple-darwin
 
-        - os: macos-14
+        - os: macos-26
           TARGET: x86_64-apple-darwin
 
-        - os: ubuntu-22.04
+        - os: ubuntu-24.04
           TARGET: aarch64-unknown-linux-musl
 
-        - os: ubuntu-22.04
+        - os: ubuntu-24.04
           TARGET: armv7-unknown-linux-musleabihf
 
-        - os: ubuntu-22.04
+        - os: ubuntu-24.04
           TARGET: x86_64-unknown-linux-gnu
 
-        - os: windows-2022
+        - os: windows-2025
           TARGET: x86_64-pc-windows-msvc
           EXTENSION: .exe
 
@@ -164,7 +164,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             TARGET: x86_64-unknown-linux-musl
     steps:
     - uses: actions/checkout@v3
@@ -209,7 +209,7 @@ jobs:
 
   deploy-blueos:
     needs: [build, build-x86-musl]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -260,19 +260,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
+          - platform: 'macos-26'
             target: 'aarch64-apple-darwin'
             formats: 'dmg'
             label: 'Mac-ARM64'
-          - platform: 'macos-latest'
+          - platform: 'macos-26'
             target: 'x86_64-apple-darwin'
             formats: 'dmg'
             label: 'Mac-x86'
-          - platform: 'ubuntu-22.04'
+          - platform: 'ubuntu-24.04'
             target: ''
             formats: 'deb,appimage'
             label: 'Linux'
-          - platform: 'windows-latest'
+          - platform: 'windows-2025'
             target: ''
             formats: 'nsis'
             label: 'Windows'
@@ -282,7 +282,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install dependencies (Ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-24.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -312,11 +312,11 @@ jobs:
         run: cargo install cargo-packager --locked
 
       - name: Install cargo-generate-rpm (Linux only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-24.04'
         run: cargo install cargo-generate-rpm --locked
 
       - name: Use newer linuxdeploy (Linux only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-24.04'
         # cargo-packager only downloads linuxdeploy if it's missing from its cache, so seed it with the
         # newer build Tauri uses, whose excludelist keeps libwayland-client out of the AppImage
         # TODO: Remove after <https://github.com/crabnebula-dev/cargo-packager/issues/493>
@@ -336,7 +336,7 @@ jobs:
             --formats ${{ matrix.formats }}
 
       - name: Package RPM (Linux only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-24.04'
         run: cargo generate-rpm --package ping-viewer-next-desktop
 
       - name: Package (cross-target, macOS)
