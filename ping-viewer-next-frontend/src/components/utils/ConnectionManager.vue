@@ -83,6 +83,15 @@
                           <v-list-item-subtitle>View device data</v-list-item-subtitle>
                         </v-list-item>
 
+                        <v-list-item v-if="isEthernetPing360(device)" @click="openStaticIpDialog(device)"
+                          :disabled="loadingStates[deviceKey(device)]">
+                          <template v-slot:prepend>
+                            <v-icon variant="tonal">mdi-ip-network</v-icon>
+                          </template>
+                          <v-list-item-title>Set Static IP</v-list-item-title>
+                          <v-list-item-subtitle>Assign a new IP address</v-list-item-subtitle>
+                        </v-list-item>
+
                         <v-list-item v-if="device.status === 'ContinuousMode'" @click="disableContinuousMode(device)"
                           :disabled="loadingStates[deviceKey(device)]">
                           <template v-slot:prepend>
@@ -240,6 +249,33 @@
               <v-spacer />
               <v-btn color="primary" variant="text" @click="showDeleteDialog = false">Cancel</v-btn>
               <v-btn color="error" :loading="isDeleting" @click="deleteDevice">Delete</v-btn>
+          </v-card-actions>
+          </v-card>
+        </v-dialog>
+
+        <!-- Static IP Dialog -->
+        <v-dialog v-model="showStaticIpDialog" max-width="400">
+          <v-card :class="{ 'glass': glass }">
+            <div class="windowHeader flex justify-between items-center pl-4 pt-0">
+              <div class="text-h6 text-center w-full">Set Static IP</div>
+              <v-btn icon="mdi-close" variant="text" @click="showStaticIpDialog = false" />
+            </div>
+            <v-card-text>
+              <div class="text-body-2 text-medium-emphasis mb-4">
+                Assign a fixed IP address to
+                <strong>{{ deviceForStaticIp?.device_type }}</strong>
+                (currently {{ deviceForStaticIp?.source.UdpStream.ip }}).
+                The device restarts its network interface and stays listed at its current address
+                until it is discovered again at the new one.
+              </div>
+              <v-text-field v-model="staticIpAddress" label="IP Address" placeholder="192.168.2.4"
+                :rules="[validateIPv4]" :error-messages="errors.setStaticIp" @keyup.enter="setStaticIp" />
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer />
+              <v-btn color="primary" variant="text" @click="showStaticIpDialog = false">Cancel</v-btn>
+              <v-btn color="error" :loading="isSettingStaticIp" :disabled="!isValidIPv4(staticIpAddress)"
+                @click="setStaticIp">Apply</v-btn>
             </v-card-actions>
           </v-card>
         </v-dialog>
@@ -287,7 +323,11 @@ const isCreating = ref(false);
 const isDeleting = ref(false);
 const showManualCreate = ref(false);
 const showDeleteDialog = ref(false);
+const showStaticIpDialog = ref(false);
 const deviceToDelete = ref(null);
+const deviceForStaticIp = ref(null);
+const staticIpAddress = ref('');
+const isSettingStaticIp = ref(false);
 const errors = reactive({
   list: null,
   autoCreate: null,
@@ -297,6 +337,7 @@ const errors = reactive({
   startRecording: null,
   stopRecording: null,
   delete: null,
+  setStaticIp: null,
 });
 const loadingStates = ref({});
 
@@ -305,6 +346,7 @@ const menuErrorEntries = computed(() =>
     if (!message) return false;
     if (key === 'create' && showManualCreate.value) return false;
     if (key === 'delete' && showDeleteDialog.value) return false;
+    if (key === 'setStaticIp' && showStaticIpDialog.value) return false;
     return true;
   })
 );
@@ -660,6 +702,68 @@ const deleteDevice = async () => {
   } finally {
     isDeleting.value = false;
     deviceToDelete.value = null;
+  }
+};
+
+const isEthernetPing360 = (device) =>
+  device.device_type === 'Ping360' && !!device.source?.UdpStream?.mac_address;
+
+const openStaticIpDialog = (device) => {
+  deviceForStaticIp.value = device;
+  staticIpAddress.value = '192.168.2.4';
+  errors.setStaticIp = null;
+  showStaticIpDialog.value = true;
+};
+
+const isValidIPv4 = (value) => {
+  const octets = String(value ?? '').split('.');
+  if (octets.length !== 4) return false;
+  return octets.every((octet) => {
+    if (!/^\d{1,3}$/.test(octet)) return false;
+    if (octet.length > 1 && octet.startsWith('0')) return false;
+    return Number(octet) <= 255;
+  });
+};
+
+const validateIPv4 = (value) => isValidIPv4(value) || 'Enter a valid IPv4 address';
+
+const setStaticIp = async () => {
+  if (!isValidIPv4(staticIpAddress.value)) {
+    errors.setStaticIp = 'Enter a valid IPv4 address';
+    return;
+  }
+
+  isSettingStaticIp.value = true;
+  errors.setStaticIp = null;
+
+  try {
+    const response = await fetch(`${props.serverUrl}/device_manager/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        command: 'ModifyDevice',
+        module: 'DeviceManager',
+        payload: {
+          ...slotPayload(deviceForStaticIp.value),
+          modify: { SetIp: staticIpAddress.value },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('Error setting static IP:', text);
+      errors.setStaticIp = `Set static IP request failed: ${text}`;
+      return;
+    }
+
+    showStaticIpDialog.value = false;
+    await refreshDevices();
+  } catch (err) {
+    console.error('Error setting static IP:', err);
+    errors.setStaticIp = `Failed to set static IP: ${err.message}`;
+  } finally {
+    isSettingStaticIp.value = false;
   }
 };
 
