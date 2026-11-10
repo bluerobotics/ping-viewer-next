@@ -108,6 +108,47 @@ impl DiscoveryResponse {
     }
 }
 
+/// Format an address for the Ping360 ASCII `SetSS1IP` message, as described in the
+/// "Communications Manual": each octet is left-padded with zeros to three digits.
+pub fn static_ip_address_message(ip: Ipv4Addr) -> String {
+    let [a, b, c, d] = ip.octets();
+    format!("{a:03}.{b:03}.{c:03}.{d:03}")
+}
+
+/// Pick the local address and broadcast address pairs used to carry an IP configuration message to
+/// `device_ip`.
+///
+/// Binding to an interface address pins the egress interface; a socket bound to `0.0.0.0` lets the
+/// routing table pick, which on a multi-homed host (e.g. Wi-Fi plus the ROV's Ethernet link) can be
+/// the wrong one. The subnet holding the device wins because it is the link the device answers on
+/// and it permits a subnet-directed broadcast.
+pub fn ip_configuration_broadcast_targets(device_ip: Ipv4Addr) -> Vec<(Ipv4Addr, Ipv4Addr)> {
+    let subnets: Vec<_> = netdev::get_interfaces()
+        .into_iter()
+        .filter(|interface| {
+            interface.is_up() && !interface.is_loopback() && interface.is_broadcast()
+        })
+        .flat_map(|interface| interface.ipv4)
+        .collect();
+
+    let on_device_subnet: Vec<_> = subnets
+        .iter()
+        .filter(|subnet| subnet.contains(&device_ip))
+        .map(|subnet| (subnet.addr(), subnet.broadcast()))
+        .collect();
+
+    if !on_device_subnet.is_empty() {
+        return on_device_subnet;
+    }
+
+    // The device is on a network the host has no address on (link-local AutoIP), so a directed
+    // broadcast to any of these subnets would not be accepted by it: use the limited broadcast.
+    subnets
+        .iter()
+        .map(|subnet| (subnet.addr(), Ipv4Addr::BROADCAST))
+        .collect()
+}
+
 pub async fn network_discovery() -> Option<Vec<SourceSelection>> {
     // Find IPv4 addresses on all interfaces
     let addresses = netdev::get_interfaces()
