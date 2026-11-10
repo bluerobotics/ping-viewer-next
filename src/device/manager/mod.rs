@@ -623,10 +623,13 @@ impl DeviceManager {
                     self.finish_health_check(outcome);
                 }
                 Ok(device_discovery_info) = discovery_rx.recv() => {
-                    let slot = self.alloc_slot(&DeviceIdentity {
-                        device_type: device_discovery_info.device_type,
-                        connection: DeviceConnection::from(&device_discovery_info.source),
-                    }).await;
+                    let slot = self.alloc_slot(
+                        &DeviceIdentity {
+                            device_type: device_discovery_info.device_type,
+                            connection: DeviceConnection::from(&device_discovery_info.source),
+                        },
+                        &device_discovery_info.source,
+                    ).await;
                     let device_info = DeviceInfo {
                         slot,
                         source: device_discovery_info.source,
@@ -945,10 +948,13 @@ impl DeviceManager {
         let actor = tokio::spawn(async move { device.run().await });
 
         let slot = self
-            .alloc_slot(&DeviceIdentity {
-                device_type: device_selection,
-                connection: DeviceConnection::from(&source),
-            })
+            .alloc_slot(
+                &DeviceIdentity {
+                    device_type: device_selection,
+                    connection: DeviceConnection::from(&source),
+                },
+                &source,
+            )
             .await;
 
         let device = Device {
@@ -1126,32 +1132,68 @@ impl DeviceManager {
             .info()]))
     }
 
-    async fn alloc_slot(&mut self, identity: &DeviceIdentity) -> u8 {
+    async fn alloc_slot(&mut self, identity: &DeviceIdentity, source: &SourceSelection) -> u8 {
         if let Some(slot) = self.slot_registry.assigned(identity) {
-            let errored = self
-                .get_device(identity.device_type, slot)
-                .is_ok_and(|device| matches!(device.status, DeviceStatus::Error(_)));
-            if errored {
-                info!(
-                    device_type = %identity.device_type,
-                    slot,
-                    "Removing errored device to reuse its slot"
-                );
-                if let Err(error) = self.delete_inner(identity.device_type, slot, false).await {
-                    warn!(
+            let holder = self.get_device(identity.device_type, slot).map(|device| {
+                (
+                    matches!(device.status, DeviceStatus::Error(_)),
+                    device.source.clone(),
+                )
+            });
+
+            match holder {
+                // Only a MAC-keyed identity names a single physical device, so a different source
+                // means that device moved (e.g. it was given a new IP). Without a MAC the slot is
+                // shared by every UDP device of that type, and a different source is a sibling.
+                Ok((_, held_source))
+                    if held_source != *source
+                        && matches!(identity.connection, DeviceConnection::Ethernet { .. }) =>
+                {
+                    // The old runtime cannot answer a graceful stop, since its address is gone:
+                    // asking it to would block the manager for the full device timeout.
+                    info!(
                         device_type = %identity.device_type,
                         slot,
-                        ?error,
-                        "Failed to remove errored device before reusing its slot"
+                        "Removing stale device to reuse its slot"
                     );
-                } else {
-                    // delete forgets the slot; this device is about to reuse it
-                    self.slot_registry.remember(identity, slot);
+                    self.remove_stale_slot_holder(identity.device_type, slot);
                 }
+                Ok((true, _)) => {
+                    info!(
+                        device_type = %identity.device_type,
+                        slot,
+                        "Removing errored device to reuse its slot"
+                    );
+                    if let Err(error) = self.delete_inner(identity.device_type, slot, false).await {
+                        warn!(
+                            device_type = %identity.device_type,
+                            slot,
+                            ?error,
+                            "Failed to remove errored device before reusing its slot"
+                        );
+                    } else {
+                        // delete forgets the slot; this device is about to reuse it
+                        self.slot_registry.remember(identity, slot);
+                    }
+                }
+                _ => {}
             }
         }
 
         self.slot_registry.resolve(identity)
+    }
+
+    fn remove_stale_slot_holder(&mut self, device_type: DeviceSelection, slot: u8) {
+        if let Err(error) = self.teardown_device_runtime(device_type, slot) {
+            warn!(%device_type, slot, ?error, "Failed to tear down stale device");
+        }
+        if let Err(error) = self.remove_device(device_type, slot) {
+            warn!(%device_type, slot, ?error, "Failed to remove stale device");
+        }
+        self.slot_registry.release(device_type, slot);
+
+        let sources = self.device.keys().cloned().collect();
+        self.discovery_service.broadcast_known_sources(sources);
     }
 
     pub async fn register_device(
@@ -1665,14 +1707,26 @@ impl DeviceManager {
                     return Err(ManagerError::NoDevices);
                 };
 
-                let SourceSelection::UdpStream(inner) = &info.source else {
-                    return Err(ManagerError::Other(format!(
-                        "modify_device : invalid request for device : {request:?}"
-                    )));
+                let device_ip = match &info.source {
+                    SourceSelection::UdpStream(source)
+                        if request.device_type == DeviceSelection::Ping360
+                            && source.mac_address.is_some() =>
+                    {
+                        source.ip
+                    }
+                    _ => {
+                        return Err(ManagerError::Other(format!(
+                            "modify_device : setting the IP address is only supported for Ethernet Ping360 devices : {request:?}"
+                        )))
+                    }
                 };
 
-                self.modify_device_ip(ip, inner.ip).await?;
-                self.delete(request.device_type, request.slot).await?;
+                debug!(%ip, %device_ip, "modify_device: Assigning new IP address");
+                self.modify_device_ip(ip, device_ip).await?;
+                // The device confirms its new address only by reappearing in discovery under the
+                // same MAC. Keep this entry until then: alloc_slot retires it when the relocated
+                // device claims its slot. Deleting here would drop a working device whenever the
+                // message is lost or the address is not applied.
                 Ok(Answer::DeviceConfig(ModifyDeviceResult::ConfigAcknowledge(
                     request,
                 )))
@@ -1698,19 +1752,56 @@ impl DeviceManager {
     pub async fn modify_device_ip(
         &mut self,
         ip: Ipv4Addr,
-        destination: Ipv4Addr,
+        device_ip: Ipv4Addr,
     ) -> Result<(), ManagerError> {
-        let socket =
-            UdpSocket::bind("0.0.0.0:0").map_err(|err| ManagerError::Other(err.to_string()))?; // Bind to any available port
-        socket
-            .set_broadcast(true)
-            .map_err(|err| ManagerError::Other(err.to_string()))?;
+        let command = format!(
+            "SetSS1IP {}",
+            device_discovery::static_ip_address_message(ip)
+        );
 
-        let command = format!("SetSS1IP {}", ip);
+        let targets = device_discovery::ip_configuration_broadcast_targets(device_ip);
+        if targets.is_empty() {
+            warn!("modify_device_ip: No usable IPv4 interface to send the configuration from");
+            return Err(ManagerError::Other(
+                "no usable IPv4 network interface".to_string(),
+            ));
+        }
 
-        socket
-            .send_to(command.as_bytes(), format!("{destination}:30303"))
-            .map_err(|err| ManagerError::Other(err.to_string()))?;
+        let mut sent = 0;
+        for (local, destination) in targets {
+            let socket = match UdpSocket::bind((local, 0)) {
+                Ok(socket) => socket,
+                Err(error) => {
+                    warn!(%local, ?error, "modify_device_ip: Failed to bind socket");
+                    continue;
+                }
+            };
+            if let Err(error) = socket.set_broadcast(true) {
+                warn!(%local, ?error, "modify_device_ip: Failed to enable broadcast");
+                continue;
+            }
+            match socket.send_to(command.as_bytes(), (destination, 30303)) {
+                Ok(_) => {
+                    debug!(%local, %destination, "modify_device_ip: Sent configuration");
+                    sent += 1;
+                }
+                Err(error) => {
+                    warn!(
+                        %local,
+                        %destination,
+                        ?error,
+                        "modify_device_ip: Failed to send configuration"
+                    );
+                }
+            }
+        }
+
+        if sent == 0 {
+            return Err(ManagerError::Other(
+                "failed to send the IP configuration to any interface".to_string(),
+            ));
+        }
+
         Ok(())
     }
 
