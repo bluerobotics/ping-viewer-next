@@ -225,7 +225,6 @@ import { useDebounceFn } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
 import { useUnits } from '../../../composables/useUnits';
 import { useHeadDown } from '@/composables/useHeadDown';
-import { useMountOffset } from '@/composables/useMountOffset';
 
 const { distanceLabel, speedUnit } = useUnits();
 
@@ -252,7 +251,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:range', 'rangeChange', 'update:angles', 'close']);
+const emit = defineEmits(['update:range', 'rangeChange', 'update:angles', 'update:mountOffset', 'close']);
 
 const handleClose = () => {
   emit('close');
@@ -278,7 +277,6 @@ const autoMode = ref(true);
 const range = ref(10);
 const centerAngle = ref(180);
 const sharedHeadDown = useHeadDown();
-const sharedMountOffset = useMountOffset();
 const width = ref(180);
 const angleRange = ref([0, 360]);
 
@@ -289,6 +287,7 @@ const settings = ref({
   transmit_frequency: 740,
   number_of_samples: MAX_NUMBER_OF_POINTS,
   speed_of_sound: 1500,
+  mount_offset: 180,
 });
 
 function calculateSectorAngles() {
@@ -428,11 +427,12 @@ const fetchCurrentSettings = async () => {
         transmit_frequency: config.transmit_frequency,
         number_of_samples: config.number_of_samples,
         speed_of_sound: config.speed_of_sound || 1500,
+        mount_offset: config.mount_offset ?? 180,
       };
 
       const isFullCircleConfig = (config.stop_angle + 1) % 400 === config.start_angle % 400;
 
-      centerAngle.value = ((sharedMountOffset.value % 360) + 360) % 360;
+      centerAngle.value = ((settings.value.mount_offset % 360) + 360) % 360;
       if (centerAngle.value === 0) {
         centerAngle.value = 360;
       }
@@ -606,7 +606,10 @@ watch(
 );
 
 watch(centerAngle, (value) => {
-  sharedMountOffset.value = value;
+  const next = value === 360 ? 0 : value;
+  settings.value.mount_offset = next;
+  emit('update:mountOffset', next);
+  debouncedSaveSettings({ ...settings.value, mount_offset: next });
 });
 
 watch(
