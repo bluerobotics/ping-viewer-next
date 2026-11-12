@@ -14,7 +14,6 @@ export interface ViewerSettings {
   revision: number;
   head_down: boolean;
   unit_system: UnitSystem;
-  mount_offset: number;
   display: DisplayProfile;
 }
 
