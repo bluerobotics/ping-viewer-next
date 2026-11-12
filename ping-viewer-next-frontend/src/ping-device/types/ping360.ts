@@ -26,4 +26,5 @@ export interface Ping360Settings {
   mode: number;
   num_steps: number;
   delay: number;
+  mount_offset: number;
 }
