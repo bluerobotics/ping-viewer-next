@@ -251,7 +251,13 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:range', 'rangeChange', 'update:angles', 'update:mountOffset', 'close']);
+const emit = defineEmits([
+  'update:range',
+  'rangeChange',
+  'update:angles',
+  'update:mountOffset',
+  'close',
+]);
 
 const handleClose = () => {
   emit('close');
