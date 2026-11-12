@@ -683,6 +683,7 @@ mod tests {
             num_steps: 1,
             delay: 10,
             speed_of_sound: 1482,
+            mount_offset: 90,
         };
         let settings = PingViewerNextV1Settings {
             head_down: true,
@@ -736,6 +737,7 @@ mod tests {
             num_steps: 1,
             delay: 10,
             speed_of_sound: 1482,
+            mount_offset: 180,
         }
     }
 

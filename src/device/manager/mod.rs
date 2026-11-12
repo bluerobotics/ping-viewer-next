@@ -70,6 +70,10 @@ fn default_ping360_speed_of_sound() -> u16 {
     1500
 }
 
+fn default_ping360_mount_offset() -> u16 {
+    180
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Apiv2Schema)]
 pub struct Ping360Config {
     pub mode: u8,
@@ -84,6 +88,25 @@ pub struct Ping360Config {
     pub delay: u8,
     #[serde(default = "default_ping360_speed_of_sound")]
     pub speed_of_sound: u16,
+    /// Degrees the view is rotated for a device mounted away from its default heading
+    #[serde(default = "default_ping360_mount_offset")]
+    pub mount_offset: u16,
+}
+
+impl Ping360Config {
+    fn same_scan(&self, other: &Self) -> bool {
+        self.mode == other.mode
+            && self.gain_setting == other.gain_setting
+            && self.transmit_duration == other.transmit_duration
+            && self.sample_period == other.sample_period
+            && self.transmit_frequency == other.transmit_frequency
+            && self.number_of_samples == other.number_of_samples
+            && self.start_angle == other.start_angle
+            && self.stop_angle == other.stop_angle
+            && self.num_steps == other.num_steps
+            && self.delay == other.delay
+            && self.speed_of_sound == other.speed_of_sound
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1553,6 +1576,7 @@ impl DeviceManager {
                         num_steps: 1,
                         delay: 0,
                         speed_of_sound: default_ping360_speed_of_sound(),
+                        mount_offset: default_ping360_mount_offset(),
                     });
 
                 let ping_360_properties = Ping360Properties {
@@ -2048,4 +2072,37 @@ pub async fn turnoff_device_continuous_mode(source: &SourceSelection) -> Result<
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod ping360_config_tests {
+    use super::Ping360Config;
+
+    fn sample(mount_offset: u16) -> Ping360Config {
+        Ping360Config {
+            mode: 1,
+            gain_setting: 0,
+            transmit_duration: 32,
+            sample_period: 80,
+            transmit_frequency: 740,
+            number_of_samples: 1200,
+            start_angle: 0,
+            stop_angle: 399,
+            num_steps: 1,
+            delay: 0,
+            speed_of_sound: 1500,
+            mount_offset,
+        }
+    }
+
+    #[test]
+    fn mount_offset_alone_does_not_change_the_scan() {
+        let centered = sample(180);
+        let rotated = sample(90);
+        assert!(centered.same_scan(&rotated));
+
+        let mut louder = rotated;
+        louder.gain_setting = 1;
+        assert!(!centered.same_scan(&louder));
+    }
 }

@@ -363,7 +363,7 @@ impl DeviceManager {
                             break 'main;
                         }
                     };
-                    if initial_settings != current_settings {
+                    if !initial_settings.same_scan(&current_settings) {
                         debug!(%device_type, slot, "Restarting firmware scanning routine for Ping360Config");
 
                         if properties.supports_auto_transmit() {
@@ -444,7 +444,7 @@ impl DeviceManager {
                             break;
                         }
                     };
-                    if initial_settings != current_settings {
+                    if !initial_settings.same_scan(&current_settings) {
                         break;
                     }
 
