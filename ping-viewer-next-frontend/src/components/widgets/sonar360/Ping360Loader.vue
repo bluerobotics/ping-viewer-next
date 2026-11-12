@@ -19,6 +19,7 @@
           <Ping360Settings ref="settingsRef" :server-url="serverUrl" :device-type="device.device_type"
             :device-slot="device.slot"
             :initial-angles="{ startAngle, endAngle }" :isOpen="isSettingsOpen" @update:angles="handleAngleUpdate"
+            @update:mountOffset="handleMountOffsetUpdate"
             @rangeChange="handleRangeChange" @close="closeSettings" />
         </v-dialog>
       </FloatingControls>
@@ -41,7 +42,6 @@ import DataRecorder from '../DataRecorder.vue';
 import FloatingControls from '../FloatingControls.vue';
 import Ping360 from './Ping360.vue';
 import Ping360Settings from './Ping360Settings.vue';
-import { useMountOffset } from '@/composables/useMountOffset';
 
 const props = defineProps({
   device: {
@@ -126,7 +126,7 @@ const isRecording = computed(() => {
   const session = recordingSessions.value.get(deviceKey(props.device));
   return session?.is_active ?? false;
 });
-const mountOffset = useMountOffset();
+const mountOffset = ref(180);
 const wrapDegrees = (degrees) => ((degrees % 360) + 360) % 360;
 const rotation = computed(() => mountOffset.value - 180);
 const liveAngle = computed(
@@ -212,6 +212,7 @@ const connectWebSocket = () => {
         parsedData.DeviceConfig?.Ping360Config;
 
       if (config) {
+        mountOffset.value = config.mount_offset ?? 180;
         const SAMPLE_PERIOD_TICK_DURATION = 25e-9;
         currentRange.value = Math.round(
           (config.sample_period * SAMPLE_PERIOD_TICK_DURATION * config.number_of_samples * 1500) / 2
@@ -279,6 +280,10 @@ const handleAngleUpdate = ({ startAngle: newStart, endAngle: newEnd }) => {
 
 const handleRangeChange = (newRange) => {
   currentRange.value = newRange;
+};
+
+const handleMountOffsetUpdate = (newMountOffset) => {
+  mountOffset.value = newMountOffset;
 };
 
 const openSettings = async () => {
