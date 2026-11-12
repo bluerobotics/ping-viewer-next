@@ -21,10 +21,6 @@ fn default_fake_id_counter() -> u16 {
     1
 }
 
-fn default_mount_offset() -> u16 {
-    180
-}
-
 fn default_a_scan() -> bool {
     true
 }
@@ -120,8 +116,6 @@ pub struct ViewerSettings {
     pub revision: u64,
     pub head_down: bool,
     pub unit_system: UnitSystem,
-    /// Degrees of display rotation for a Ping360 mounted away from its default heading
-    pub mount_offset: u16,
     pub display: DisplayProfile,
 }
 
@@ -134,8 +128,6 @@ pub struct ViewerSettingsUpdate {
     pub head_down: Option<bool>,
     #[serde(default)]
     pub unit_system: Option<UnitSystem>,
-    #[serde(default)]
-    pub mount_offset: Option<u16>,
     #[serde(default)]
     pub display: Option<DisplayProfileUpdate>,
 }
@@ -166,8 +158,6 @@ pub(crate) struct PingViewerNextV1Settings {
     pub(crate) revision: u64,
     #[serde(default)]
     pub(crate) head_down: bool,
-    #[serde(default = "default_mount_offset")]
-    pub(crate) mount_offset: u16,
     #[serde(default)]
     pub(crate) unit_system: UnitSystem,
     #[serde(default)]
@@ -183,7 +173,6 @@ impl Default for PingViewerNextV1Settings {
             revision: 0,
             head_down: false,
             unit_system: UnitSystem::default(),
-            mount_offset: default_mount_offset(),
             display: DisplayProfile::default(),
         }
     }
@@ -227,7 +216,6 @@ fn viewer_snapshot(settings: &PingViewerNextV1Settings) -> ViewerSettings {
         revision: settings.revision,
         head_down: settings.head_down,
         unit_system: settings.unit_system,
-        mount_offset: settings.mount_offset,
         display: settings.display.clone(),
     }
 }
@@ -254,12 +242,6 @@ fn apply_viewer_update(settings: &mut PingViewerNextV1Settings, update: &ViewerS
     if let Some(unit_system) = update.unit_system {
         if unit_system != settings.unit_system {
             settings.unit_system = unit_system;
-            changed = true;
-        }
-    }
-    if let Some(mount_offset) = update.mount_offset {
-        if mount_offset != settings.mount_offset {
-            settings.mount_offset = mount_offset;
             changed = true;
         }
     }
