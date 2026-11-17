@@ -1,25 +1,16 @@
 FROM alpine:3.18
+
+ARG TARGETARCH
+
 RUN apk add --no-cache bash shadow
 
-COPY ./blueos-ping-viewer-next/files/ping-viewer-next.* /
+COPY ./blueos-ping-viewer-next/files/ping-viewer-next.$TARGETARCH /app/ping-viewer-next
 COPY ./blueos-ping-viewer-next/files/entrypoint.sh /
-
-RUN mkdir -p /app
-RUN chmod +x /entrypoint.sh && \
-    if [ "$(uname -m)" = "aarch64" ]; then \
-        cp /ping-viewer-next.aarch64 /app/ping-viewer-next; \
-    elif [ "$(uname -m)" = "x86_64" ]; then \
-        cp /ping-viewer-next.x86_64 /app/ping-viewer-next; \
-    else \
-        cp /ping-viewer-next.armv7 /app/ping-viewer-next; \
-    fi && \
-    chmod +x /app/ping-viewer-next && \
-    rm /ping-viewer-next.*
-LABEL version="1.0.0-beta.6"
 
 RUN addgroup -g 1000 pingviewer && adduser -G pingviewer -u 1000 pingviewer -D
 
 # Add docker configuration
+LABEL version="1.0.0-beta.6"
 LABEL permissions='{\
   "ExposedPorts": {\
     "6060/tcp": {}\
