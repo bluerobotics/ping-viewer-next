@@ -233,9 +233,9 @@ jobs:
       - name: Prepare binaries
         run: |
           cd ./blueos-ping-viewer-next/files/
-          mv ${{ github.event.repository.name }}-armv7-unknown-linux-musleabihf ping-viewer-next.armv7
-          mv ${{ github.event.repository.name }}-aarch64-unknown-linux-musl ping-viewer-next.aarch64
-          mv ${{ github.event.repository.name }}-x86_64-unknown-linux-musl ping-viewer-next.x86_64
+          mv ${{ github.event.repository.name }}-armv7-unknown-linux-musleabihf ping-viewer-next.arm
+          mv ${{ github.event.repository.name }}-aarch64-unknown-linux-musl ping-viewer-next.arm64
+          mv ${{ github.event.repository.name }}-x86_64-unknown-linux-musl ping-viewer-next.amd64
           chmod +x ping-viewer-next.*
       - uses: BlueOS-community/Deploy-BlueOS-Extension@v1.2.0
         name: Deploy BlueOS Extension
