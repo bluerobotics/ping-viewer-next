@@ -237,7 +237,23 @@ jobs:
           mv ${{ github.event.repository.name }}-aarch64-unknown-linux-musl ping-viewer-next.arm64
           mv ${{ github.event.repository.name }}-x86_64-unknown-linux-musl ping-viewer-next.amd64
           chmod +x ping-viewer-next.*
-      - uses: BlueOS-community/Deploy-BlueOS-Extension@v1.2.0
+      - name: Set up QEMU
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - name: Set up Docker Buildx
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build image
+        # Mirrors the build performed by the deploy step, but without pushing,
+        # so Dockerfile regressions surface on PRs instead of on tag pushes.
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          docker buildx build \
+            --platform 'linux/arm/v7,linux/arm64/v8,linux/amd64' \
+            --output 'type=image,push=false' \
+            --file ./blueos-ping-viewer-next/Dockerfile \
+            .
+      - uses: BlueOS-community/Deploy-BlueOS-Extension@aeed6cc216644a168490a184968868e3d626f1ed # v1.5.0
         name: Deploy BlueOS Extension
         if: startsWith(github.ref, 'refs/tags/')
         with:
