@@ -105,6 +105,15 @@ const emitHeading = (timeMs) => {
   emit('update:heading', degrees);
 };
 
+// A recorded Ping360 line is placed at its world bearing, so it carries the
+// heading it was captured at rather than the playback clock's heading.
+const withFrameYaw = (frame) => {
+  if (frame?.device?.device_type !== 'Ping360') return frame;
+  const yaw = headingAtTime(new Date(frame.timestamp).getTime());
+  if (yaw == null) return frame;
+  return { ...frame, data: { ...frame.data, yaw } };
+};
+
 const frameTimeMs = (index) => new Date(loadedData.value[index].timestamp).getTime();
 
 const loadMcapFromBuffer = async (arrayBuffer) => {
@@ -367,7 +376,7 @@ const playbackLoop = () => {
       applyingPlaybackFrame = true;
       currentFrame.value = index;
       applyingPlaybackFrame = false;
-      emit('update:frames', due);
+      emit('update:frames', due.map(withFrameYaw));
     }
 
     emitHeading(target);
@@ -385,7 +394,7 @@ const playbackLoop = () => {
 const updateCurrentFrame = () => {
   if (!loadedData.value.length) return;
   currentFrame.value = Math.min(Math.max(0, currentFrame.value), loadedData.value.length - 1);
-  emit('update:currentFrame', loadedData.value[currentFrame.value]);
+  emit('update:currentFrame', withFrameYaw(loadedData.value[currentFrame.value]));
   if (!isPlaying.value) emitHeading(frameTimeMs(currentFrame.value));
 };
 
