@@ -245,6 +245,7 @@ const connectWebSocket = () => {
       liveMeasurement.value = {
         angle: messageData.angle,
         data: new Uint8Array(messageData.data),
+        yaw: yawAngle.value,
       };
       liveRawAngle.value = messageData.angle;
 
