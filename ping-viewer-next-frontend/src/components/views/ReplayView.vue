@@ -117,6 +117,7 @@ const toMeasurement = (sample) => {
   return {
     angle: sample.angle,
     data: new Uint8Array(dataArray),
+    yaw: sample.yaw,
   };
 };
 
