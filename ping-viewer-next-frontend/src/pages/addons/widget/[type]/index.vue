@@ -108,6 +108,10 @@ export default defineComponent({
     const vfrHudHeadingVariableIds = ['/mavlink/*/1/VFR_HUD/heading', 'VFR_HUD/heading'];
     const headingVariableIds = ['/mavlink/*/1/ATTITUDE/yaw', 'ATTITUDE/yaw'];
     const VFR_HUD_STALE_MS = 2000;
+    // Pings arrive around 400 Hz and each is stamped with the heading it was seen
+    // at, so the heading is sampled far faster than the previous 10 Hz. Slower
+    // sampling grouped many pings under one stale heading and stepped the plot.
+    const HEADING_RATE_HZ = 50;
     let lastVfrHudHeadingAt = 0;
 
     const setHeadingFromVfrHud = (headingDegrees) => {
@@ -846,10 +850,10 @@ export default defineComponent({
 
       if (widgetType.value === 'ping360') {
         for (const variableId of vfrHudHeadingVariableIds) {
-          listenToDatalakeVariable(variableId, setHeadingFromVfrHud, 10);
+          listenToDatalakeVariable(variableId, setHeadingFromVfrHud, HEADING_RATE_HZ);
         }
         for (const variableId of headingVariableIds) {
-          listenToDatalakeVariable(variableId, setHeadingFromYaw, 10);
+          listenToDatalakeVariable(variableId, setHeadingFromYaw, HEADING_RATE_HZ);
         }
       }
 
