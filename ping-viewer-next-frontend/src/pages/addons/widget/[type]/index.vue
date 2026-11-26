@@ -41,6 +41,7 @@
         @settings-change="handleWidgetSettingsChange" />
       <Ping360WidgetControls v-if="widgetType === 'ping360'" :is-recording="isRecording"
         :range="ping360Range" :gain="ping360Gain" :sector="ping360Sector"
+        :mount-offset="ping360MountOffset"
         @button-click="handleMaskButtonClick" />
       <Ping1DWidgetControls v-if="widgetType === 'ping1d'" :is-recording="isRecording"
         :is-auto-gain="isAutoGain" :range="ping1DRange" :gain="ping1DGain"
@@ -83,6 +84,7 @@ export default defineComponent({
       range: null,
       gain: null,
       sector: null,
+      mount_offset: null,
     });
     const ping1DWidgetSettings = ref({
       range: null,
@@ -92,6 +94,11 @@ export default defineComponent({
     let resizeObserver = null;
     let recordingWebSocket = null;
     let pollTimer = null;
+
+    const MOUNT_OFFSET_STEP = 5;
+    const DEFAULT_MOUNT_OFFSET = 180;
+
+    const wrapDegrees = (degrees) => ((degrees % 360) + 360) % 360;
 
     const updateDimensions = () => {
       if (!containerRef.value) return;
@@ -630,6 +637,20 @@ export default defineComponent({
             }
             break;
 
+          case 'step_mount_offset':
+            if (widgetType.value === 'ping360' && deviceInstance.value.ping360) {
+              const settings = await deviceInstance.value.ping360.getSettings();
+              if (settings) {
+                const current = settings.mount_offset ?? DEFAULT_MOUNT_OFFSET;
+                const delta = value === 'up' ? MOUNT_OFFSET_STEP : -MOUNT_OFFSET_STEP;
+                await deviceInstance.value.ping360.setSettings({
+                  ...settings,
+                  mount_offset: wrapDegrees(current + delta),
+                });
+              }
+            }
+            break;
+
           case 'toggle_auto_gain':
             if (widgetType.value === 'ping1d') {
               const settings = await deviceInstance.value.ping1D.getSettings();
@@ -710,6 +731,14 @@ export default defineComponent({
         settings.stop_angle === 399 ? 360 : Math.round((settings.stop_angle * 360) / 400);
       const sector = (((stopDeg - startDeg) % 360) + 360) % 360;
       return sector === 0 ? 360 : sector;
+    });
+
+    const ping360MountOffset = computed(() => {
+      if (ping360WidgetSettings.value.mount_offset != null) {
+        return ping360WidgetSettings.value.mount_offset;
+      }
+      const settings = deviceInstance.value?.data?.ping360Settings?.value;
+      return settings?.mount_offset ?? null;
     });
 
     const polarMode = computed(() => {
@@ -918,6 +947,7 @@ export default defineComponent({
       ping360Range,
       ping360Gain,
       ping360Sector,
+      ping360MountOffset,
     };
   },
 });
