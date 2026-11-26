@@ -47,6 +47,21 @@
 
         <div class="control-pill">
           <v-btn class="pill-btn" icon variant="text" size="small"
+            aria-label="Decrease mount offset" @click="emitAction('step_mount_offset', 'down')">
+            <v-icon size="18">mdi-minus</v-icon>
+          </v-btn>
+          <span class="pill-content">
+            <span class="pill-label">Mount</span>
+            <span class="pill-value">{{ mountOffsetLabel }}</span>
+          </span>
+          <v-btn class="pill-btn" icon variant="text" size="small"
+            aria-label="Increase mount offset" @click="emitAction('step_mount_offset', 'up')">
+            <v-icon size="18">mdi-plus</v-icon>
+          </v-btn>
+        </div>
+
+        <div class="control-pill">
+          <v-btn class="pill-btn" icon variant="text" size="small"
             aria-label="Decrease gain" @click="emitAction('decrease_gain')">
             <v-icon size="18">mdi-minus</v-icon>
           </v-btn>
@@ -106,6 +121,10 @@ const props = defineProps({
     type: Number,
     default: null,
   },
+  mountOffset: {
+    type: Number,
+    default: null,
+  },
 });
 
 const emit = defineEmits(['button-click']);
@@ -124,6 +143,10 @@ const gainLabel = computed(
 );
 
 const sectorLabel = computed(() => (props.sector == null ? '--' : `${props.sector}°`));
+
+const mountOffsetLabel = computed(() =>
+  props.mountOffset == null ? '--' : `${props.mountOffset}°`
+);
 
 const emitAction = (action, value) => {
   emit('button-click', { action, value, id: action });
