@@ -231,6 +231,7 @@ const connectWebSocket = () => {
           range: currentRange.value,
           gain: config.gain_setting,
           sector: sectorWidth.value,
+          mount_offset: mountOffset.value,
         });
 
         return;
