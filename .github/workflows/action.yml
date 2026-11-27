@@ -402,5 +402,5 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          name: 'Ping Viewer 2 v${{ github.ref_name }}'
+          name: ${{ github.ref_name }}
           files: dist-packages/*
